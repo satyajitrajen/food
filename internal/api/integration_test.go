@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
+	"os"
 	"strings"
 	"testing"
 
@@ -30,8 +30,11 @@ type env struct {
 
 func newEnv(t *testing.T) *env {
 	t.Helper()
-	dir := t.TempDir()
-	database, err := db.Open(filepath.Join(dir, "test.db"))
+	dsn := os.Getenv("FOODPOS_TEST_DSN")
+	if dsn == "" {
+		dsn = "postgres://foodpos:foodpos@localhost/foodpos_test?sslmode=disable"
+	}
+	database, err := db.Open(dsn)
 	if err != nil {
 		t.Fatal(err)
 	}

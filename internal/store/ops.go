@@ -111,8 +111,11 @@ func (s *Store) OpenShift(ctx context.Context, outletID, staffID, staffName stri
 }
 
 func (s *Store) saveDenominations(ctx context.Context, shiftID, kind string, d *models.CashDenominations) error {
-	_, err := s.DB.ExecContext(ctx, `INSERT OR REPLACE INTO shift_denominations (shift_id, kind, d500, d200, d100, d50, d20, d10)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, shiftID, kind, d.D500, d.D200, d.D100, d.D50, d.D20, d.D10)
+	_, err := s.DB.ExecContext(ctx, `INSERT INTO shift_denominations (shift_id, kind, d500, d200, d100, d50, d20, d10)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT (shift_id, kind) DO UPDATE SET
+			d500 = EXCLUDED.d500, d200 = EXCLUDED.d200, d100 = EXCLUDED.d100,
+			d50 = EXCLUDED.d50, d20 = EXCLUDED.d20, d10 = EXCLUDED.d10`, shiftID, kind, d.D500, d.D200, d.D100, d.D50, d.D20, d.D10)
 	return err
 }
 
@@ -160,9 +163,9 @@ func (s *Store) ListExpenses(ctx context.Context, outletID, rangeKey string) ([]
 	q := `SELECT id, outlet_id, title, category, amount, method, vendor, reference, note, ts, created_by
 	      FROM expenses WHERE outlet_id = ?`
 	if rangeKey == "today" {
-		q += ` AND date(ts) = date('now')`
+		q += ` AND ts::date = CURRENT_DATE`
 	} else if rangeKey == "month" {
-		q += ` AND strftime('%Y-%m', ts) = strftime('%Y-%m', 'now')`
+		q += ` AND to_char(ts::timestamp, 'YYYY-MM') = to_char(now(), 'YYYY-MM')`
 	}
 	q += ` ORDER BY ts DESC LIMIT 500`
 	rows, err := s.DB.QueryContext(ctx, q, outletID)
@@ -227,9 +230,9 @@ func (s *Store) DeleteExpense(ctx context.Context, id string) (*models.Expense, 
 func (s *Store) SumExpenses(ctx context.Context, outletID, rangeKey string) (int64, error) {
 	q := `SELECT COALESCE(SUM(amount),0) FROM expenses WHERE outlet_id = ?`
 	if rangeKey == "today" {
-		q += ` AND date(ts) = date('now')`
+		q += ` AND ts::date = CURRENT_DATE`
 	} else if rangeKey == "month" {
-		q += ` AND strftime('%Y-%m', ts) = strftime('%Y-%m', 'now')`
+		q += ` AND to_char(ts::timestamp, 'YYYY-MM') = to_char(now(), 'YYYY-MM')`
 	}
 	var sum int64
 	err := s.DB.QueryRowContext(ctx, q, outletID).Scan(&sum)
@@ -531,7 +534,7 @@ func (s *Store) PatchPurchaseStatus(ctx context.Context, purchaseID, newStatus s
 	}
 	if p.SupplierID != nil {
 		if newStatus == "paid" {
-			if _, err := tx.ExecContext(ctx, `UPDATE suppliers SET outstanding = MAX(0, outstanding - ?) WHERE id = ?`, p.TotalPaise, *p.SupplierID); err != nil {
+			if _, err := tx.ExecContext(ctx, `UPDATE suppliers SET outstanding = GREATEST(0, outstanding - ?) WHERE id = ?`, p.TotalPaise, *p.SupplierID); err != nil {
 				return nil, err
 			}
 		} else if _, err := tx.ExecContext(ctx, `UPDATE suppliers SET outstanding = outstanding + ? WHERE id = ?`, p.TotalPaise, *p.SupplierID); err != nil {

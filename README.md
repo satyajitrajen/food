@@ -1,6 +1,6 @@
 # FoodPOS Backend — Go API server
 
-REST + SSE backend for the FoodPOS Flutter app. SQLite (default) with
+REST + SSE backend for the FoodPOS Flutter app. PostgreSQL with
 integer-paise money math throughout. See `../docs/ARCHITECTURE.md` for the
 full design and `../docs/PRD.md` for requirements.
 
@@ -10,7 +10,7 @@ full design and `../docs/PRD.md` for requirements.
 cd backend
 $env:FOODPOS_SEED = '1'      # load demo outlets/staff/menu/tables
 $env:FOODPOS_PORT = '8080'   # default
-$env:FOODPOS_DB   = 'foodpos.db'
+$env:FOODPOS_DSN  = 'postgres://foodpos:foodpos@localhost/foodpos?sslmode=disable'
 go run ./cmd/server
 ```
 
@@ -21,7 +21,7 @@ Demo staff PINs after seeding: cashier `1234`, manager `9999`, admin `0000`.
 | Var | Default | Purpose |
 |-----|---------|---------|
 | `FOODPOS_PORT` | 8080 | HTTP listen port |
-| `FOODPOS_DB` | foodpos.db | SQLite file path |
+| `FOODPOS_DSN` | postgres://... | PostgreSQL connection string |
 | `FOODPOS_JWT_SECRET` | dev-secret-change-me | JWT signing secret (change in prod!) |
 | `FOODPOS_SEED` | 0 | `1` seeds demo data |
 | `FOODPOS_BCRYPT_COST` | 10 | PIN hashing cost |

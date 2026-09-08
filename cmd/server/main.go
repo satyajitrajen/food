@@ -21,9 +21,9 @@ import (
 
 func main() {
 	cfg := config.Load()
-	slog.Info("foodpos server starting", "port", cfg.Port, "db", cfg.DBPath)
+	slog.Info("foodpos server starting", "port", cfg.Port, "dsn", cfg.DSN)
 
-	database, err := db.Open(cfg.DBPath)
+	database, err := db.Open(cfg.DSN)
 	if err != nil {
 		slog.Error("db open failed", "err", err)
 		os.Exit(1)
@@ -80,13 +80,13 @@ func seed(st *store.Store, mgr *auth.Manager) error {
 	ctx := context.Background()
 
 	// Outlets
-	_, err := st.DB.ExecContext(ctx, `INSERT OR IGNORE INTO outlets (id, name, address, terminal, gstin, fssai, phone, is_online)
-		VALUES ('out-01', 'Baner Outlet', 'Plot 42, High Street, Baner, Pune - 411045', 'POS-01', '27AAAAA0000A1Z5', '11521000000123', '+91 98765 43210', 1)`)
+	_, err := st.DB.ExecContext(ctx, `INSERT INTO outlets (id, name, address, terminal, gstin, fssai, phone, is_online)
+		VALUES ('out-01', 'Baner Outlet', 'Plot 42, High Street, Baner, Pune - 411045', 'POS-01', '27AAAAA0000A1Z5', '11521000000123', '+91 98765 43210', 1) ON CONFLICT DO NOTHING`)
 	if err != nil {
 		return err
 	}
-	_, err = st.DB.ExecContext(ctx, `INSERT OR IGNORE INTO outlets (id, name, address, terminal, gstin, fssai, phone, is_online)
-		VALUES ('out-02', 'Kothrud Outlet', 'Shop 12, Paud Road, Kothrud, Pune', 'POS-02', '27AAAAA0000A1Z5', '11521000000124', '+91 98765 43211', 1)`)
+	_, err = st.DB.ExecContext(ctx, `INSERT INTO outlets (id, name, address, terminal, gstin, fssai, phone, is_online)
+		VALUES ('out-02', 'Kothrud Outlet', 'Shop 12, Paud Road, Kothrud, Pune', 'POS-02', '27AAAAA0000A1Z5', '11521000000124', '+91 98765 43211', 1) ON CONFLICT DO NOTHING`)
 	if err != nil {
 		return err
 	}
@@ -104,8 +104,8 @@ func seed(st *store.Store, mgr *auth.Manager) error {
 		if err != nil {
 			return err
 		}
-		if _, err := st.DB.ExecContext(ctx, `INSERT OR IGNORE INTO staff (id, name, role, pin_hash, avatar_url, mobile, is_active)
-			VALUES (?, ?, ?, ?, ?, ?, 1)`, s.id, s.name, s.role, hash, s.avatar, s.mobile); err != nil {
+		if _, err := st.DB.ExecContext(ctx, `INSERT INTO staff (id, name, role, pin_hash, avatar_url, mobile, is_active)
+			VALUES (?, ?, ?, ?, ?, ?, 1) ON CONFLICT DO NOTHING`, s.id, s.name, s.role, hash, s.avatar, s.mobile); err != nil {
 			return err
 		}
 	}
@@ -120,8 +120,8 @@ func seed(st *store.Store, mgr *auth.Manager) error {
 		{"t-11", "T11", 2, "Outdoor"}, {"t-12", "T12", 4, "Outdoor"},
 	}
 	for _, t := range tables {
-		if _, err := st.DB.ExecContext(ctx, `INSERT OR IGNORE INTO tables (id, outlet_id, table_number, seats, floor, status)
-			VALUES (?, 'out-01', ?, ?, ?, 'available')`, t.id, t.num, t.seats, t.floor); err != nil {
+		if _, err := st.DB.ExecContext(ctx, `INSERT INTO tables (id, outlet_id, table_number, seats, floor, status)
+			VALUES (?, 'out-01', ?, ?, ?, 'available') ON CONFLICT DO NOTHING`, t.id, t.num, t.seats, t.floor); err != nil {
 			return err
 		}
 	}
@@ -133,8 +133,8 @@ func seed(st *store.Store, mgr *auth.Manager) error {
 		{"cat-dr", "Drinks"}, {"cat-de", "Desserts"},
 	}
 	for i, c := range cats {
-		if _, err := st.DB.ExecContext(ctx, `INSERT OR IGNORE INTO menu_categories (id, outlet_id, name, sort)
-			VALUES (?, 'out-01', ?, ?)`, c.id, c.name, i); err != nil {
+		if _, err := st.DB.ExecContext(ctx, `INSERT INTO menu_categories (id, outlet_id, name, sort)
+			VALUES (?, 'out-01', ?, ?) ON CONFLICT DO NOTHING`, c.id, c.name, i); err != nil {
 			return err
 		}
 	}
@@ -197,26 +197,26 @@ func seed(st *store.Store, mgr *auth.Manager) error {
 			"https://images.unsplash.com/photo-1541781774459-bb2af2f05b55?w=300", nil, nil},
 	}
 	for i, m := range menu {
-		if _, err := st.DB.ExecContext(ctx, `INSERT OR IGNORE INTO menu_items (id, outlet_id, category_id, name, description, price_paise, is_veg, image_url, is_bestseller, is_available, sort)
-			VALUES (?, 'out-01', ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+		if _, err := st.DB.ExecContext(ctx, `INSERT INTO menu_items (id, outlet_id, category_id, name, description, price_paise, is_veg, image_url, is_bestseller, is_available, sort)
+			VALUES (?, 'out-01', ?, ?, ?, ?, ?, ?, ?, 1, ?) ON CONFLICT DO NOTHING`,
 			m.id, m.cat, m.name, m.desc, m.paise, b2i(m.veg), m.img, b2i(m.best), i); err != nil {
 			return err
 		}
 		for vi, v := range m.variants {
-			if _, err := st.DB.ExecContext(ctx, `INSERT OR IGNORE INTO product_variants (id, menu_item_id, name, price_paise)
-				VALUES (?, ?, ?, ?)`, fmt.Sprintf("v-%s-%d", m.id, vi), m.id, v.name, v.paise); err != nil {
+			if _, err := st.DB.ExecContext(ctx, `INSERT INTO product_variants (id, menu_item_id, name, price_paise)
+				VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING`, fmt.Sprintf("v-%s-%d", m.id, vi), m.id, v.name, v.paise); err != nil {
 				return err
 			}
 		}
 		for gi, g := range m.mods {
 			gid := fmt.Sprintf("mg-%s-%d", m.id, gi)
-			if _, err := st.DB.ExecContext(ctx, `INSERT OR IGNORE INTO modifier_groups (id, menu_item_id, name, is_multi_select, is_required, sort)
-				VALUES (?, ?, ?, ?, 0, ?)`, gid, m.id, g.name, b2i(g.multi), gi); err != nil {
+			if _, err := st.DB.ExecContext(ctx, `INSERT INTO modifier_groups (id, menu_item_id, name, is_multi_select, is_required, sort)
+				VALUES (?, ?, ?, ?, 0, ?) ON CONFLICT DO NOTHING`, gid, m.id, g.name, b2i(g.multi), gi); err != nil {
 				return err
 			}
 			for ii, mi := range g.items {
-				if _, err := st.DB.ExecContext(ctx, `INSERT OR IGNORE INTO modifier_items (id, group_id, name, price_paise, sort)
-					VALUES (?, ?, ?, ?, ?)`, fmt.Sprintf("mo-%s-%d-%d", m.id, gi, ii), gid, mi.name, mi.paise, ii); err != nil {
+				if _, err := st.DB.ExecContext(ctx, `INSERT INTO modifier_items (id, group_id, name, price_paise, sort)
+					VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING`, fmt.Sprintf("mo-%s-%d-%d", m.id, gi, ii), gid, mi.name, mi.paise, ii); err != nil {
 					return err
 				}
 			}
@@ -224,10 +224,10 @@ func seed(st *store.Store, mgr *auth.Manager) error {
 	}
 
 	// Settings
-	_, err = st.DB.ExecContext(ctx, `INSERT OR IGNORE INTO settings (outlet_id, restaurant_name, gst_percent, is_gst_inclusive,
+	_, err = st.DB.ExecContext(ctx, `INSERT INTO settings (outlet_id, restaurant_name, gst_percent, is_gst_inclusive,
 		service_percent, packaging_paise, delivery_paise, auto_print_kot, allow_reprint, billing_printer, kitchen_printer, bar_printer)
 		VALUES ('out-01', 'Spice Haven Resto & Bar', 5.0, 0, 5.0, 2500, 4000, 1, 1,
-		'EPSON TM-T88VI (Counter)', 'TVS RP3200 (Main Kitchen)', 'STAR Micronics (Bar Counter)')`)
+		'EPSON TM-T88VI (Counter)', 'TVS RP3200 (Main Kitchen)', 'STAR Micronics (Bar Counter)') ON CONFLICT DO NOTHING`)
 	if err != nil {
 		return err
 	}
@@ -242,8 +242,8 @@ func seed(st *store.Store, mgr *auth.Manager) error {
 		{"inv-6", "Amul Fresh Cream", "Litre", 12, 5, 18000},
 	}
 	for _, i := range inv {
-		if _, err := st.DB.ExecContext(ctx, `INSERT OR IGNORE INTO inventory_items (id, outlet_id, name, unit, stock, min_stock, cost_paise)
-			VALUES (?, 'out-01', ?, ?, ?, ?, ?)`, i.id, i.name, i.unit, i.stock, i.min, i.cost); err != nil {
+		if _, err := st.DB.ExecContext(ctx, `INSERT INTO inventory_items (id, outlet_id, name, unit, stock, min_stock, cost_paise)
+			VALUES (?, 'out-01', ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING`, i.id, i.name, i.unit, i.stock, i.min, i.cost); err != nil {
 			return err
 		}
 	}
@@ -255,8 +255,8 @@ func seed(st *store.Store, mgr *auth.Manager) error {
 		{"sup-3", "Pune Wholesale Spices", "+91 98221 00334", "Groceries & Rice", 0},
 	}
 	for _, sp := range sup {
-		if _, err := st.DB.ExecContext(ctx, `INSERT OR IGNORE INTO suppliers (id, outlet_id, name, mobile, category, outstanding)
-			VALUES (?, 'out-01', ?, ?, ?, ?)`, sp.id, sp.name, sp.mobile, sp.cat, sp.outstanding); err != nil {
+		if _, err := st.DB.ExecContext(ctx, `INSERT INTO suppliers (id, outlet_id, name, mobile, category, outstanding)
+			VALUES (?, 'out-01', ?, ?, ?, ?) ON CONFLICT DO NOTHING`, sp.id, sp.name, sp.mobile, sp.cat, sp.outstanding); err != nil {
 			return err
 		}
 	}

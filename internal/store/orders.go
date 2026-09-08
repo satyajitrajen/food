@@ -89,7 +89,7 @@ func (s *Store) GetOrderItem(ctx context.Context, orderID, itemID string) (*mode
 func (s *Store) ListOrderItems(ctx context.Context, orderID string) ([]models.OrderItem, error) {	rows, err := s.DB.QueryContext(ctx, `SELECT oi.id, oi.client_id, oi.menu_item_id, oi.variant_id, oi.quantity, oi.unit_paise,
 		oi.total_paise, oi.note, oi.is_kot_sent, oi.is_cancelled, oi.cancel_reason, COALESCE(mi.name,'')
 		FROM order_items oi LEFT JOIN menu_items mi ON mi.id = oi.menu_item_id
-		WHERE oi.order_id = ? ORDER BY oi.rowid`, orderID)
+		WHERE oi.order_id = ? ORDER BY oi.seq`, orderID)
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +120,7 @@ func (s *Store) ListOrderItems(ctx context.Context, orderID string) ([]models.Or
 		return nil, err
 	}
 	// Modifiers per item
-	mrows, err := s.DB.QueryContext(ctx, `SELECT order_item_id, modifier_item_id, name, price_paise FROM order_item_modifiers ORDER BY rowid`)
+	mrows, err := s.DB.QueryContext(ctx, `SELECT order_item_id, modifier_item_id, name, price_paise FROM order_item_modifiers ORDER BY seq`)
 	if err != nil {
 		return nil, err
 	}
@@ -468,8 +468,8 @@ func (s *Store) SaveIdempotentResponse(ctx context.Context, key string, code int
 	if key == "" {
 		return nil
 	}
-	_, err := s.DB.ExecContext(ctx, `INSERT OR IGNORE INTO idempotency_keys (key, response_code, response_body, created_at)
-		VALUES (?, ?, ?, ?)`, key, code, body, TimeStr(Now()))
+	_, err := s.DB.ExecContext(ctx, `INSERT INTO idempotency_keys (key, response_code, response_body, created_at)
+		VALUES (?, ?, ?, ?) ON CONFLICT (key) DO NOTHING`, key, code, body, TimeStr(Now()))
 	return err
 }
 
@@ -611,6 +611,6 @@ func (s *Store) AddShiftRefund(ctx context.Context, shiftID string, cash bool, a
 }
 
 func (s *Store) AddShiftExpense(ctx context.Context, shiftID string, amount int64, sign int64) error {
-	_, err := s.DB.ExecContext(ctx, `UPDATE shifts SET expenses = MAX(0, expenses + ?) WHERE id = ?`, sign*amount, shiftID)
+	_, err := s.DB.ExecContext(ctx, `UPDATE shifts SET expenses = GREATEST(0, expenses + ?) WHERE id = ?`, sign*amount, shiftID)
 	return err
 }

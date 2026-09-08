@@ -8,7 +8,7 @@ import (
 
 type Config struct {
 	Port      string
-	DBPath    string
+	DSN       string
 	JWTSecret string
 	Seed      bool
 	BcryptCost int
@@ -17,7 +17,7 @@ type Config struct {
 func Load() Config {
 	return Config{
 		Port:       env("FOODPOS_PORT", "8080"),
-		DBPath:     env("FOODPOS_DB", "foodpos.db"),
+		DSN:       env("FOODPOS_DSN", ""),
 		JWTSecret:  env("FOODPOS_JWT_SECRET", "dev-secret-change-me"),
 		Seed:       env("FOODPOS_SEED", "0") == "1",
 		BcryptCost: envInt("FOODPOS_BCRYPT_COST", 10),

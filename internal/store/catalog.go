@@ -245,7 +245,7 @@ func (s *Store) ListMenu(ctx context.Context, outletID, categoryID string) ([]mo
 	}
 
 	// Variants
-	vrows, err := s.DB.QueryContext(ctx, `SELECT id, menu_item_id, name, price_paise FROM product_variants ORDER BY rowid`)
+	vrows, err := s.DB.QueryContext(ctx, `SELECT id, menu_item_id, name, price_paise FROM product_variants ORDER BY seq`)
 	if err != nil {
 		return nil, err
 	}
