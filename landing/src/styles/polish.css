@@ -111,3 +111,106 @@ a { transition: color 0.18s ease; }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
 }
+
+/* ---------- Hero relayout: asymmetric copy-left / device-right ---------- */
+@media (min-width: 1024px) {
+  .hero-wrapper {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+    align-items: center;
+    gap: 56px;
+    text-align: left;
+    padding: 84px 48px 112px;
+  }
+  .hero-copy { max-width: 660px; }
+  .hero-main-heading {
+    font-size: clamp(2.9rem, 4vw, 4.7rem);
+    max-width: 15ch;
+    margin: 0 0 26px;
+  }
+  .hero-subtext {
+    max-width: 60ch;
+    margin: 0 0 38px;
+  }
+  .hero-actions-row { justify-content: flex-start; margin-bottom: 34px; }
+  .hero-micro-pills { justify-content: flex-start; gap: 36px; margin-bottom: 0; }
+  .device-orbital-stage {
+    margin: 0;
+    min-height: 620px;
+    justify-self: end;
+    width: 100%;
+    max-width: 760px;
+  }
+}
+
+/* ---------- Report fix: keyboard focus on demo form fields ---------- */
+.form-input:focus-visible,
+.form-select:focus-visible {
+  outline: 2px solid var(--orange-primary, #ff5722);
+  outline-offset: 2px;
+  border-color: var(--orange-primary, #ff5722);
+  background-color: #ffffff;
+}
+
+/* ================= Responsive recomposition ================= */
+
+/* Tablet / small laptop: keep the two-column hero, tighten rhythm */
+@media (min-width: 901px) and (max-width: 1180px) {
+  .hero-wrapper {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 32px;
+    padding: 64px 32px 88px;
+  }
+  .device-orbital-stage { max-width: 620px; min-height: 560px; }
+}
+
+/* ≤900px: hero back to a centered stack, floating decorations already off */
+@media (max-width: 900px) {
+  .hero-wrapper { padding: 48px 20px 72px; }
+  .hero-copy { max-width: 720px; margin: 0 auto; }
+  .section-header, section[id] { scroll-margin-top: 84px; }
+}
+
+/* Phone: sturdy base, one column, thumb-reachable actions, no overflow */
+@media (max-width: 640px) {
+  .nav-wrapper { padding-inline: 10px; }
+  .nav-pill { gap: 10px; padding: 10px 14px; }
+  .nav-brand { font-size: 15px; }
+  .nav-contact-btn { min-height: 42px; padding: 8px 14px; font-size: 13px; }
+  .section { padding: 48px 0; }
+  .hero-wrapper { padding: 36px 14px 56px; }
+  .hero-main-heading { font-size: clamp(2.1rem, 11vw, 2.9rem); margin-bottom: 16px; }
+  .hero-subtext { font-size: 1rem; margin-bottom: 26px; }
+  .hero-actions-row { gap: 12px; }
+  .hero-micro-pills { gap: 18px; margin-bottom: 8px; }
+  .device-orbital-stage { min-height: 0; }
+  .center-phone-mockup { width: 272px; height: 540px; border-radius: 46px; padding: 9px; }
+  .phone-screen { border-radius: 36px; }
+  .micro-pill-title { font-size: 0.9rem; }
+  .micro-pill-desc { font-size: 0.78rem; }
+  .pricing-card, .testimonial-card { padding: 20px; }
+  .faq-question { padding: 14px; }
+  /* iOS Safari zoom guard: form inputs stay ≥16px on narrow screens */
+  .form-input, .form-select { font-size: 1rem; }
+}
+@media (max-width: 400px) {
+  .hero-wrapper { padding: 32px 12px 48px; }
+  .center-phone-mockup { width: 244px; height: 500px; }
+  .hero-actions-row button { padding: 13px 18px; }
+}
+
+/* Wide desktop: keep the hero lane composed, cap the container rhythm */
+@media (min-width: 1600px) {
+  .hero-wrapper { gap: 72px; justify-content: space-between; }
+}
+
+/* ---------- Interaction: demo form states ---------- */
+.form-error {
+  color: var(--non-veg-red, #d90429);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+.demo-spin { animation: demo-spin 0.9s linear infinite; }
+@keyframes demo-spin {
+  to { transform: rotate(360deg); }
+}

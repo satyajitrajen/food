@@ -51,18 +51,8 @@ export const Footer: React.FC = () => {
             <h4 className="footer-heading">Product</h4>
             <ul className="footer-links">
               <li>
-                <a href="#simulator" onClick={(e) => handleSection(e, 'simulator')}>
-                  Live POS Simulator
-                </a>
-              </li>
-              <li>
                 <a href="#features" onClick={(e) => handleSection(e, 'features')}>
-                  4 Core Pillars
-                </a>
-              </li>
-              <li>
-                <a href="#floors" onClick={(e) => handleSection(e, 'floors')}>
-                  Floor Map &amp; KDS
+                  Features &amp; Capabilities
                 </a>
               </li>
               <li>

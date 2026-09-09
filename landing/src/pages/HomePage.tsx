@@ -1,8 +1,7 @@
 import React from 'react';
-import { Hero } from '../components/Hero';
-import { PosSimulator } from '../components/PosSimulator';
-import { FeaturePillars } from '../components/FeaturePillars';
-import { FloorManagement } from '../components/FloorManagement';
+import { TemplateHero } from '../components/TemplateHero';
+import { FeaturesGrid } from '../components/FeaturesGrid';
+import { BenefitsSection } from '../components/BenefitsSection';
 import { PlayStoreBanner } from '../components/PlayStoreBanner';
 import { Pricing } from '../components/Pricing';
 import { Testimonials } from '../components/Testimonials';
@@ -13,8 +12,8 @@ interface HomePageProps {
 }
 
 export const HomePage: React.FC<HomePageProps> = ({ onOpenDemo }) => {
-  const scrollToSimulator = () => {
-    const el = document.getElementById('simulator');
+  const scrollTo = (targetId: string) => () => {
+    const el = document.getElementById(targetId);
     if (el) {
       el.scrollIntoView({ behavior: 'smooth' });
     }
@@ -22,10 +21,9 @@ export const HomePage: React.FC<HomePageProps> = ({ onOpenDemo }) => {
 
   return (
     <main>
-      <Hero onOpenDemo={() => onOpenDemo()} onScrollToSimulator={scrollToSimulator} />
-      <PosSimulator />
-      <FeaturePillars />
-      <FloorManagement />
+      <TemplateHero onOpenDemo={() => onOpenDemo()} onScrollToFeatures={scrollTo('features')} />
+      <FeaturesGrid />
+      <BenefitsSection />
       <PlayStoreBanner />
       <Pricing onOpenDemo={onOpenDemo} />
       <Testimonials />

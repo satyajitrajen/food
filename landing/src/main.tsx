@@ -5,6 +5,7 @@ import { App } from './App';
 import './styles/app.css';
 import './styles/simulator.css';
 import './styles/polish.css';
+import './styles/template.css';
 import './console/console.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
