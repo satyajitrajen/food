@@ -1,0 +1,87 @@
+/* FoodPOS Design Tokens — Gourmet Street & Dining System */
+:root {
+  /* Canvas & Framing */
+  --bg-canvas: #F5F1EA;
+  --bg-frame: #FFFFFF;
+  --bg-surface-soft: #FAF7F2;
+  --bg-card: #FFFFFF;
+
+  /* Floating Navbar & Dark Elements */
+  --nav-pill-bg: #0C0C0C;
+  --nav-pill-border: rgba(255, 255, 255, 0.08);
+  --pill-active-bg: #FFFFFF;
+  --pill-active-text: #0C0C0C;
+  --pill-inactive-text: #B8B3AC;
+
+  /* Primary Brand — Vibrant Gourmet Orange / Coral */
+  --orange-primary: #FF5722;
+  --orange-hover: #F4511E;
+  --orange-active: #E64A19;
+  --orange-light: #FFF2ED;
+  --orange-border: #FFD8CC;
+  --orange-glow: rgba(255, 87, 34, 0.28);
+
+  /* Secondary Accents */
+  --color-black: #0E0E0E;
+  --color-charcoal: #1C1917;
+  --color-emerald: #2D6A4F;
+  --color-emerald-light: #F0F7F4;
+  --color-emerald-border: #D1E7DD;
+  --color-amber: #E28743;
+  --color-amber-light: #FEF7EF;
+
+  /* Typography Colors */
+  --text-heading: #121212;
+  --text-body: #4A443E;
+  --text-muted: #78716C;
+  --text-subtle: #A8A29E;
+  --text-inverse: #FFFFFF;
+
+  /* Borders & Dividers */
+  --border-frame: #E8E2D8;
+  --border-card: #EFEBE4;
+  --border-subtle: #F3EFE9;
+
+  /* Shadows */
+  --shadow-frame: 0 32px 72px -16px rgba(40, 30, 20, 0.08), 0 12px 28px -8px rgba(40, 30, 20, 0.04);
+  --shadow-float-card: 0 16px 36px -8px rgba(0, 0, 0, 0.16), 0 6px 14px -4px rgba(0, 0, 0, 0.08);
+  --shadow-pill: 0 8px 24px -4px rgba(255, 87, 34, 0.3);
+  --shadow-nav: 0 20px 40px -10px rgba(0, 0, 0, 0.35);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 8px 20px rgba(0, 0, 0, 0.06);
+
+  /* Radiuses */
+  --radius-full: 9999px;
+  --radius-frame: 44px;
+  --radius-card: 28px;
+  --radius-dish: 20px;
+  --radius-sm: 12px;
+
+  /* Fonts */
+  --font-display: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-body: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* Compatibility Aliases */
+  --terracotta: var(--orange-primary);
+  --terracotta-hover: var(--orange-hover);
+  --terracotta-active: var(--orange-active);
+  --terracotta-light: var(--orange-light);
+  --terracotta-border: var(--orange-border);
+  --spice-ochre: var(--color-amber);
+  --spice-ochre-light: var(--color-amber-light);
+  --spice-ochre-border: #FCE6D2;
+  --spice-ochre-dark: #C66E2B;
+  --emerald-herbal: var(--color-emerald);
+  --emerald-herbal-light: var(--color-emerald-light);
+  --emerald-herbal-border: var(--color-emerald-border);
+  --non-veg-red: #D90429;
+  --text-espresso: var(--text-heading);
+  --bg-porcelain: var(--bg-surface-soft);
+  --bg-porcelain-warm: #F4EFE6;
+  --surface-white: #FFFFFF;
+  --surface-subtle: #F6F2EC;
+  --border-soft: var(--border-card);
+  --border-active: var(--border-frame);
+  --shadow-gourmet: var(--shadow-float-card);
+}
