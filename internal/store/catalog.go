@@ -338,6 +338,20 @@ func (s *Store) GetMenuItem(ctx context.Context, id string) (*models.MenuItem, e
 	return nil, httpx.ErrNotFound
 }
 
+// CategoryID resolves a category reference for an outlet: menu admin clients
+// send the display *name* (the Flutter UI only knows names), while order code
+// may send the real id. Accepts either.
+func (s *Store) CategoryID(ctx context.Context, outletID, nameOrID string) (string, error) {
+	var id string
+	err := s.DB.QueryRowContext(ctx,
+		`SELECT id FROM menu_categories WHERE outlet_id = ? AND (id = ? OR name = ?) LIMIT 1`,
+		outletID, nameOrID, nameOrID).Scan(&id)
+	if err == sql.ErrNoRows {
+		return "", httpx.NewError(400, "invalid_category", "Unknown category")
+	}
+	return id, err
+}
+
 func (s *Store) CreateMenuItem(ctx context.Context, outletID string, req models.MenuItemUpsert) (*models.MenuItem, error) {
 	if req.Name == nil || *req.Name == "" || req.CategoryID == nil || *req.CategoryID == "" {
 		return nil, httpx.NewError(400, "invalid_item", "name and category_id are required")

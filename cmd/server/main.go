@@ -49,7 +49,7 @@ func main() {
 		slog.Info("seed data loaded")
 	}
 
-	srv := &api.Server{Store: st, Auth: authMgr, Hub: hub, Tickets: tickets, Cfg: cfg}
+	srv := &api.Server{Store: st, Auth: authMgr, Hub: hub, Tickets: tickets, Cfg: cfg, UploadDir: cfg.UploadDir}
 
 	httpSrv := &http.Server{
 		Addr:              ":" + cfg.Port,

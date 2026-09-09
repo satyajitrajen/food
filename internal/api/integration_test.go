@@ -49,7 +49,13 @@ func newEnv(t *testing.T) *env {
 	hub.SetTicketStore(tickets)
 	seedServer(st, mgr)
 
-	srv := &api.Server{Store: st, Auth: mgr, Hub: hub, Tickets: tickets, Cfg: config.Load()}
+	upTmp, err := os.MkdirTemp("", "foodpos-media-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(upTmp) })
+
+	srv := &api.Server{Store: st, Auth: mgr, Hub: hub, Tickets: tickets, Cfg: config.Load(), UploadDir: upTmp}
 	ts := httptest.NewServer(srv.Routes())
 	t.Cleanup(ts.Close)
 	return &env{ts: ts, client: ts.Client()}
