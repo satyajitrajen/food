@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"strings"
 
 	"foodpos/backend/internal/httpx"
@@ -193,6 +194,11 @@ func (s *Store) PatchTable(ctx context.Context, id string, p models.TablePatch) 
 	}
 	if p.WaiterID != nil {
 		if _, err := s.DB.ExecContext(ctx, `UPDATE tables SET assigned_waiter_id = ? WHERE id = ?`, *p.WaiterID, id); err != nil {
+			return nil, err
+		}
+	}
+	if p.Floor != nil && strings.TrimSpace(*p.Floor) != "" {
+		if _, err := s.DB.ExecContext(ctx, `UPDATE tables SET floor = ? WHERE id = ?`, *p.Floor, id); err != nil {
 			return nil, err
 		}
 	}
@@ -464,12 +470,13 @@ func (s *Store) DeleteMenuItem(ctx context.Context, id string) error {
 func (s *Store) GetSettings(ctx context.Context, outletID string) (*models.Settings, error) {
 	var st models.Settings
 	var incl, auto, allow int
+	var sectionsTxt string
 	err := s.DB.QueryRowContext(ctx,
 		`SELECT outlet_id, restaurant_name, gst_percent, is_gst_inclusive, service_percent, packaging_paise, delivery_paise,
-		        auto_print_kot, allow_reprint, billing_printer, kitchen_printer, bar_printer
+		        auto_print_kot, allow_reprint, billing_printer, kitchen_printer, bar_printer, sections
 		 FROM settings WHERE outlet_id = ?`, outletID).
 		Scan(&st.OutletID, &st.RestaurantName, &st.GSTPercent, &incl, &st.ServicePercent, &st.PackagingPaise, &st.DeliveryPaise,
-			&auto, &allow, &st.BillingPrinter, &st.KitchenPrinter, &st.BarPrinter)
+			&auto, &allow, &st.BillingPrinter, &st.KitchenPrinter, &st.BarPrinter, &sectionsTxt)
 	if err == sql.ErrNoRows {
 		return nil, httpx.ErrNotFound
 	}
@@ -479,24 +486,36 @@ func (s *Store) GetSettings(ctx context.Context, outletID string) (*models.Setti
 	st.IsGSTInclusive = incl == 1
 	st.AutoPrintKOT = auto == 1
 	st.AllowReprint = allow == 1
+	if sectionsTxt != "" {
+		_ = json.Unmarshal([]byte(sectionsTxt), &st.Sections)
+	}
 	return &st, nil
 }
 
 func (s *Store) PutSettings(ctx context.Context, st models.Settings) error {
 	_, err := s.DB.ExecContext(ctx,
 		`INSERT INTO settings (outlet_id, restaurant_name, gst_percent, is_gst_inclusive, service_percent, packaging_paise, delivery_paise,
-		       auto_print_kot, allow_reprint, billing_printer, kitchen_printer, bar_printer)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		       auto_print_kot, allow_reprint, billing_printer, kitchen_printer, bar_printer, sections)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(outlet_id) DO UPDATE SET
 		   restaurant_name = excluded.restaurant_name, gst_percent = excluded.gst_percent,
 		   is_gst_inclusive = excluded.is_gst_inclusive, service_percent = excluded.service_percent,
 		   packaging_paise = excluded.packaging_paise, delivery_paise = excluded.delivery_paise,
 		   auto_print_kot = excluded.auto_print_kot, allow_reprint = excluded.allow_reprint,
 		   billing_printer = excluded.billing_printer, kitchen_printer = excluded.kitchen_printer,
-		   bar_printer = excluded.bar_printer`,
+		   bar_printer = excluded.bar_printer, sections = excluded.sections`,
 		st.OutletID, st.RestaurantName, st.GSTPercent, b2i(st.IsGSTInclusive), st.ServicePercent, st.PackagingPaise, st.DeliveryPaise,
-		b2i(st.AutoPrintKOT), b2i(st.AllowReprint), st.BillingPrinter, st.KitchenPrinter, st.BarPrinter)
+		b2i(st.AutoPrintKOT), b2i(st.AllowReprint), st.BillingPrinter, st.KitchenPrinter, st.BarPrinter, sectionsJSON(st.Sections))
 	return err
+}
+
+// sectionsJSON encodes a section list for the TEXT column ('[]' when nil).
+func sectionsJSON(s []string) string {
+	if s == nil {
+		s = []string{}
+	}
+	b, _ := json.Marshal(s)
+	return string(b)
 }
 
 func b2i(b bool) int {

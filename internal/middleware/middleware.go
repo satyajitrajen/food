@@ -56,6 +56,26 @@ func RequireRole(minRole string) func(http.Handler) http.Handler {
 	}
 }
 
+// DenyRoles blocks a route for the listed roles (e.g. display-only kitchen).
+func DenyRoles(roles ...string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			claims, ok := ClaimsFrom(r.Context())
+			if !ok {
+				httpx.ErrorJSON(w, r, httpx.ErrUnauthorized)
+				return
+			}
+			for _, blocked := range roles {
+				if claims.Role == blocked {
+					httpx.ErrorJSON(w, r, httpx.ErrForbidden)
+					return
+				}
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 func ClaimsFrom(ctx context.Context) (*auth.Claims, bool) {
 	c, ok := ctx.Value(claimsKey).(*auth.Claims)
 	return c, ok

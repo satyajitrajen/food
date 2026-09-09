@@ -86,7 +86,8 @@ func (s *Store) GetOrderItem(ctx context.Context, orderID, itemID string) (*mode
 	return nil, httpx.ErrNotFound
 }
 
-func (s *Store) ListOrderItems(ctx context.Context, orderID string) ([]models.OrderItem, error) {	rows, err := s.DB.QueryContext(ctx, `SELECT oi.id, oi.client_id, oi.menu_item_id, oi.variant_id, oi.quantity, oi.unit_paise,
+func (s *Store) ListOrderItems(ctx context.Context, orderID string) ([]models.OrderItem, error) {
+	rows, err := s.DB.QueryContext(ctx, `SELECT oi.id, oi.client_id, oi.menu_item_id, oi.variant_id, oi.quantity, oi.unit_paise,
 		oi.total_paise, oi.note, oi.is_kot_sent, oi.is_cancelled, oi.cancel_reason, COALESCE(mi.name,'')
 		FROM order_items oi LEFT JOIN menu_items mi ON mi.id = oi.menu_item_id
 		WHERE oi.order_id = ? ORDER BY oi.seq`, orderID)
@@ -291,6 +292,9 @@ func (s *Store) PatchOrder(ctx context.Context, id string, p models.OrderPatch) 
 	}
 	if p.CustomerName != nil {
 		add("customer_name", *p.CustomerName)
+	}
+	if p.CustomerPhone != nil {
+		add("customer_phone", *p.CustomerPhone)
 	}
 	if p.DiscountPercent != nil {
 		add("discount_percent", *p.DiscountPercent)

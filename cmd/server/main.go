@@ -91,13 +91,14 @@ func seed(st *store.Store, mgr *auth.Manager) error {
 		return err
 	}
 
-	// Staff (PINs: admin 0000, manager 9999, cashier 1234, waiters 1111/2222)
+	// Staff (PINs: admin 0000, manager 9999, cashier 1234, waiters 1111/2222, kitchen 5555)
 	staff := []struct{ id, name, role, pin, avatar, mobile string }{
 		{"st-01", "Rahul Sharma", "cashier", "1234", "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100", "+91 98220 11223"},
 		{"st-02", "Priya Joshi", "manager", "9999", "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100", "+91 98220 22334"},
 		{"st-03", "Vikram Singh", "admin", "0000", "https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=100", "+91 98220 33445"},
 		{"st-04", "Amit Deshmukh", "waiter", "1111", "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100", "+91 98220 44556"},
 		{"st-05", "Rohan Patil", "waiter", "2222", "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100", "+91 98220 55667"},
+		{"st-06", "Chef Sharma", "kitchen", "5555", "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100", "+91 98220 66778"},
 	}
 	for _, s := range staff {
 		hash, err := mgr.HashPIN(s.pin)
@@ -111,7 +112,11 @@ func seed(st *store.Store, mgr *auth.Manager) error {
 	}
 
 	// Tables
-	tables := []struct{ id, num string; seats int; floor string }{
+	tables := []struct {
+		id, num string
+		seats   int
+		floor   string
+	}{
 		{"t-01", "T01", 2, "Ground Floor"}, {"t-02", "T02", 4, "Ground Floor"},
 		{"t-03", "T03", 4, "Ground Floor"}, {"t-04", "T04", 6, "Ground Floor"},
 		{"t-05", "T05", 4, "Ground Floor"}, {"t-06", "T06", 4, "Ground Floor"},
@@ -144,11 +149,17 @@ func seed(st *store.Store, mgr *auth.Manager) error {
 		paise               int64
 		veg, best           bool
 		img                 string
-		variants            []struct{ name string; paise int64 }
-		mods                []struct {
+		variants            []struct {
+			name  string
+			paise int64
+		}
+		mods []struct {
 			name  string
 			multi bool
-			items []struct{ name string; paise int64 }
+			items []struct {
+				name  string
+				paise int64
+			}
 		}
 	}{
 		{"m-01", "cat-st", "Paneer Tikka", "Marinated cottage cheese char-grilled with capsicum & onions.", 28000, true, true,
@@ -157,14 +168,26 @@ func seed(st *store.Store, mgr *auth.Manager) error {
 			[]struct {
 				name  string
 				multi bool
-				items []struct{ name string; paise int64 }
+				items []struct {
+					name  string
+					paise int64
+				}
 			}{
-				{"Spice Level", false, []struct{ name string; paise int64 }{{"Medium Spicy", 0}, {"Extra Spicy", 0}, {"Mild / Jain", 0}}},
-				{"Add-ons", true, []struct{ name string; paise int64 }{{"Extra Mint Chutney", 2000}, {"Laccha Onions", 1500}, {"Extra Butter Coat", 3000}}},
+				{"Spice Level", false, []struct {
+					name  string
+					paise int64
+				}{{"Medium Spicy", 0}, {"Extra Spicy", 0}, {"Mild / Jain", 0}}},
+				{"Add-ons", true, []struct {
+					name  string
+					paise int64
+				}{{"Extra Mint Chutney", 2000}, {"Laccha Onions", 1500}, {"Extra Butter Coat", 3000}}},
 			}},
 		{"m-02", "cat-st", "Chicken Tandoori", "Whole chicken cut pieces cured in aromatic tandoori masala.", 36000, false, true,
 			"https://images.unsplash.com/photo-1599488615731-7e5c2823ff28?w=300",
-			[]struct{ name string; paise int64 }{{"Half (4 pcs)", 24000}, {"Full (8 pcs)", 42000}},
+			[]struct {
+				name  string
+				paise int64
+			}{{"Half (4 pcs)", 24000}, {"Full (8 pcs)", 42000}},
 			nil},
 		{"m-03", "cat-so", "Tomato Dhaniya Shorba", "Fresh plum tomato broth spiced with fresh coriander and cumin.", 16000, true, false,
 			"https://images.unsplash.com/photo-1547592166-23ac45744acd?w=300", nil, nil},
@@ -180,14 +203,26 @@ func seed(st *store.Store, mgr *auth.Manager) error {
 			"https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=300", nil, nil},
 		{"m-09", "cat-pz", "Margherita Pizza", "Classic stone-baked sourdough with San Marzano tomatoes and mozzarella.", 19900, true, false,
 			"https://images.unsplash.com/photo-1604382354936-07c5d9983bd3?w=300",
-			[]struct{ name string; paise int64 }{{"Regular", 19900}, {"Medium", 29900}, {"Large", 39900}},
+			[]struct {
+				name  string
+				paise int64
+			}{{"Regular", 19900}, {"Medium", 29900}, {"Large", 39900}},
 			[]struct {
 				name  string
 				multi bool
-				items []struct{ name string; paise int64 }
+				items []struct {
+					name  string
+					paise int64
+				}
 			}{
-				{"Extra Toppings", true, []struct{ name string; paise int64 }{{"Extra Cheese", 5000}, {"Jalapeno", 3000}, {"Mushroom", 4000}, {"Black Olives", 3500}}},
-				{"Crust & Bake", false, []struct{ name string; paise int64 }{{"Normal Bake", 0}, {"Well Done / Crispy", 0}}},
+				{"Extra Toppings", true, []struct {
+					name  string
+					paise int64
+				}{{"Extra Cheese", 5000}, {"Jalapeno", 3000}, {"Mushroom", 4000}, {"Black Olives", 3500}}},
+				{"Crust & Bake", false, []struct {
+					name  string
+					paise int64
+				}{{"Normal Bake", 0}, {"Well Done / Crispy", 0}}},
 			}},
 		{"m-10", "cat-ch", "Crispy Veg Chilli", "Crisp wok tossed exotic vegetables in dark garlic soya glaze.", 22000, true, false,
 			"https://images.unsplash.com/photo-1585032226651-759b368d7246?w=300", nil, nil},
@@ -225,15 +260,19 @@ func seed(st *store.Store, mgr *auth.Manager) error {
 
 	// Settings
 	_, err = st.DB.ExecContext(ctx, `INSERT INTO settings (outlet_id, restaurant_name, gst_percent, is_gst_inclusive,
-		service_percent, packaging_paise, delivery_paise, auto_print_kot, allow_reprint, billing_printer, kitchen_printer, bar_printer)
+		service_percent, packaging_paise, delivery_paise, auto_print_kot, allow_reprint, billing_printer, kitchen_printer, bar_printer, sections)
 		VALUES ('out-01', 'Spice Haven Resto & Bar', 5.0, 0, 5.0, 2500, 4000, 1, 1,
-		'EPSON TM-T88VI (Counter)', 'TVS RP3200 (Main Kitchen)', 'STAR Micronics (Bar Counter)') ON CONFLICT DO NOTHING`)
+		'EPSON TM-T88VI (Counter)', 'TVS RP3200 (Main Kitchen)', 'STAR Micronics (Bar Counter)', '["Ground Floor","First Floor","Outdoor"]') ON CONFLICT DO NOTHING`)
 	if err != nil {
 		return err
 	}
 
 	// Inventory
-	inv := []struct{ id, name, unit string; stock, min float64; cost int64 }{
+	inv := []struct {
+		id, name, unit string
+		stock, min     float64
+		cost           int64
+	}{
 		{"inv-1", "Fresh Paneer", "KG", 18, 10, 32000},
 		{"inv-2", "Mozzarella Cheese", "KG", 4, 8, 45000},
 		{"inv-3", "Basmati Rice", "KG", 45, 25, 11000},
@@ -249,7 +288,10 @@ func seed(st *store.Store, mgr *auth.Manager) error {
 	}
 
 	// Suppliers
-	sup := []struct{ id, name, mobile, cat string; outstanding int64 }{
+	sup := []struct {
+		id, name, mobile, cat string
+		outstanding           int64
+	}{
 		{"sup-1", "Metro Dairy Farms", "+91 98221 00112", "Dairy & Paneer", 450000},
 		{"sup-2", "Agro Fresh Poultry", "+91 98221 00223", "Chicken & Eggs", 280000},
 		{"sup-3", "Pune Wholesale Spices", "+91 98221 00334", "Groceries & Rice", 0},

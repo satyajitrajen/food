@@ -21,7 +21,7 @@ type Outlet struct {
 type Staff struct {
 	ID        string    `json:"id"`
 	Name      string    `json:"name"`
-	Role      string    `json:"role"` // admin|manager|cashier|waiter
+	Role      string    `json:"role"` // admin|manager|cashier|waiter|kitchen
 	AvatarURL string    `json:"avatar_url"`
 	Mobile    string    `json:"mobile"`
 	IsActive  bool      `json:"is_active"`
@@ -65,9 +65,10 @@ type Table struct {
 }
 
 type TablePatch struct {
-	Status      *string `json:"status,omitempty"`
-	GuestCount  *int    `json:"guest_count,omitempty"`
-	WaiterID    *string `json:"waiter_id,omitempty"`
+	Status     *string `json:"status,omitempty"`
+	GuestCount *int    `json:"guest_count,omitempty"`
+	WaiterID   *string `json:"waiter_id,omitempty"`
+	Floor      *string `json:"floor,omitempty"`
 }
 
 type MoveTableReq struct {
@@ -106,31 +107,31 @@ type ModifierGroup struct {
 }
 
 type MenuItem struct {
-	ID            string          `json:"id"`
-	OutletID      string          `json:"outlet_id"`
-	CategoryID    string          `json:"category_id"`
-	Category      string          `json:"category"`
-	Name          string          `json:"name"`
-	Description   string          `json:"description"`
-	PricePaise    int64           `json:"price_paise"`
-	IsVeg         bool            `json:"is_veg"`
-	ImageURL      string          `json:"image_url"`
-	IsBestseller  bool            `json:"is_bestseller"`
-	IsAvailable   bool            `json:"is_available"`
-	Sort          int             `json:"sort,omitempty"`
-	Variants      []ProductVariant `json:"variants"`
-	ModifierGroups []ModifierGroup `json:"modifier_groups"`
+	ID             string           `json:"id"`
+	OutletID       string           `json:"outlet_id"`
+	CategoryID     string           `json:"category_id"`
+	Category       string           `json:"category"`
+	Name           string           `json:"name"`
+	Description    string           `json:"description"`
+	PricePaise     int64            `json:"price_paise"`
+	IsVeg          bool             `json:"is_veg"`
+	ImageURL       string           `json:"image_url"`
+	IsBestseller   bool             `json:"is_bestseller"`
+	IsAvailable    bool             `json:"is_available"`
+	Sort           int              `json:"sort,omitempty"`
+	Variants       []ProductVariant `json:"variants"`
+	ModifierGroups []ModifierGroup  `json:"modifier_groups"`
 }
 
 type MenuItemUpsert struct {
-	CategoryID     *string `json:"category_id,omitempty"`
-	Name           *string `json:"name,omitempty"`
-	Description    *string `json:"description,omitempty"`
-	PricePaise     *int64  `json:"price_paise,omitempty"`
-	IsVeg          *bool   `json:"is_veg,omitempty"`
-	ImageURL       *string `json:"image_url,omitempty"`
-	IsBestseller   *bool   `json:"is_bestseller,omitempty"`
-	IsAvailable    *bool   `json:"is_available,omitempty"`
+	CategoryID     *string          `json:"category_id,omitempty"`
+	Name           *string          `json:"name,omitempty"`
+	Description    *string          `json:"description,omitempty"`
+	PricePaise     *int64           `json:"price_paise,omitempty"`
+	IsVeg          *bool            `json:"is_veg,omitempty"`
+	ImageURL       *string          `json:"image_url,omitempty"`
+	IsBestseller   *bool            `json:"is_bestseller,omitempty"`
+	IsAvailable    *bool            `json:"is_available,omitempty"`
 	Variants       []ProductVariant `json:"variants,omitempty"`
 	ModifierGroups []ModifierGroup  `json:"modifier_groups,omitempty"`
 }
@@ -144,68 +145,68 @@ type OrderModifier struct {
 }
 
 type OrderItem struct {
-	ID            string          `json:"id"`
-	ClientID      *string         `json:"client_id,omitempty"`
-	MenuItemID    string          `json:"menu_item_id"`
-	VariantID     *string         `json:"variant_id"`
-	Quantity      int             `json:"quantity"`
-	UnitPaise     int64           `json:"unit_paise"`
-	TotalPaise    int64           `json:"total_paise"`
-	Note          *string         `json:"note"`
-	IsKOTSent     bool            `json:"is_kot_sent"`
-	IsCancelled   bool            `json:"is_cancelled"`
-	CancelReason  *string         `json:"cancel_reason"`
-	Name          string          `json:"name"`
-	Modifiers     []OrderModifier `json:"modifiers"`
+	ID           string          `json:"id"`
+	ClientID     *string         `json:"client_id,omitempty"`
+	MenuItemID   string          `json:"menu_item_id"`
+	VariantID    *string         `json:"variant_id"`
+	Quantity     int             `json:"quantity"`
+	UnitPaise    int64           `json:"unit_paise"`
+	TotalPaise   int64           `json:"total_paise"`
+	Note         *string         `json:"note"`
+	IsKOTSent    bool            `json:"is_kot_sent"`
+	IsCancelled  bool            `json:"is_cancelled"`
+	CancelReason *string         `json:"cancel_reason"`
+	Name         string          `json:"name"`
+	Modifiers    []OrderModifier `json:"modifiers"`
 }
 
 type Order struct {
-	ID               string     `json:"id"`
-	ClientID         *string    `json:"client_id,omitempty"`
-	OutletID         string     `json:"outlet_id"`
-	OrderNumber      string     `json:"order_number"`
-	Type             string     `json:"type"`   // dine_in|takeaway|delivery
-	Status           string     `json:"status"` // received|preparing|ready|served|billing|completed|cancelled
-	TableID          *string    `json:"table_id"`
-	TableNumber      *string    `json:"table_number"`
-	CustomerName     *string    `json:"customer_name"`
-	CustomerPhone    *string    `json:"customer_phone"`
-	DeliveryAddress  *string    `json:"delivery_address"`
-	WaiterID         *string    `json:"waiter_id"`
-	WaiterName       *string    `json:"waiter_name"`
-	GuestCount       int        `json:"guest_count"`
-	OrderNote        *string    `json:"order_note"`
-	SubtotalPaise    int64      `json:"subtotal_paise"`
-	DiscountPercent  float64    `json:"discount_percent"`
-	DiscountPaise    int64      `json:"discount_paise"`
-	DiscountReason   *string    `json:"discount_reason"`
-	TaxPercent       float64    `json:"tax_percent"`
-	IsTaxInclusive   bool       `json:"is_tax_inclusive"`
-	TaxPaise         int64      `json:"tax_paise"`
-	ServicePaise     int64      `json:"service_charge_paise"`
-	PackagingPaise   int64      `json:"packaging_charge_paise"`
-	DeliveryPaise    int64      `json:"delivery_charge_paise"`
-	GrandTotalPaise  int64      `json:"grand_total_paise"`
-	InvoiceNumber    *string    `json:"invoice_number"`
-	PaidAt           *time.Time `json:"paid_at"`
-	PaymentMethod    *string    `json:"payment_method"`
-	PaidPaise        int64      `json:"paid_paise"`
-	ChangePaise      int64      `json:"change_paise"`
-	IdempotencyKey   *string    `json:"-"`
-	CreatedAt        time.Time  `json:"created_at"`
-	UpdatedAt        time.Time  `json:"updated_at"`
-	Items            []OrderItem `json:"items"`
+	ID              string      `json:"id"`
+	ClientID        *string     `json:"client_id,omitempty"`
+	OutletID        string      `json:"outlet_id"`
+	OrderNumber     string      `json:"order_number"`
+	Type            string      `json:"type"`   // dine_in|takeaway|delivery
+	Status          string      `json:"status"` // received|preparing|ready|served|billing|completed|cancelled
+	TableID         *string     `json:"table_id"`
+	TableNumber     *string     `json:"table_number"`
+	CustomerName    *string     `json:"customer_name"`
+	CustomerPhone   *string     `json:"customer_phone"`
+	DeliveryAddress *string     `json:"delivery_address"`
+	WaiterID        *string     `json:"waiter_id"`
+	WaiterName      *string     `json:"waiter_name"`
+	GuestCount      int         `json:"guest_count"`
+	OrderNote       *string     `json:"order_note"`
+	SubtotalPaise   int64       `json:"subtotal_paise"`
+	DiscountPercent float64     `json:"discount_percent"`
+	DiscountPaise   int64       `json:"discount_paise"`
+	DiscountReason  *string     `json:"discount_reason"`
+	TaxPercent      float64     `json:"tax_percent"`
+	IsTaxInclusive  bool        `json:"is_tax_inclusive"`
+	TaxPaise        int64       `json:"tax_paise"`
+	ServicePaise    int64       `json:"service_charge_paise"`
+	PackagingPaise  int64       `json:"packaging_charge_paise"`
+	DeliveryPaise   int64       `json:"delivery_charge_paise"`
+	GrandTotalPaise int64       `json:"grand_total_paise"`
+	InvoiceNumber   *string     `json:"invoice_number"`
+	PaidAt          *time.Time  `json:"paid_at"`
+	PaymentMethod   *string     `json:"payment_method"`
+	PaidPaise       int64       `json:"paid_paise"`
+	ChangePaise     int64       `json:"change_paise"`
+	IdempotencyKey  *string     `json:"-"`
+	CreatedAt       time.Time   `json:"created_at"`
+	UpdatedAt       time.Time   `json:"updated_at"`
+	Items           []OrderItem `json:"items"`
 }
 
 type OrderCreate struct {
-	Type            string  `json:"type"`
-	ClientID        *string `json:"client_id,omitempty"`
-	TableID         *string `json:"table_id,omitempty"`
-	CustomerName    *string `json:"customer_name,omitempty"`
-	CustomerPhone   *string `json:"customer_phone,omitempty"`
-	DeliveryAddress *string `json:"delivery_address,omitempty"`
-	GuestCount      int     `json:"guest_count,omitempty"`
-	OrderNote       *string `json:"order_note,omitempty"`
+	Type            string   `json:"type"`
+	ClientID        *string  `json:"client_id,omitempty"`
+	TableID         *string  `json:"table_id,omitempty"`
+	CustomerName    *string  `json:"customer_name,omitempty"`
+	CustomerPhone   *string  `json:"customer_phone,omitempty"`
+	DeliveryAddress *string  `json:"delivery_address,omitempty"`
+	GuestCount      int      `json:"guest_count,omitempty"`
+	OrderNote       *string  `json:"order_note,omitempty"`
 	TaxPercent      *float64 `json:"tax_percent,omitempty"`
 }
 
@@ -224,16 +225,17 @@ type OrderItemPatch struct {
 }
 
 type OrderPatch struct {
-	Status         *string `json:"status,omitempty"`
-	OrderNote      *string `json:"order_note,omitempty"`
-	GuestCount     *int    `json:"guest_count,omitempty"`
-	CustomerName   *string `json:"customer_name,omitempty"`
+	Status          *string  `json:"status,omitempty"`
+	OrderNote       *string  `json:"order_note,omitempty"`
+	GuestCount      *int     `json:"guest_count,omitempty"`
+	CustomerName    *string  `json:"customer_name,omitempty"`
+	CustomerPhone   *string  `json:"customer_phone,omitempty"`
 	DiscountPercent *float64 `json:"discount_percent,omitempty"`
-	DiscountPaise  *int64  `json:"discount_paise,omitempty"`
-	DiscountReason *string `json:"discount_reason,omitempty"`
-	ServicePaise   *int64  `json:"service_charge_paise,omitempty"`
-	PackagingPaise *int64  `json:"packaging_charge_paise,omitempty"`
-	DeliveryPaise  *int64  `json:"delivery_charge_paise,omitempty"`
+	DiscountPaise   *int64   `json:"discount_paise,omitempty"`
+	DiscountReason  *string  `json:"discount_reason,omitempty"`
+	ServicePaise    *int64   `json:"service_charge_paise,omitempty"`
+	PackagingPaise  *int64   `json:"packaging_charge_paise,omitempty"`
+	DeliveryPaise   *int64   `json:"delivery_charge_paise,omitempty"`
 	// FR-A3: manager authorization for discounts above threshold.
 	ManagerPin *string `json:"manager_pin,omitempty"`
 }
@@ -247,18 +249,18 @@ type CancelItemReq struct {
 // ---- KOT ----
 
 type KOT struct {
-	ID           string         `json:"id"`
-	OutletID     string         `json:"outlet_id"`
-	KOTNumber    string         `json:"kot_number"`
-	OrderID      string         `json:"order_id"`
-	Status       string         `json:"status"` // new|preparing|ready|served|cancelled
-	WaiterID     *string        `json:"waiter_id"`
-	WaiterName   *string        `json:"waiter_name"`
-	TableNumber  *string        `json:"table_number"`
-	OrderType    string         `json:"order_type"`
-	Note         *string        `json:"note"`
-	CreatedAt    time.Time      `json:"created_at"`
-	Items        []KOTItem      `json:"items"`
+	ID          string    `json:"id"`
+	OutletID    string    `json:"outlet_id"`
+	KOTNumber   string    `json:"kot_number"`
+	OrderID     string    `json:"order_id"`
+	Status      string    `json:"status"` // new|preparing|ready|served|cancelled
+	WaiterID    *string   `json:"waiter_id"`
+	WaiterName  *string   `json:"waiter_name"`
+	TableNumber *string   `json:"table_number"`
+	OrderType   string    `json:"order_type"`
+	Note        *string   `json:"note"`
+	CreatedAt   time.Time `json:"created_at"`
+	Items       []KOTItem `json:"items"`
 }
 
 type KOTItem struct {
@@ -331,21 +333,21 @@ func (s *Shift) ExpectedCash() int64 {
 func (s *Shift) TotalSales() int64 { return s.CashSales + s.UPIsales + s.CardSales }
 
 type ShiftOpenReq struct {
-	OpeningPaise  int64             `json:"opening_paise"`
-	Notes         *string           `json:"notes,omitempty"`
+	OpeningPaise  int64              `json:"opening_paise"`
+	Notes         *string            `json:"notes,omitempty"`
 	Denominations *CashDenominations `json:"denominations,omitempty"`
 }
 
 type ShiftCloseReq struct {
-	CountedPaise  int64             `json:"counted_paise"`
-	Notes         *string           `json:"notes,omitempty"`
+	CountedPaise  int64              `json:"counted_paise"`
+	Notes         *string            `json:"notes,omitempty"`
 	Denominations *CashDenominations `json:"denominations,omitempty"`
 }
 
 type CashMoveReq struct {
-	Type      string `json:"type"` // cash_in|cash_out
-	Amount    int64  `json:"amount_paise"`
-	Reason    string `json:"reason"`
+	Type      string  `json:"type"` // cash_in|cash_out
+	Amount    int64   `json:"amount_paise"`
+	Reason    string  `json:"reason"`
 	Reference *string `json:"reference,omitempty"`
 }
 
@@ -388,16 +390,16 @@ type ExpenseCreate struct {
 }
 
 type Customer struct {
-	ID           string     `json:"id"`
-	OutletID     string     `json:"outlet_id"`
-	Name         string     `json:"name"`
-	PhoneNorm    string     `json:"phone"`
-	Email        *string    `json:"email"`
-	Address      *string    `json:"address"`
-	Visits       int        `json:"visits"`
-	LifetimeSpend int64     `json:"lifetime_spend_paise"`
-	Outstanding  int64      `json:"outstanding_paise"`
-	LastVisit    *time.Time `json:"last_visit"`
+	ID            string     `json:"id"`
+	OutletID      string     `json:"outlet_id"`
+	Name          string     `json:"name"`
+	PhoneNorm     string     `json:"phone"`
+	Email         *string    `json:"email"`
+	Address       *string    `json:"address"`
+	Visits        int        `json:"visits"`
+	LifetimeSpend int64      `json:"lifetime_spend_paise"`
+	Outstanding   int64      `json:"outstanding_paise"`
+	LastVisit     *time.Time `json:"last_visit"`
 }
 
 type CustomerCreate struct {
@@ -419,7 +421,7 @@ type InventoryItem struct {
 
 type StockAdjust struct {
 	Delta  float64 `json:"delta"`
-	Reason string `json:"reason"`
+	Reason string  `json:"reason"`
 }
 
 type StockAdjustmentEntry struct {
@@ -436,13 +438,13 @@ type StockAdjustmentEntry struct {
 // ---- Suppliers / Purchases (P3) ----
 
 type Supplier struct {
-	ID            string `json:"id"`
-	OutletID      string `json:"outlet_id"`
-	Name          string `json:"name"`
-	Mobile        string `json:"mobile"`
-	Email         *string `json:"email"`
-	Category      *string `json:"category"`
-	Outstanding   int64  `json:"outstanding_paise"`
+	ID          string  `json:"id"`
+	OutletID    string  `json:"outlet_id"`
+	Name        string  `json:"name"`
+	Mobile      string  `json:"mobile"`
+	Email       *string `json:"email"`
+	Category    *string `json:"category"`
+	Outstanding int64   `json:"outstanding_paise"`
 }
 
 type SupplierCreate struct {
@@ -489,58 +491,59 @@ type CreditBookReq struct {
 }
 
 type CustomerCreditEntry struct {
-	ID        string    `json:"id"`
-	OutletID  string    `json:"outlet_id"`
-	CustomerID string   `json:"customer_id"`
-	Kind      string    `json:"kind"`
-	Amount    int64     `json:"amount_paise"`
-	Reason    string    `json:"reason"`
-	StaffID   *string   `json:"staff_id"`
-	StaffName *string   `json:"staff_name"`
-	Ts        time.Time `json:"ts"`
+	ID         string    `json:"id"`
+	OutletID   string    `json:"outlet_id"`
+	CustomerID string    `json:"customer_id"`
+	Kind       string    `json:"kind"`
+	Amount     int64     `json:"amount_paise"`
+	Reason     string    `json:"reason"`
+	StaffID    *string   `json:"staff_id"`
+	StaffName  *string   `json:"staff_name"`
+	Ts         time.Time `json:"ts"`
 }
 
 // ---- Settings & Reports ----
 
 type Settings struct {
-	OutletID         string  `json:"outlet_id"`
-	RestaurantName   string  `json:"restaurant_name"`
-	GSTPercent       float64 `json:"gst_percent"`
-	IsGSTInclusive   bool    `json:"is_gst_inclusive"`
-	ServicePercent   float64 `json:"service_percent"`
-	PackagingPaise   int64   `json:"packaging_paise"`
-	DeliveryPaise    int64   `json:"delivery_paise"`
-	AutoPrintKOT     bool    `json:"auto_print_kot"`
-	AllowReprint     bool    `json:"allow_reprint"`
-	BillingPrinter   string  `json:"billing_printer"`
-	KitchenPrinter   string  `json:"kitchen_printer"`
-	BarPrinter       string  `json:"bar_printer"`
+	OutletID       string   `json:"outlet_id"`
+	RestaurantName string   `json:"restaurant_name"`
+	GSTPercent     float64  `json:"gst_percent"`
+	IsGSTInclusive bool     `json:"is_gst_inclusive"`
+	ServicePercent float64  `json:"service_percent"`
+	PackagingPaise int64    `json:"packaging_paise"`
+	DeliveryPaise  int64    `json:"delivery_paise"`
+	AutoPrintKOT   bool     `json:"auto_print_kot"`
+	AllowReprint   bool     `json:"allow_reprint"`
+	BillingPrinter string   `json:"billing_printer"`
+	KitchenPrinter string   `json:"kitchen_printer"`
+	BarPrinter     string   `json:"bar_printer"`
+	Sections       []string `json:"sections"`
 }
 
 type DashboardReport struct {
-	SalesPaise     int64                  `json:"sales_paise"`
-	OrderCount     int                    `json:"order_count"`
-	AOVPaise       int64                  `json:"aov_paise"`
-	ExpensesPaise  int64                  `json:"expenses_paise"`
-	CashDrawerPaise int64                 `json:"cash_drawer_paise"`
-	PendingKOTs    int                    `json:"pending_kots"`
-	FreeTables     int                    `json:"free_tables"`
-	OccupiedTables int                    `json:"occupied_tables"`
-	SalesByType    map[string]int64       `json:"sales_by_type"`
-	SalesByTender  map[string]int64       `json:"sales_by_tender"`
-	TopCategories  []CategorySales        `json:"top_categories"`
+	SalesPaise      int64            `json:"sales_paise"`
+	OrderCount      int              `json:"order_count"`
+	AOVPaise        int64            `json:"aov_paise"`
+	ExpensesPaise   int64            `json:"expenses_paise"`
+	CashDrawerPaise int64            `json:"cash_drawer_paise"`
+	PendingKOTs     int              `json:"pending_kots"`
+	FreeTables      int              `json:"free_tables"`
+	OccupiedTables  int              `json:"occupied_tables"`
+	SalesByType     map[string]int64 `json:"sales_by_type"`
+	SalesByTender   map[string]int64 `json:"sales_by_tender"`
+	TopCategories   []CategorySales  `json:"top_categories"`
 }
 
 type CategorySales struct {
-	Category    string `json:"category"`
-	Revenue     int64  `json:"revenue_paise"`
-	Quantity    int    `json:"quantity"`
+	Category string `json:"category"`
+	Revenue  int64  `json:"revenue_paise"`
+	Quantity int    `json:"quantity"`
 }
 
 type ZReport struct {
-	Shift          Shift             `json:"shift"`
-	ExpectedCash   int64             `json:"expected_cash_paise"`
-	CountedCash    int64             `json:"counted_cash_paise"`
-	DifferencePaise int64            `json:"difference_paise"`
-	TotalSales     int64             `json:"total_sales_paise"`
+	Shift           Shift `json:"shift"`
+	ExpectedCash    int64 `json:"expected_cash_paise"`
+	CountedCash     int64 `json:"counted_cash_paise"`
+	DifferencePaise int64 `json:"difference_paise"`
+	TotalSales      int64 `json:"total_sales_paise"`
 }
