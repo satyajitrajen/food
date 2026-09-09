@@ -3,6 +3,14 @@ verify:
 	go test ./...
 	go build ./...
 
+# Build the landing/console app and copy it into the embed folder.
+# (Requires Node: `cd ../landing && npm install` once.)
+web:
+	cd ../landing && npm run build
+	rm -rf internal/web/webroot
+	mkdir -p internal/web/webroot
+	cp -R ../landing/dist/. internal/web/webroot/
+
 run:
 	go run ./cmd/server
 

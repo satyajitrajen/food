@@ -27,6 +27,10 @@ type Config struct {
 	SMTPFrom string
 	// AppBaseURL is the console/portal origin used in mail links.
 	AppBaseURL string
+	// CORSOrigins: '*' allows any origin (default — bearer tokens protect the
+	// API); a comma-separated list restricts to specific origins; empty disables
+	// CORS (use a same-origin reverse proxy).
+	CORSOrigins string
 }
 
 func Load() Config {
@@ -43,12 +47,13 @@ func Load() Config {
 		RazorpaySecret:        env("FOODPOS_RAZORPAY_KEY_SECRET", ""),
 		RazorpayWebhookSecret: env("FOODPOS_RAZORPAY_WEBHOOK_SECRET", ""),
 
-		SMTPHost:   env("FOODPOS_SMTP_HOST", ""),
-		SMTPPort:   envInt("FOODPOS_SMTP_PORT", 587),
-		SMTPUser:   env("FOODPOS_SMTP_USER", ""),
-		SMTPPass:   env("FOODPOS_SMTP_PASS", ""),
-		SMTPFrom:   env("FOODPOS_SMTP_FROM", "FoodPOS <no-reply@foodpos.app>"),
-		AppBaseURL: env("FOODPOS_APP_BASE_URL", "https://app.foodpos.example"),
+		SMTPHost:    env("FOODPOS_SMTP_HOST", ""),
+		SMTPPort:    envInt("FOODPOS_SMTP_PORT", 587),
+		SMTPUser:    env("FOODPOS_SMTP_USER", ""),
+		SMTPPass:    env("FOODPOS_SMTP_PASS", ""),
+		SMTPFrom:    env("FOODPOS_SMTP_FROM", "FoodPOS <no-reply@foodpos.app>"),
+		AppBaseURL:  env("FOODPOS_APP_BASE_URL", "https://app.foodpos.example"),
+		CORSOrigins: env("FOODPOS_CORS_ORIGINS", "*"),
 	}
 }
 

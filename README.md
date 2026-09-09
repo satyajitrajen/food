@@ -4,6 +4,13 @@ REST + SSE backend for the FoodPOS Flutter app. PostgreSQL with
 integer-paise money math throughout. See `../docs/ARCHITECTURE.md` for the
 full design and `../docs/PRD.md` for requirements.
 
+## Single binary (site + APIs)
+
+The built React landing & owner/superadmin console is embedded and served at
+`/` and `/console/*`; APIs stay under `/api/v1`, media under `/media/*`.
+Refresh the embedded site with `make web` (builds `../landing`) before
+`go build ./cmd/server` — the assets are gitignored (`internal/web/webroot/`).
+
 ## Run
 
 ```powershell

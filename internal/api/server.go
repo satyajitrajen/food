@@ -14,6 +14,7 @@ import (
 	"foodpos/backend/internal/httpx"
 	"foodpos/backend/internal/middleware"
 	"foodpos/backend/internal/store"
+	"foodpos/backend/internal/web"
 	"foodpos/backend/internal/ws"
 )
 
@@ -32,6 +33,7 @@ func (s *Server) Routes() http.Handler {
 	r.Use(chimw.RequestID)
 	r.Use(chimw.Recoverer)
 	r.Use(chimw.Logger)
+	r.Use(middleware.CORS(s.Cfg.CORSOrigins))
 
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		httpx.JSON(w, http.StatusOK, map[string]string{"status": "ok"})
@@ -193,6 +195,10 @@ func (s *Server) Routes() http.Handler {
 			r.Get("/reports/shift/{id}/zreport", s.handleZReport)
 		})
 	})
+
+	// Embedded web app (landing + console) — catch-all, registered last so
+	// every API/media/ws route above wins.
+	r.Handle("/*", web.Handler())
 
 	return r
 }
