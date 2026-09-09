@@ -1,4 +1,3 @@
-// Package config loads server configuration from the environment.
 package config
 
 import (
@@ -13,6 +12,21 @@ type Config struct {
 	Seed       bool
 	BcryptCost int
 	UploadDir  string
+
+	// SaaS billing + security.
+	LicenseSecret         string // HMAC for signed offline entitlements (fallback JWTSecret)
+	RazorpayKey           string
+	RazorpaySecret        string
+	RazorpayWebhookSecret string
+
+	// Outbound e-mail (SMTP). When SMTPHost is empty mail calls are logged only.
+	SMTPHost string
+	SMTPPort int
+	SMTPUser string
+	SMTPPass string
+	SMTPFrom string
+	// AppBaseURL is the console/portal origin used in mail links.
+	AppBaseURL string
 }
 
 func Load() Config {
@@ -23,6 +37,18 @@ func Load() Config {
 		Seed:       env("FOODPOS_SEED", "0") == "1",
 		BcryptCost: envInt("FOODPOS_BCRYPT_COST", 10),
 		UploadDir:  env("FOODPOS_UPLOAD_DIR", "./uploads"),
+
+		LicenseSecret:         env("FOODPOS_LICENSE_SECRET", ""),
+		RazorpayKey:           env("FOODPOS_RAZORPAY_KEY_ID", ""),
+		RazorpaySecret:        env("FOODPOS_RAZORPAY_KEY_SECRET", ""),
+		RazorpayWebhookSecret: env("FOODPOS_RAZORPAY_WEBHOOK_SECRET", ""),
+
+		SMTPHost:   env("FOODPOS_SMTP_HOST", ""),
+		SMTPPort:   envInt("FOODPOS_SMTP_PORT", 587),
+		SMTPUser:   env("FOODPOS_SMTP_USER", ""),
+		SMTPPass:   env("FOODPOS_SMTP_PASS", ""),
+		SMTPFrom:   env("FOODPOS_SMTP_FROM", "FoodPOS <no-reply@foodpos.app>"),
+		AppBaseURL: env("FOODPOS_APP_BASE_URL", "https://app.foodpos.example"),
 	}
 }
 

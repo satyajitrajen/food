@@ -13,6 +13,7 @@ import (
 
 	"foodpos/backend/internal/auth"
 	"foodpos/backend/internal/httpx"
+	"foodpos/backend/internal/mail"
 	"foodpos/backend/internal/middleware"
 	"foodpos/backend/internal/models"
 	"foodpos/backend/internal/store"
@@ -81,6 +82,17 @@ func (s *Server) handleRegisterOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Welcome e-mail (with verification link) when SMTP is configured.
+	sender := s.mailer()
+	if sender.Enabled() {
+		if vt, verr := s.Store.CreateAccountToken(r.Context(), res.Account.ID, store.TokenVerify, accountTokenTTL); verr == nil {
+			go func() {
+				_ = sender.Send(req.Email, "Welcome to FoodPOS",
+					mail.Welcome(req.OwnerName, req.OrgName, s.Cfg.AppBaseURL, vt))
+			}()
+		}
+	}
+
 	httpx.JSON(w, http.StatusCreated, models.RegisterOrgResp{
 		Token: token, RefreshToken: refresh, TokenType: "Bearer",
 		ExpiresAt:    time.Now().Add(auth.AccessTTL),
@@ -134,6 +146,7 @@ func (s *Server) handleAccountLogin(w http.ResponseWriter, r *http.Request) {
 		Token: token, RefreshToken: refresh, TokenType: "Bearer",
 		ExpiresAt: time.Now().Add(auth.AccessTTL),
 		Account:   acc.Account, Org: *org, Entitlement: *ent,
+		EntitlementToken: s.signedEntitlementToken(ent),
 	})
 }
 
@@ -185,6 +198,7 @@ func (s *Server) handleAccountRefresh(w http.ResponseWriter, r *http.Request) {
 		Token: token, RefreshToken: refresh, TokenType: "Bearer",
 		ExpiresAt: time.Now().Add(auth.AccessTTL),
 		Account:   acc.Account, Org: *org, Entitlement: *ent,
+		EntitlementToken: s.signedEntitlementToken(ent),
 	})
 }
 
@@ -361,6 +375,10 @@ func (s *Server) handleSaaSCreateStaff(w http.ResponseWriter, r *http.Request) {
 			httpx.ErrorJSON(w, r, httpx.NewError(400, "invalid_outlet", "Outlet does not belong to this organization"))
 			return
 		}
+	}
+	if err := s.enforceStaffLimit(r, c.OrgID); err != nil {
+		httpx.ErrorJSON(w, r, err)
+		return
 	}
 	hash, err := s.Auth.HashPIN(req.PIN)
 	if err != nil {

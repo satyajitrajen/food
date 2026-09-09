@@ -48,8 +48,10 @@ func main() {
 	cmd := args[0]
 	rest := args[1:]
 
+	// Only org-taking commands consume a leading org id; "list" keeps its
+	// positional argument as a status filter.
 	var orgID string
-	if len(rest) > 0 && !flagHasDash(rest[0]) {
+	if cmd != "list" && len(rest) > 0 && !flagHasDash(rest[0]) {
 		orgID = rest[0]
 		rest = rest[1:]
 	}
@@ -61,13 +63,13 @@ func main() {
 	ref := fs.String("ref", "", "payment reference")
 	note := fs.String("note", "", "note")
 	_ = fs.Parse(rest)
+	status := ""
+	if cmd == "list" && fs.NArg() > 0 {
+		status = fs.Arg(0)
+	}
 
 	switch cmd {
 	case "list":
-		status := ""
-		if len(rest) > 0 {
-			status = rest[0]
-		}
 		orgs, err := st.ListOrganizations(ctx, status)
 		if err != nil {
 			fatal(err)
@@ -97,7 +99,7 @@ func main() {
 			fmt.Printf("invoice:   %s %d paise (%s) %s\n", inv.InvoiceNo, inv.AmountPaise, inv.Method, inv.PaidAt)
 		}
 	case "activate":
-		sub, inv, err := st.ActivateOrg(ctx, orgID, "cli:"+methodString(), *method, *days, *amount, *ref, *note)
+		sub, inv, err := st.ActivateOrg(ctx, orgID, "cli", *method, *days, *amount, *ref, *note)
 		if err != nil {
 			fatal(err)
 		}
@@ -145,8 +147,6 @@ flags: -days N -method bank|upi|razorpay -amount <paise> -ref "" -note ""`)
 func flagHasDash(s string) bool {
 	return len(s) > 0 && s[0] == '-'
 }
-
-func methodString() string { return "cli" }
 
 func fatal(err error) {
 	slog.Error("operation failed", "err", err)

@@ -34,13 +34,14 @@ type Organization struct {
 }
 
 type Account struct {
-	ID        string    `json:"id"`
-	OrgID     string    `json:"org_id"`
-	Name      string    `json:"name"`
-	Email     string    `json:"email"`
-	Role      string    `json:"role"` // owner | admin
-	IsActive  bool      `json:"is_active"`
-	CreatedAt time.Time `json:"created_at"`
+	ID            string    `json:"id"`
+	OrgID         string    `json:"org_id"`
+	Name          string    `json:"name"`
+	Email         string    `json:"email"`
+	Role          string    `json:"role"` // owner | admin
+	IsActive      bool      `json:"is_active"`
+	EmailVerified bool      `json:"email_verified"`
+	CreatedAt     time.Time `json:"created_at"`
 }
 
 type AccountCreate struct {
@@ -94,8 +95,11 @@ type SaaSInvoice struct {
 	ID          string     `json:"id"`
 	OrgID       string     `json:"org_id"`
 	InvoiceNo   string     `json:"invoice_no"`
-	AmountPaise int64      `json:"amount_paise"`
-	Method      string     `json:"method"` // bank | upi | razorpay
+	AmountPaise int64      `json:"amount_paise"` // taxable base (exclusive of GST)
+	GSTPercent  float64    `json:"gst_percent"`
+	TaxPaise    int64      `json:"tax_paise"`
+	GrossPaise  int64      `json:"gross_paise"` // amount + tax = what customer pays
+	Method      string     `json:"method"`      // bank | upi | razorpay
 	PeriodStart *time.Time `json:"period_start"`
 	PeriodEnd   *time.Time `json:"period_end"`
 	PaidAt      time.Time  `json:"paid_at"`
@@ -153,13 +157,14 @@ type AccountLoginReq struct {
 }
 
 type AccountLoginResp struct {
-	Token        string       `json:"token"`
-	RefreshToken string       `json:"refresh_token"`
-	TokenType    string       `json:"token_type"`
-	ExpiresAt    time.Time    `json:"expires_at"`
-	Account      Account      `json:"account"`
-	Org          Organization `json:"org"`
-	Entitlement  Entitlement  `json:"entitlement"`
+	Token            string       `json:"token"`
+	RefreshToken     string       `json:"refresh_token"`
+	TokenType        string       `json:"token_type"`
+	ExpiresAt        time.Time    `json:"expires_at"`
+	Account          Account      `json:"account"`
+	Org              Organization `json:"org"`
+	Entitlement      Entitlement  `json:"entitlement"`
+	EntitlementToken string       `json:"entitlement_token,omitempty"`
 }
 
 type AdminLoginReq struct {
@@ -209,4 +214,26 @@ type ActivateReq struct {
 type ExtendReq struct {
 	Days  int    `json:"days"`
 	Notes string `json:"notes,omitempty"`
+}
+
+// ---- Account token ops (email verify / password reset) ----
+
+type ForgotPasswordReq struct {
+	Email string `json:"email"`
+}
+
+type ResetPasswordReq struct {
+	Token       string `json:"token"`
+	NewPassword string `json:"new_password"`
+}
+
+type VerifyEmailReq struct {
+	Token string `json:"token"`
+}
+
+type MailResp struct {
+	// Delivered is false when SMTP is unconfigured (dev fallback: token echoed).
+	Delivered bool   `json:"delivered"`
+	Token     string `json:"token,omitempty"` // echoed in dev when SMTP disabled
+	Message   string `json:"message"`
 }

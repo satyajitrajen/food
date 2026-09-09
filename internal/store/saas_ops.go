@@ -6,10 +6,16 @@ package store
 
 import (
 	"context"
+	"math"
 	"time"
 
 	"foodpos/backend/internal/models"
 )
+
+// SaaSGSTPercent is the GST rate applied to SaaS invoices (software services).
+const SaaSGSTPercent = 18.0
+
+func roundPaise(v float64) int64 { return int64(math.Round(v)) }
 
 // ActivateOrg opens (or reopens) a paid period for an org: org + subscription
 // -> active, a fresh period starting now, and a recorded paid invoice.
@@ -48,9 +54,13 @@ func (s *Store) ActivateOrg(ctx context.Context, orgID, actor, method string, pe
 
 	inv := &models.SaaSInvoice{
 		OrgID: orgID, AmountPaise: amountPaise, Method: method,
+		GSTPercent:  SaaSGSTPercent,
 		PeriodStart: &start, PeriodEnd: &end, PaidAt: now,
 		Reference: optStrPtr(reference), Notes: optStrPtr(notes),
 	}
+	// SaaS GST (18% on the taxable base) — gross = what the customer pays.
+	inv.TaxPaise = roundPaise(float64(amountPaise) * SaaSGSTPercent / 100.0)
+	inv.GrossPaise = amountPaise + inv.TaxPaise
 	if actor != "" {
 		inv.CreatedBy = &actor
 	}

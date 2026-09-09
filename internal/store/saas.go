@@ -151,11 +151,12 @@ func (s *Store) CreateAccount(ctx context.Context, a models.AccountCreate) (*mod
 func scanAccount(sc interface{ Scan(...any) error }) (*models.Account, error) {
 	var a models.Account
 	var created string
-	var active int
-	if err := sc.Scan(&a.ID, &a.OrgID, &a.Name, &a.Email, &a.Role, &active, &created); err != nil {
+	var active, verified int
+	if err := sc.Scan(&a.ID, &a.OrgID, &a.Name, &a.Email, &a.Role, &active, &verified, &created); err != nil {
 		return nil, err
 	}
 	a.IsActive = active == 1
+	a.EmailVerified = verified == 1
 	a.CreatedAt = ParseTime(created)
 	return &a, nil
 }
@@ -163,10 +164,10 @@ func scanAccount(sc interface{ Scan(...any) error }) (*models.Account, error) {
 func (s *Store) GetAccount(ctx context.Context, id string) (*AccountWithPassword, error) {
 	var a AccountWithPassword
 	var created string
-	var active int
+	var active, verified int
 	err := s.DB.QueryRowContext(ctx,
-		`SELECT id, org_id, name, email, role, is_active, password_hash, created_at FROM accounts WHERE id = ?`, id).
-		Scan(&a.ID, &a.OrgID, &a.Name, &a.Email, &a.Role, &active, &a.PasswordHash, &created)
+		`SELECT id, org_id, name, email, role, is_active, email_verified, password_hash, created_at FROM accounts WHERE id = ?`, id).
+		Scan(&a.ID, &a.OrgID, &a.Name, &a.Email, &a.Role, &active, &verified, &a.PasswordHash, &created)
 	if err == sql.ErrNoRows {
 		return nil, httpx.ErrNotFound
 	}
@@ -174,6 +175,7 @@ func (s *Store) GetAccount(ctx context.Context, id string) (*AccountWithPassword
 		return nil, err
 	}
 	a.IsActive = active == 1
+	a.EmailVerified = verified == 1
 	a.CreatedAt = ParseTime(created)
 	return &a, nil
 }
@@ -187,10 +189,10 @@ type AccountWithPassword struct {
 func (s *Store) GetAccountByEmail(ctx context.Context, email string) (*AccountWithPassword, error) {
 	var a AccountWithPassword
 	var created string
-	var active int
+	var active, verified int
 	err := s.DB.QueryRowContext(ctx,
-		`SELECT id, org_id, name, email, role, is_active, password_hash, created_at FROM accounts WHERE email = ?`, email).
-		Scan(&a.ID, &a.OrgID, &a.Name, &a.Email, &a.Role, &active, &a.PasswordHash, &created)
+		`SELECT id, org_id, name, email, role, is_active, email_verified, password_hash, created_at FROM accounts WHERE email = ?`, email).
+		Scan(&a.ID, &a.OrgID, &a.Name, &a.Email, &a.Role, &active, &verified, &a.PasswordHash, &created)
 	if err == sql.ErrNoRows {
 		return nil, httpx.ErrNotFound
 	}
@@ -198,6 +200,7 @@ func (s *Store) GetAccountByEmail(ctx context.Context, email string) (*AccountWi
 		return nil, err
 	}
 	a.IsActive = active == 1
+	a.EmailVerified = verified == 1
 	a.CreatedAt = ParseTime(created)
 	return &a, nil
 }
@@ -419,10 +422,11 @@ func (s *Store) CreateSaaSInvoice(ctx context.Context, inv *models.SaaSInvoice) 
 	}
 	inv.CreatedAt = Now()
 	_, err = s.DB.ExecContext(ctx,
-		`INSERT INTO saas_invoices (id, org_id, invoice_no, amount_paise, method, period_start, period_end, paid_at, reference, notes, created_by, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		inv.ID, inv.OrgID, inv.InvoiceNo, inv.AmountPaise, inv.Method, periodStart, periodEnd,
-		TimeStr(inv.PaidAt), ref, notes, by, TimeStr(inv.CreatedAt))
+		`INSERT INTO saas_invoices (id, org_id, invoice_no, amount_paise, gst_percent, tax_paise, gross_paise,
+		                          method, period_start, period_end, paid_at, reference, notes, created_by, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		inv.ID, inv.OrgID, inv.InvoiceNo, inv.AmountPaise, inv.GSTPercent, inv.TaxPaise, inv.GrossPaise,
+		inv.Method, periodStart, periodEnd, TimeStr(inv.PaidAt), ref, notes, by, TimeStr(inv.CreatedAt))
 	if err != nil {
 		return nil, err
 	}
@@ -431,7 +435,8 @@ func (s *Store) CreateSaaSInvoice(ctx context.Context, inv *models.SaaSInvoice) 
 
 func (s *Store) ListSaaSInvoices(ctx context.Context, orgID string) ([]models.SaaSInvoice, error) {
 	rows, err := s.DB.QueryContext(ctx,
-		`SELECT id, org_id, invoice_no, amount_paise, method, period_start, period_end, paid_at, reference, notes, created_by, created_at
+		`SELECT id, org_id, invoice_no, amount_paise, gst_percent, tax_paise, gross_paise, method,
+		        period_start, period_end, paid_at, reference, notes, created_by, created_at
 		 FROM saas_invoices WHERE org_id = ? ORDER BY created_at DESC`, orgID)
 	if err != nil {
 		return nil, err
@@ -452,7 +457,8 @@ func scanInvoice(sc interface{ Scan(...any) error }) (*models.SaaSInvoice, error
 	var inv models.SaaSInvoice
 	var pStart, pEnd, paidAt, created string
 	var ref, notes, by sql.NullString
-	if err := sc.Scan(&inv.ID, &inv.OrgID, &inv.InvoiceNo, &inv.AmountPaise, &inv.Method,
+	if err := sc.Scan(&inv.ID, &inv.OrgID, &inv.InvoiceNo, &inv.AmountPaise, &inv.GSTPercent,
+		&inv.TaxPaise, &inv.GrossPaise, &inv.Method,
 		&pStart, &pEnd, &paidAt, &ref, &notes, &by, &created); err != nil {
 		return nil, err
 	}

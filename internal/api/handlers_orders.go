@@ -1,11 +1,14 @@
 package api
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
 
+	"foodpos/backend/internal/auth"
 	"foodpos/backend/internal/httpx"
 	"foodpos/backend/internal/models"
 	"foodpos/backend/internal/service"
@@ -42,6 +45,12 @@ func (s *Server) handleListOrders(w http.ResponseWriter, r *http.Request) {
 func (s *Server) withIdempotency(w http.ResponseWriter, r *http.Request, produce func() (int, any, error)) {
 	key := r.Header.Get("Idempotency-Key")
 	if key != "" {
+		// Namespace keys per org so tenants can never replay each other's ops.
+		if c, ok := claimsFrom(r); ok && c.OrgID != "" {
+			sum := sha256.Sum256([]byte(c.OrgID + ":" + key))
+			key = hex.EncodeToString(sum[:])
+			r.Header.Set("Idempotency-Key", key)
+		}
 		if code, body, found, err := s.Store.GetIdempotentResponse(r.Context(), key); err == nil && found {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(code)
@@ -181,6 +190,10 @@ func (s *Server) handleGetOrder(w http.ResponseWriter, r *http.Request) {
 	o, err := s.Store.GetOrder(r.Context(), pathID(r, "id"))
 	if err != nil {
 		httpx.ErrorJSON(w, r, err)
+		return
+	}
+	if c, ok := claimsFrom(r); ok && c.Scope == auth.ScopeStaff && c.OutletID != o.OutletID {
+		httpx.ErrorJSON(w, r, httpx.ErrNotFound)
 		return
 	}
 	httpx.JSON(w, http.StatusOK, o)
@@ -506,6 +519,10 @@ func (s *Server) handlePatchKOT(w http.ResponseWriter, r *http.Request) {
 	kot, err := s.Store.GetKOT(r.Context(), pathID(r, "id"))
 	if err != nil {
 		httpx.ErrorJSON(w, r, err)
+		return
+	}
+	if c, ok := claimsFrom(r); ok && c.Scope == auth.ScopeStaff && c.OutletID != kot.OutletID {
+		httpx.ErrorJSON(w, r, httpx.ErrNotFound)
 		return
 	}
 	if err := service.ValidateKOTTransition(kot.Status, body.Status); err != nil {

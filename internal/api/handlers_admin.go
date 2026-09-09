@@ -4,6 +4,7 @@ package api
 // table. Manual billing ops live here; the gateway adapter plugs in later.
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -11,6 +12,7 @@ import (
 
 	"foodpos/backend/internal/auth"
 	"foodpos/backend/internal/httpx"
+	"foodpos/backend/internal/mail"
 	"foodpos/backend/internal/models"
 )
 
@@ -196,7 +198,24 @@ func (s *Server) handleAdminActivate(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorJSON(w, r, err)
 		return
 	}
+	// Paid receipt e-mail (best effort; skipped without SMTP).
+	if sender := s.mailer(); sender.Enabled() {
+		if org, oerr := s.Store.GetOrganization(r.Context(), orgID); oerr == nil {
+			period := fmt.Sprintf("%s to %s", timeStr(inv.PeriodStart), timeStr(inv.PeriodEnd))
+			go func() {
+				_ = sender.Send(org.Email, "FoodPOS payment receipt",
+					mail.Receipt(org.Name, inv.InvoiceNo, inv.GrossPaise, period))
+			}()
+		}
+	}
 	httpx.JSON(w, http.StatusOK, map[string]any{"subscription": sub, "invoice": inv})
+}
+
+func timeStr(t *time.Time) string {
+	if t == nil {
+		return "-"
+	}
+	return t.Format("02 Jan 2006")
 }
 
 func (s *Server) handleAdminExtend(w http.ResponseWriter, r *http.Request) {

@@ -33,7 +33,10 @@ tenant binding, so a refresh re-issues the full claim set.
 |-----|---------|
 | `FOODPOS_SUPERADMIN_EMAIL` / `FOODPOS_SUPERADMIN_PASSWORD` | Creates the platform superadmin on first boot (idempotent). |
 | `FOODPOS_UPLOAD_DIR` | Menu photo storage (existing). |
-| `FOODPOS_SMTP_*` | (Future) renewal/reminder e-mails — not yet wired; billing job logs. |
+| `FOODPOS_LICENSE_SECRET` | HMAC secret for signed offline entitlement tokens (falls back to JWT secret). |
+| `FOODPOS_RAZORPAY_KEY_ID` / `_KEY_SECRET` / `_WEBHOOK_SECRET` | Enables hosted checkout + signature-verified webhooks. |
+| `FOODPOS_SMTP_HOST` / `_PORT` / `_USER` / `_PASS` / `_FROM` | Outbound e-mail (welcome, verification, receipts, renewal reminders). When unset mail is skipped (dev tokens echoed). |
+| `FOODPOS_APP_BASE_URL` | Console/portal origin used in e-mail links. |
 
 The pro plan and an active subscription for the legacy demo org (`org-01`) are
 ensured on every server start (`ensureDefaultTenant`), so existing terminals
@@ -57,9 +60,25 @@ Owner (scope: owner, `/api/v1/saas`):
 
 Superadmin (scope: admin, `/api/v1/admin`):
 - `GET /orgs?status=`, `GET /orgs/{id}` (detail)
-- `POST /orgs/{id}/activate` `{method: bank|upi|razorpay, period_days, amount_paise, reference, notes}` → records a paid invoice and opens the period
+- `POST /orgs/{id}/activate` `{method: bank|upi|razorpay, period_days, amount_paise, reference, notes}` → records a paid invoice (with GST 18%) and opens the period
 - `POST /orgs/{id}/extend {days}`, `/suspend`, `/cancel`
-- `GET /stats`
+- `POST /orgs/{id}/checkout` → Razorpay hosted order (requires gateway keys)
+- `GET /invoices/{id}/pdf`, `GET /stats`
+
+Account lifecycle (public or owner):
+- `POST /auth/account/forgot|reset|verify` — password reset + e-mail
+  verification via rotating single-use tokens (dev fallback echoes the token
+  when SMTP is off)
+- `POST /saas/org/rotate-code` — revoke + issue a fresh org code
+- `GET /saas/invoices/{id}/pdf` — generated invoice PDF
+
+Webhooks:
+- `POST /api/v1/webhooks/razorpay` (public) — HMAC-SHA256 verified; on
+  `payment.captured` opens the paid period + records the invoice.
+
+SaaS invoices carry GST: `gst_percent` (18%), `tax_paise` and `gross_paise`
+(amount + tax = what the customer pays). Razorpay checkouts charge the gross;
+the webhook extracts the taxable base (÷1.18).
 
 ## CLI
 
@@ -86,29 +105,40 @@ past_due → suspended after 3 extra days. Every transition writes an
 
 - **Server:** paid writes (POS write group + owner outlet provisioning) return
   `402 subscription_expired` unless the org is trial/active. Reads stay open.
+  Every write that passes the gate is recorded in `audit_log` with org/outlet
+  attribution (audit middleware).
+- **Idempotency keys** are namespaced per org (sha256(org:key)) so tenants can
+  never replay each other's offline ops.
+- **By-id routes** (`GET /orders/{id}`, `GET /menu/{id}`, `PATCH /kots/{id}`,
+  `GET /outlets/{id}`) verify the resource belongs to the caller's outlet.
+- **Staff caps:** `plans.max_staff` (like `max_outlets`) is enforced when
+  creating staff from the POS or owner APIs.
 - **Offline terminals:** the login response carries `entitlement
-  {status, valid_until}` (valid_until = period/trial end + 7-day grace). A
-  signed offline-license token + read-only lock on the Flutter side is a
-  planned follow-up; today the server denial on the next sync is the
-  enforcement point and queued payment ops surface — never auto-drop.
+  {status, valid_until}` (valid_until = period/trial end + 7-day grace) plus
+  `entitlement_token` — an HMAC-signed token (`internal/license`) the client
+  can verify without trusting its own clock. Enforcing a read-only lock in the
+  Flutter POS app from that token is the remaining client-side step; the
+  server denial on the next sync remains the enforcement point and queued
+  payment ops surface — never auto-drop.
 
 ## Tests
 
 - `internal/api/saas_integration_test.go` — registration → trial ordering,
   superadmin activate → invoice + active, suspend → 402 writes/200 reads,
   cross-org login + manager-PIN isolation, refresh preserves tenant.
+- `internal/license` — signed entitlement round-trip + tamper/wrong-secret.
+- `internal/billing` — invoice PDF rendering, Razorpay signature verify.
 - Requires PostgreSQL (`FOODPOS_TEST_DSN`). Unit path:
 
 ```powershell
-go vet ./... ; go build ./... ; go test ./internal/service
+go vet ./... ; go build ./... ; go test ./internal/service ./internal/license ./internal/billing
 ```
 
-## Known follow-ups (not in this pass)
+## Known follow-ups
 
-1. `internal/billing` gateway interface + Razorpay adapter/webhooks.
-2. E-mail (SMTP) for welcome/expiry/receipts; templates.
-3. Signed offline license token + Flutter read-only lock & license banner.
-4. Flutter org-code bootstrap UI (POS app still uses the legacy demo-org path
-   which remains fully compatible).
-5. Idempotency-key namespacing per org; `audit_log` org/outlet columns.
-6. Owner + superadmin web console (API-first — endpoints are ready).
+1. Flutter POS: org-code bootstrap UI, license banner + read-only lock using
+   the signed `entitlement_token`.
+2. Owner + superadmin web console (API-first — endpoints are ready; the
+   portal app was deferred again).
+3. SMTP e-mail templates polish + transactional delivery provider option;
+   e-invoice PDF layout polish (the generator is intentionally minimal).

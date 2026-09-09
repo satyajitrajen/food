@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"foodpos/backend/internal/auth"
 	"foodpos/backend/internal/httpx"
 	"foodpos/backend/internal/middleware"
 	"foodpos/backend/internal/models"
@@ -209,6 +210,10 @@ func (s *Server) handleGetMenuItem(w http.ResponseWriter, r *http.Request) {
 	m, err := s.Store.GetMenuItem(r.Context(), pathID(r, "id"))
 	if err != nil {
 		httpx.ErrorJSON(w, r, err)
+		return
+	}
+	if c, ok := claimsFrom(r); ok && c.Scope == auth.ScopeStaff && c.OutletID != m.OutletID {
+		httpx.ErrorJSON(w, r, httpx.ErrNotFound)
 		return
 	}
 	httpx.JSON(w, http.StatusOK, m)

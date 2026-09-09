@@ -57,6 +57,9 @@ func (s *Server) Routes() http.Handler {
 	r.With(authLimit).Post("/api/v1/auth/account/login", s.handleAccountLogin)
 	r.With(authLimit).Post("/api/v1/auth/account/refresh", s.handleAccountRefresh)
 	r.With(authLimit).Post("/api/v1/auth/account/logout", s.handleAccountLogout)
+	r.With(registerLimit).Post("/api/v1/auth/account/forgot", s.handleForgotPassword)
+	r.With(registerLimit).Post("/api/v1/auth/account/reset", s.handleResetPassword)
+	r.With(registerLimit).Post("/api/v1/auth/account/verify", s.handleVerifyEmail)
 	r.With(authLimit).Post("/api/v1/admin/login", s.handleAdminLogin)
 	r.With(authLimit).Post("/api/v1/admin/refresh", s.handleAdminRefresh)
 	r.With(authLimit).Post("/api/v1/admin/logout", s.handleAdminLogout)
@@ -76,6 +79,8 @@ func (s *Server) Routes() http.Handler {
 		r.Post("/outlets", s.handleSaaSCreateOutlet)
 		r.Post("/staff", s.handleSaaSCreateStaff)
 		r.Post("/subscription/cancel", s.handleSaaSCancelSubscription)
+		r.Post("/org/rotate-code", s.handleRotateOrgCode)
+		r.Get("/invoices/{id}/pdf", s.handleOwnerInvoicePDF)
 	})
 
 	// Platform superadmin APIs (scope: admin).
@@ -88,8 +93,13 @@ func (s *Server) Routes() http.Handler {
 		r.Post("/orgs/{id}/extend", s.handleAdminExtend)
 		r.Post("/orgs/{id}/suspend", s.handleAdminSuspend)
 		r.Post("/orgs/{id}/cancel", s.handleAdminCancel)
+		r.Post("/orgs/{id}/checkout", s.handleAdminCheckout)
+		r.Get("/invoices/{id}/pdf", s.handleAdminInvoicePDF)
 		r.Get("/stats", s.handleAdminStats)
 	})
+
+	// Razorpay webhook (public; signature-verified).
+	r.Post("/api/v1/webhooks/razorpay", s.handleRazorpayWebhook)
 
 	// Authenticated POS routes (scope: staff, tenant-bound).
 	r.Route("/api/v1", func(r chi.Router) {
@@ -125,6 +135,7 @@ func (s *Server) Routes() http.Handler {
 		r.Group(func(r chi.Router) {
 			r.Use(s.entitlementGate())
 			r.Use(middleware.DenyRoles("kitchen"))
+			r.Use(s.auditMiddleware())
 
 			r.Post("/auth/verify-manager-pin", s.handleVerifyManagerPin)
 

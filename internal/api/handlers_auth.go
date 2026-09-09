@@ -18,12 +18,13 @@ type loginReq struct {
 }
 
 type tokenResp struct {
-	Token        string              `json:"token"`
-	RefreshToken string              `json:"refresh_token,omitempty"`
-	TokenType    string              `json:"token_type"`
-	ExpiresAt    time.Time           `json:"expires_at"`
-	Staff        models.Staff        `json:"staff"`
-	Entitlement  *models.Entitlement `json:"entitlement,omitempty"`
+	Token            string              `json:"token"`
+	RefreshToken     string              `json:"refresh_token,omitempty"`
+	TokenType        string              `json:"token_type"`
+	ExpiresAt        time.Time           `json:"expires_at"`
+	Staff            models.Staff        `json:"staff"`
+	Entitlement      *models.Entitlement `json:"entitlement,omitempty"`
+	EntitlementToken string              `json:"entitlement_token,omitempty"`
 }
 
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
@@ -66,7 +67,8 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	ent, _ := s.Store.GetEntitlement(r.Context(), row.OrgID)
 	httpx.JSON(w, http.StatusOK, tokenResp{
 		Token: token, RefreshToken: refresh, TokenType: "Bearer",
-		ExpiresAt: time.Now().Add(auth.AccessTTL), Staff: row.Staff, Entitlement: ent,
+		ExpiresAt: time.Now().Add(auth.AccessTTL), Staff: row.Staff,
+		Entitlement: ent, EntitlementToken: s.signedEntitlementToken(ent),
 	})
 }
 
@@ -114,7 +116,8 @@ func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {
 	ent, _ := s.Store.GetEntitlement(r.Context(), sess.OrgID)
 	httpx.JSON(w, http.StatusOK, tokenResp{
 		Token: token, RefreshToken: refresh, TokenType: "Bearer",
-		ExpiresAt: time.Now().Add(auth.AccessTTL), Staff: row.Staff, Entitlement: ent,
+		ExpiresAt: time.Now().Add(auth.AccessTTL), Staff: row.Staff,
+		Entitlement: ent, EntitlementToken: s.signedEntitlementToken(ent),
 	})
 }
 
@@ -249,6 +252,10 @@ func (s *Server) handleCreateStaff(w http.ResponseWriter, r *http.Request) {
 	claims, ok := claimsFrom(r)
 	if !ok {
 		httpx.ErrorJSON(w, r, httpx.ErrUnauthorized)
+		return
+	}
+	if err := s.enforceStaffLimit(r, claims.OrgID); err != nil {
+		httpx.ErrorJSON(w, r, err)
 		return
 	}
 	hash, err := s.Auth.HashPIN(req.PIN)
