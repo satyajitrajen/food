@@ -59,7 +59,7 @@ func (s *Server) handleOpenShift(w http.ResponseWriter, r *http.Request) {
 			return 0, nil, httpx.NewError(409, "shift_already_open", "Outlet already has an open shift")
 		}
 		claims, _ := claimsFrom(r)
-		shift, err := s.Store.OpenShift(r.Context(), outletID, claims.StaffID, claims.Name, req)
+		shift, err := s.Store.OpenShift(r.Context(), outletID, claims.ActorID, claims.Name, req)
 		if err != nil {
 			return 0, nil, err
 		}
@@ -127,7 +127,7 @@ func (s *Server) handleCashMove(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	claims, _ := claimsFrom(r)
-	tx, err := s.Store.AddCashMove(r.Context(), shift.ID, claims.StaffID, claims.Name, req.Type, req.Amount, req.Reason, req.Reference)
+	tx, err := s.Store.AddCashMove(r.Context(), shift.ID, claims.ActorID, claims.Name, req.Type, req.Amount, req.Reason, req.Reference)
 	if err != nil {
 		httpx.ErrorJSON(w, r, err)
 		return
@@ -161,7 +161,7 @@ func (s *Server) handleCreateExpense(w http.ResponseWriter, r *http.Request) {
 		}
 		outletID := outletScope(r)
 		claims, _ := claimsFrom(r)
-		exp, err := s.Store.CreateExpense(r.Context(), outletID, req, strPtr(claims.StaffID))
+		exp, err := s.Store.CreateExpense(r.Context(), outletID, req, strPtr(claims.ActorID))
 		if err != nil {
 			return 0, nil, err
 		}
@@ -272,7 +272,7 @@ func (s *Server) handleAdjustStock(w http.ResponseWriter, r *http.Request) {
 	}
 	outletID := outletScope(r)
 	claims, _ := claimsFrom(r)
-	item, err := s.Store.AdjustStock(r.Context(), outletID, pathID(r, "id"), req.Delta, req.Reason, claims.StaffID, claims.Name)
+	item, err := s.Store.AdjustStock(r.Context(), outletID, pathID(r, "id"), req.Delta, req.Reason, claims.ActorID, claims.Name)
 	if err != nil {
 		httpx.ErrorJSON(w, r, err)
 		return
@@ -334,7 +334,7 @@ func (s *Server) handleCreatePurchase(w http.ResponseWriter, r *http.Request) {
 			return 0, nil, httpx.NewError(400, "missing_outlet", "outlet_id is required")
 		}
 		claims, _ := claimsFrom(r)
-		p, err := s.Store.CreatePurchase(r.Context(), outletID, req, claims.StaffID, claims.Name)
+		p, err := s.Store.CreatePurchase(r.Context(), outletID, req, claims.ActorID, claims.Name)
 		if err != nil {
 			return 0, nil, err
 		}
@@ -383,7 +383,7 @@ func (s *Server) handleBookCredit(w http.ResponseWriter, r *http.Request) {
 			return 0, nil, httpx.NewError(400, "missing_outlet", "outlet_id is required")
 		}
 		claims, _ := claimsFrom(r)
-		c, err := s.Store.BookCustomerCredit(r.Context(), outletID, pathID(r, "id"), req.Kind, req.AmountPaise, req.Reason, claims.StaffID, claims.Name)
+		c, err := s.Store.BookCustomerCredit(r.Context(), outletID, pathID(r, "id"), req.Kind, req.AmountPaise, req.Reason, claims.ActorID, claims.Name)
 		if err != nil {
 			return 0, nil, err
 		}

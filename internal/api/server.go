@@ -43,17 +43,59 @@ func (s *Server) Routes() http.Handler {
 	}
 
 	// Public (auth routes are rate-limited per IP; staff profiles are public
-	// so terminals can render the PIN login screen before authentication)
+	// so terminals can render the PIN login screen before authentication).
 	authLimit := middleware.RateLimit(20, time.Minute)
+	registerLimit := middleware.RateLimit(10, time.Minute)
+	deviceLimit := middleware.RateLimit(60, time.Minute)
+
 	r.With(authLimit).Post("/api/v1/auth/login", s.handleLogin)
 	r.With(authLimit).Post("/api/v1/auth/refresh", s.handleRefresh)
 	r.With(authLimit).Post("/api/v1/auth/logout", s.handleLogout)
+
+	// SaaS self-registration + owner + platform admin auth.
+	r.With(registerLimit).Post("/api/v1/auth/register", s.handleRegisterOrg)
+	r.With(authLimit).Post("/api/v1/auth/account/login", s.handleAccountLogin)
+	r.With(authLimit).Post("/api/v1/auth/account/refresh", s.handleAccountRefresh)
+	r.With(authLimit).Post("/api/v1/auth/account/logout", s.handleAccountLogout)
+	r.With(authLimit).Post("/api/v1/admin/login", s.handleAdminLogin)
+	r.With(authLimit).Post("/api/v1/admin/refresh", s.handleAdminRefresh)
+	r.With(authLimit).Post("/api/v1/admin/logout", s.handleAdminLogout)
+	r.With(deviceLimit).Post("/api/v1/auth/device-options", s.handleDeviceOptions)
+
+	// Legacy terminal bootstrap (org_code optional; defaults to the demo org).
 	r.Get("/api/v1/outlets", s.handleListOutlets)
 	r.Get("/api/v1/staff", s.handleListStaff)
 	r.Get("/api/v1/ws", s.Hub.Handler())
-	// Authenticated
+
+	// Owner account APIs (scope: owner).
+	r.Route("/api/v1/saas", func(r chi.Router) {
+		r.Use(middleware.Auth(s.Auth))
+		r.Use(middleware.RequireScope(auth.ScopeOwner))
+		r.Get("/me", s.handleSaaSMe)
+		r.Get("/org", s.handleSaaSOrg)
+		r.Post("/outlets", s.handleSaaSCreateOutlet)
+		r.Post("/staff", s.handleSaaSCreateStaff)
+		r.Post("/subscription/cancel", s.handleSaaSCancelSubscription)
+	})
+
+	// Platform superadmin APIs (scope: admin).
+	r.Route("/api/v1/admin", func(r chi.Router) {
+		r.Use(middleware.Auth(s.Auth))
+		r.Use(middleware.RequireScope(auth.ScopeAdmin))
+		r.Get("/orgs", s.handleListAdminOrgs)
+		r.Get("/orgs/{id}", s.handleAdminOrgDetail)
+		r.Post("/orgs/{id}/activate", s.handleAdminActivate)
+		r.Post("/orgs/{id}/extend", s.handleAdminExtend)
+		r.Post("/orgs/{id}/suspend", s.handleAdminSuspend)
+		r.Post("/orgs/{id}/cancel", s.handleAdminCancel)
+		r.Get("/stats", s.handleAdminStats)
+	})
+
+	// Authenticated POS routes (scope: staff, tenant-bound).
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Use(middleware.Auth(s.Auth))
+		r.Use(middleware.RequireScope(auth.ScopeStaff))
+		r.Use(middleware.StaffTenant())
 
 		// Kitchen display (role 'kitchen') is display-only. It may exchange
 		// its JWT for an SSE ticket and read the KOT board + hydrate its
@@ -79,8 +121,9 @@ func (s *Server) Routes() http.Handler {
 		r.Get("/purchases", s.handleListPurchases)
 		r.Get("/settings", s.handleGetSettings)
 
-		// ---- Writes & back-office — kitchen is denied ----
+		// ---- Writes & back-office — kitchen is denied; paid writes gated ----
 		r.Group(func(r chi.Router) {
+			r.Use(s.entitlementGate())
 			r.Use(middleware.DenyRoles("kitchen"))
 
 			r.Post("/auth/verify-manager-pin", s.handleVerifyManagerPin)

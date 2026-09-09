@@ -9,6 +9,7 @@ import "time"
 
 type Outlet struct {
 	ID       string `json:"id"`
+	OrgID    string `json:"org_id"`
 	Name     string `json:"name"`
 	Address  string `json:"address"`
 	Terminal string `json:"terminal"`
@@ -20,6 +21,8 @@ type Outlet struct {
 
 type Staff struct {
 	ID        string    `json:"id"`
+	OrgID     string    `json:"org_id"`
+	OutletID  *string   `json:"outlet_id"`
 	Name      string    `json:"name"`
 	Role      string    `json:"role"` // admin|manager|cashier|waiter|kitchen
 	AvatarURL string    `json:"avatar_url"`
@@ -29,11 +32,12 @@ type Staff struct {
 }
 
 type StaffCreate struct {
-	Name      string `json:"name"`
-	Role      string `json:"role"`
-	PIN       string `json:"pin"`
-	AvatarURL string `json:"avatar_url"`
-	Mobile    string `json:"mobile"`
+	Name      string  `json:"name"`
+	Role      string  `json:"role"`
+	PIN       string  `json:"pin"`
+	AvatarURL string  `json:"avatar_url"`
+	Mobile    string  `json:"mobile"`
+	OutletID  *string `json:"outlet_id,omitempty"` // null = org-wide
 }
 
 // StaffPatch is a partial staff update (PATCH /staff/{id}). A non-empty PIN

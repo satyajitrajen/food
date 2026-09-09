@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-
 	"foodpos/backend/internal/auth"
 	"foodpos/backend/internal/httpx"
 )
@@ -110,7 +109,7 @@ func (h *Hub) Handler() http.HandlerFunc {
 
 		c := h.Subscribe(outletID)
 		defer h.Unsubscribe(c)
-		slog.Info("ws client connected", "outlet", outletID, "staff", claims.StaffID)
+		slog.Info("ws client connected", "outlet", outletID, "staff", claims.ActorID)
 
 		// Initial comment so clients detect the stream opened.
 		_, _ = w.Write([]byte(": connected\n\n"))

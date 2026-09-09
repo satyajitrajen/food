@@ -141,7 +141,7 @@ func (s *Server) handleCreateOrder(w http.ResponseWriter, r *http.Request) {
 			CustomerName:    req.CustomerName,
 			CustomerPhone:   req.CustomerPhone,
 			DeliveryAddress: req.DeliveryAddress,
-			WaiterID:        strPtr(claims.StaffID),
+			WaiterID:        strPtr(claims.ActorID),
 			WaiterName:      strPtr(claims.Name),
 			GuestCount:      guests,
 			OrderNote:       req.OrderNote,
@@ -612,10 +612,10 @@ func (s *Server) handleRefund(w http.ResponseWriter, r *http.Request) {
 	}
 	s.publish(r, "order.updated", o.OutletID, updated)
 	httpx.JSON(w, http.StatusOK, map[string]any{
-		"order": updated,
+		"order":          updated,
 		"refunded_paise": req.AmountPaise,
-		"mode": req.Mode,
-		"reason": req.Reason,
-		"processed_at": time.Now().UTC(),
+		"mode":           req.Mode,
+		"reason":         req.Reason,
+		"processed_at":   time.Now().UTC(),
 	})
 }

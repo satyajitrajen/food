@@ -6,6 +6,7 @@ package api_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -13,11 +14,13 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"foodpos/backend/internal/api"
 	"foodpos/backend/internal/auth"
 	"foodpos/backend/internal/config"
 	"foodpos/backend/internal/db"
+	"foodpos/backend/internal/models"
 	"foodpos/backend/internal/store"
 	"foodpos/backend/internal/ws"
 )
@@ -79,6 +82,21 @@ func seedServer(st *store.Store, mgr *auth.Manager) {
 	st.DB.Exec(`INSERT INTO modifier_groups (id, menu_item_id, name, is_multi_select, is_required) VALUES ('mg-1', 'm-01', 'Add-ons', 1, 0)`)
 	st.DB.Exec(`INSERT INTO modifier_items (id, group_id, name, price_paise) VALUES ('mo-1', 'mg-1', 'Extra Chutney', 2000)`)
 	st.DB.Exec(`INSERT INTO settings (outlet_id, restaurant_name) VALUES ('out-01', 'Test Resto')`)
+
+	// SaaS: default plan + active subscription for the legacy demo org, and a
+	// platform superadmin for manual-billing tests.
+	ctx := context.Background()
+	if plan, err := st.SeedDefaultPlan(ctx); err == nil {
+		now := time.Now().UTC()
+		end := now.AddDate(0, 1, 0)
+		_ = st.UpsertSubscription(ctx, &models.OrgSubscription{
+			OrgID: "org-01", PlanID: plan.ID, Status: models.SubActive,
+			CurrentPeriodStart: &now, CurrentPeriodEnd: &end,
+		})
+		_ = st.SetOrgStatus(ctx, "org-01", models.OrgActive)
+	}
+	adminHash, _ := mgr.HashPassword("secret123")
+	_, _ = st.CreatePlatformAdmin(ctx, "Test Admin", "admin@foodpos.test", adminHash)
 }
 
 func (e *env) do(t *testing.T, method, path string, body any, auth bool) (int, map[string]any) {

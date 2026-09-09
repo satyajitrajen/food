@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"foodpos/backend/internal/auth"
 	"foodpos/backend/internal/config"
 	"foodpos/backend/internal/db"
+	"foodpos/backend/internal/models"
 	"foodpos/backend/internal/store"
 	"foodpos/backend/internal/ws"
 )
@@ -37,6 +39,19 @@ func main() {
 
 	st := store.New(database)
 	authMgr := auth.New(cfg.JWTSecret, cfg.BcryptCost)
+
+	// Every deployment needs the default plan + an active subscription for the
+	// legacy demo org (org-01) so existing terminals keep their entitlements.
+	if err := ensureDefaultTenant(st); err != nil {
+		slog.Error("default tenant setup failed", "err", err)
+		os.Exit(1)
+	}
+
+	// Platform superadmin from env (created once on first boot).
+	if err := ensureSuperAdmin(st, authMgr); err != nil {
+		slog.Error("superadmin setup failed", "err", err)
+		os.Exit(1)
+	}
 	hub := ws.NewHub(authMgr)
 	tickets := auth.NewTicketStore(auth.SSETicketTTL)
 	hub.SetTicketStore(tickets)
@@ -310,4 +325,49 @@ func b2i(b bool) int {
 		return 1
 	}
 	return 0
+}
+
+// ensureDefaultTenant seeds the pro plan and guarantees org-01 has an active
+// subscription (legacy single-tenant data continues to operate as a tenant).
+func ensureDefaultTenant(st *store.Store) error {
+	ctx := context.Background()
+	plan, err := st.SeedDefaultPlan(ctx)
+	if err != nil {
+		return err
+	}
+	if _, err := st.GetOrganization(ctx, "org-01"); err != nil {
+		return nil // no legacy org (fresh SaaS-only install) — nothing to do
+	}
+	sub, err := st.GetSubscription(ctx, "org-01")
+	if err == nil && sub != nil {
+		return nil // already has a subscription
+	}
+	now := time.Now().UTC()
+	start, end := now, now.AddDate(0, 0, 30)
+	if err := st.UpsertSubscription(ctx, &models.OrgSubscription{
+		OrgID: "org-01", PlanID: plan.ID, Status: models.SubActive,
+		CurrentPeriodStart: &start, CurrentPeriodEnd: &end,
+	}); err != nil {
+		return err
+	}
+	return st.SetOrgStatus(ctx, "org-01", models.OrgActive)
+}
+
+// ensureSuperAdmin creates the platform admin from FOODPOS_SUPERADMIN_EMAIL /
+// FOODPOS_SUPERADMIN_PASSWORD on first boot (idempotent).
+func ensureSuperAdmin(st *store.Store, mgr *auth.Manager) error {
+	email := strings.ToLower(strings.TrimSpace(os.Getenv("FOODPOS_SUPERADMIN_EMAIL")))
+	pw := os.Getenv("FOODPOS_SUPERADMIN_PASSWORD")
+	if email == "" || pw == "" {
+		return nil
+	}
+	if _, err := st.GetPlatformAdminByEmail(context.Background(), email); err == nil {
+		return nil
+	}
+	hash, err := mgr.HashPassword(pw)
+	if err != nil {
+		return err
+	}
+	_, err = st.CreatePlatformAdmin(context.Background(), "Superadmin", email, hash)
+	return err
 }
