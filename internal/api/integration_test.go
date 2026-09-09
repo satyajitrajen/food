@@ -343,7 +343,7 @@ func TestRoleGate(t *testing.T) {
 
 	// manager login can
 	var buf bytes.Buffer
-	_ = json.NewEncoder(&buf).Encode(map[string]string{"staff_id": "st-02", "pin": "9999"})
+	_ = json.NewEncoder(&buf).Encode(map[string]string{"staff_id": "st-02", "pin": "9999", "outlet_id": "out-01"})
 	req, _ := http.NewRequest("POST", e.ts.URL+"/api/v1/auth/login", &buf)
 	res, err := e.client.Do(req)
 	if err != nil {
@@ -400,7 +400,7 @@ func TestPurchasesAndStock(t *testing.T) {
 	// Create an inventory item (manager-gated; cashier is fine here since we
 	// only need a row — create via manager PIN session below).
 	var buf bytes.Buffer
-	_ = json.NewEncoder(&buf).Encode(map[string]string{"staff_id": "st-02", "pin": "9999"})
+	_ = json.NewEncoder(&buf).Encode(map[string]string{"staff_id": "st-02", "pin": "9999", "outlet_id": "out-01"})
 	req, _ := http.NewRequest("POST", e.ts.URL+"/api/v1/auth/login", &buf)
 	res, err := e.client.Do(req)
 	if err != nil {
@@ -544,7 +544,7 @@ func TestCustomerCredit(t *testing.T) {
 func TestRefreshTokenRotation(t *testing.T) {
 	e := newEnv(t)
 	code, body := e.do(t, "POST", "/api/v1/auth/login", map[string]string{
-		"staff_id": "st-01", "pin": "1234",
+		"staff_id": "st-01", "pin": "1234", "outlet_id": "out-01",
 	}, false)
 	if code != 200 {
 		t.Fatalf("login failed: %d %v", code, body)
@@ -597,7 +597,7 @@ func TestRateLimit(t *testing.T) {
 	last := 0
 	for i := 0; i < 30; i++ {
 		code, _ := e.do(t, "POST", "/api/v1/auth/login", map[string]string{
-			"staff_id": "st-01", "pin": "0000",
+			"staff_id": "st-01", "pin": "0000", "outlet_id": "out-01",
 		}, false)
 		last = code
 	}
@@ -614,7 +614,7 @@ func TestSettingsUpsertResolvesOutlet(t *testing.T) {
 
 	// Manager login (settings PUT is manager-gated).
 	var buf bytes.Buffer
-	_ = json.NewEncoder(&buf).Encode(map[string]string{"staff_id": "st-02", "pin": "9999"})
+	_ = json.NewEncoder(&buf).Encode(map[string]string{"staff_id": "st-02", "pin": "9999", "outlet_id": "out-01"})
 	req, _ := http.NewRequest("POST", e.ts.URL+"/api/v1/auth/login", &buf)
 	res, err := e.client.Do(req)
 	if err != nil {
@@ -648,12 +648,20 @@ func TestSettingsUpsertResolvesOutlet(t *testing.T) {
 		t.Fatalf("gst_percent = %v, want 12", got)
 	}
 
-	// An empty scope (no query, no claim) is still rejected with 400.
-	code, _ = e.do(t, "PUT", "/api/v1/settings", map[string]any{
-		"restaurant_name": "No Outlet",
+	// SaaS: staff tokens always carry the outlet claim, so a PUT without
+	// ?outlet_id resolves via the claim (and must NOT create an empty-outlet row).
+	code, body = e.do(t, "PUT", "/api/v1/settings", map[string]any{
+		"restaurant_name": "Claim Scoped",
 	}, true)
-	if code != 400 {
-		t.Fatalf("settings upsert without any outlet scope: expected 400, got %d", code)
+	if code != 200 {
+		t.Fatalf("settings upsert via claim scope: expected 200, got %d %v", code, body)
+	}
+	code, body = e.do(t, "GET", "/api/v1/settings?outlet_id=out-01", nil, true)
+	if code != 200 {
+		t.Fatalf("settings read after claim-scope upsert failed: %d %v", code, body)
+	}
+	if got, _ := body["restaurant_name"].(string); got != "Claim Scoped" {
+		t.Fatalf("restaurant_name = %q, want Claim Scoped (claim fallback)", got)
 	}
 }
 
@@ -721,7 +729,7 @@ func TestOrderDefaultsFromSettings(t *testing.T) {
 
 	// Manager login + reconfigure the outlet settings.
 	var buf bytes.Buffer
-	_ = json.NewEncoder(&buf).Encode(map[string]string{"staff_id": "st-02", "pin": "9999"})
+	_ = json.NewEncoder(&buf).Encode(map[string]string{"staff_id": "st-02", "pin": "9999", "outlet_id": "out-01"})
 	req, _ := http.NewRequest("POST", e.ts.URL+"/api/v1/auth/login", &buf)
 	res, err := e.client.Do(req)
 	if err != nil {
@@ -893,7 +901,7 @@ func TestInclusiveGSTOrder(t *testing.T) {
 
 	// Manager turns on inclusive GST.
 	var buf bytes.Buffer
-	_ = json.NewEncoder(&buf).Encode(map[string]string{"staff_id": "st-02", "pin": "9999"})
+	_ = json.NewEncoder(&buf).Encode(map[string]string{"staff_id": "st-02", "pin": "9999", "outlet_id": "out-01"})
 	req, _ := http.NewRequest("POST", e.ts.URL+"/api/v1/auth/login", &buf)
 	res, err := e.client.Do(req)
 	if err != nil {

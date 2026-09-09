@@ -303,7 +303,7 @@ const subscriptionCols = `org_id, plan_id, status, trial_ends_at, current_period
 
 func (s *Store) GetSubscription(ctx context.Context, orgID string) (*models.OrgSubscription, error) {
 	var sub models.OrgSubscription
-	var trial, pStart, pEnd, updated string
+	var trial, pStart, pEnd, updated sql.NullString
 	var cancel int
 	var notes sql.NullString
 	err := s.DB.QueryRowContext(ctx, `SELECT `+subscriptionCols+` FROM org_subscriptions WHERE org_id = ?`, orgID).
@@ -314,14 +314,14 @@ func (s *Store) GetSubscription(ctx context.Context, orgID string) (*models.OrgS
 	if err != nil {
 		return nil, err
 	}
-	sub.TrialEndsAt = parseOptTime(trial)
-	sub.CurrentPeriodStart = parseOptTime(pStart)
-	sub.CurrentPeriodEnd = parseOptTime(pEnd)
+	sub.TrialEndsAt = parseOptTime(trial.String)
+	sub.CurrentPeriodStart = parseOptTime(pStart.String)
+	sub.CurrentPeriodEnd = parseOptTime(pEnd.String)
 	sub.CancelAtPeriodEnd = cancel == 1
 	if notes.Valid {
 		sub.Notes = &notes.String
 	}
-	sub.UpdatedAt = ParseTime(updated)
+	sub.UpdatedAt = ParseTime(updated.String)
 	return &sub, nil
 }
 
