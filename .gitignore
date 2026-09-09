@@ -46,7 +46,10 @@ app.*.map.json
 
 # Monorepo additions (workspace root repo)
 **/.gradle/
+/android/build/
 **/flutter/ephemeral/
+**/flutter/generated_plugin_registrant.*
+**/flutter/generated_plugins.cmake
 **/GeneratedPluginRegistrant.*
 node_modules/
 landing/dist/
