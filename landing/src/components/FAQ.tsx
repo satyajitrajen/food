@@ -25,11 +25,20 @@ export const FAQ: React.FC = () => {
             const isOpen = openId === faq.id;
             return (
               <div key={faq.id} className={`faq-item ${isOpen ? 'open' : ''}`}>
-                <button className="faq-question" onClick={() => toggleFaq(faq.id)}>
+                <button
+                  className="faq-question"
+                  aria-expanded={isOpen}
+                  aria-controls={`faq-answer-${faq.id}`}
+                  onClick={() => toggleFaq(faq.id)}
+                >
                   <span>{faq.question}</span>
                   <ChevronDown size={20} className="faq-icon" />
                 </button>
-                {isOpen && <div className="faq-answer">{faq.answer}</div>}
+                {isOpen && (
+                  <div id={`faq-answer-${faq.id}`} className="faq-answer" role="region">
+                    {faq.answer}
+                  </div>
+                )}
               </div>
             );
           })}

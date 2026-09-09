@@ -1,10 +1,16 @@
 import React from 'react';
 import { useRouter } from '../router';
-import { UtensilsCrossed, PhoneCall } from 'lucide-react';
+import { ArrowRight, UtensilsCrossed } from 'lucide-react';
 
 interface NavbarProps {
   onOpenDemo: () => void;
 }
+
+const NAV_LINKS = [
+  { label: 'Features', targetId: 'features' },
+  { label: 'Benefits', targetId: 'benefits' },
+  { label: 'Pricing', targetId: 'pricing' },
+];
 
 export const Navbar: React.FC<NavbarProps> = ({ onOpenDemo }) => {
   const { navigate, currentPath } = useRouter();
@@ -23,69 +29,31 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenDemo }) => {
   };
 
   return (
-    <header className="nav-wrapper">
-      <nav className="nav-pill">
+    <header className="t-header">
+      <nav className="t-header-inner" aria-label="Main">
         {/* Brand */}
-        <a href="/" onClick={(e) => { e.preventDefault(); navigate('/'); }} className="nav-brand">
-          <div className="nav-brand-icon">
+        <a href="/" onClick={(e) => { e.preventDefault(); navigate('/'); }} className="t-brand">
+          <span className="t-brand-mark">
             <UtensilsCrossed size={18} />
-          </div>
-          <span>Food<span style={{ color: 'var(--orange-primary)' }}>POS</span></span>
+          </span>
+          <span>FoodPOS</span>
         </a>
 
-        {/* Center Pill Menu */}
-        <ul className="nav-menu">
-          <li>
-            <a
-              href="#simulator"
-              onClick={(e) => handleNavClick(e, 'simulator')}
-              className={`nav-pill-item ${currentPath === '/' ? 'active' : ''}`}
-            >
-              • Terminal
-            </a>
-          </li>
-          <li>
-            <a
-              href="#features"
-              onClick={(e) => handleNavClick(e, 'features')}
-              className="nav-pill-item"
-            >
-              Pillars
-            </a>
-          </li>
-          <li>
-            <a
-              href="#floors"
-              onClick={(e) => handleNavClick(e, 'floors')}
-              className="nav-pill-item"
-            >
-              Dining &amp; KDS
-            </a>
-          </li>
-          <li>
-            <a
-              href="#pricing"
-              onClick={(e) => handleNavClick(e, 'pricing')}
-              className="nav-pill-item"
-            >
-              Pricing
-            </a>
-          </li>
-          <li>
-            <a
-              href="#faq"
-              onClick={(e) => handleNavClick(e, 'faq')}
-              className="nav-pill-item"
-            >
-              FAQ
-            </a>
-          </li>
+        {/* Center links */}
+        <ul className="t-nav-links">
+          {NAV_LINKS.map((link) => (
+            <li key={link.targetId}>
+              <a href={`#${link.targetId}`} onClick={(e) => handleNavClick(e, link.targetId)}>
+                {link.label}
+              </a>
+            </li>
+          ))}
         </ul>
 
-        {/* Right CTA */}
-        <button onClick={onOpenDemo} className="nav-contact-btn">
-          <PhoneCall size={15} />
-          <span>Book Demo</span>
+        {/* CTA */}
+        <button onClick={onOpenDemo} className="t-nav-cta">
+          <span>Get FoodPOS</span>
+          <ArrowRight size={16} className="t-arrow" aria-hidden="true" />
         </button>
       </nav>
     </header>

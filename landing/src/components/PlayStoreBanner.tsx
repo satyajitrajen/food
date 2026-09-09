@@ -27,10 +27,16 @@ export const PlayStoreBanner: React.FC = () => {
                     alert('FoodPOS is currently rolling out on Google Play Console. Download demo APK or schedule onboarding.');
                   }}
                 >
-                  <Tablet size={22} />
+                  <img
+                    src="/images/google-play.svg"
+                    alt="Google Play"
+                    width="24"
+                    height="26"
+                    style={{ flexShrink: 0, display: 'block' }}
+                  />
                   <div style={{ textAlign: 'left' }}>
-                    <div style={{ fontSize: '0.7rem', textTransform: 'uppercase' }}>Available on</div>
-                    <div style={{ fontSize: '1rem', fontWeight: 700 }}>Google Play</div>
+                    <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', opacity: 0.85 }}>Available on</div>
+                    <div style={{ fontSize: '1rem', fontWeight: 700, lineHeight: 1.2 }}>Google Play</div>
                   </div>
                 </a>
 
@@ -42,10 +48,16 @@ export const PlayStoreBanner: React.FC = () => {
                     alert('Windows Desktop installer available for onboarding partners.');
                   }}
                 >
-                  <Monitor size={22} />
+                  <img
+                    src="/images/windows.svg"
+                    alt="Windows"
+                    width="22"
+                    height="22"
+                    style={{ flexShrink: 0, display: 'block' }}
+                  />
                   <div style={{ textAlign: 'left' }}>
-                    <div style={{ fontSize: '0.7rem', textTransform: 'uppercase' }}>Download for</div>
-                    <div style={{ fontSize: '1rem', fontWeight: 700 }}>Windows PC</div>
+                    <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', opacity: 0.85 }}>Download for</div>
+                    <div style={{ fontSize: '1rem', fontWeight: 700, lineHeight: 1.2 }}>Windows PC</div>
                   </div>
                 </a>
               </div>

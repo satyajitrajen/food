@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { X, Sparkles, CheckCircle2, MessageCircle, ArrowRight } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { X, Sparkles, CheckCircle2, MessageCircle, ArrowRight, Loader2 } from 'lucide-react';
 
 interface DemoModalProps {
   isOpen: boolean;
@@ -15,16 +15,54 @@ export const DemoModal: React.FC<DemoModalProps> = ({ isOpen, onClose, defaultPl
   const [outletFormat, setOutletFormat] = useState('Dine-in Restaurant');
   const [submitted, setSubmitted] = useState(false);
   const [demoId, setDemoId] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState('');
+
+  const firstFieldRef = useRef<HTMLInputElement>(null);
+  const prevFocus = useRef<HTMLElement | null>(null);
+
+  // Focus the first field on open, return focus to the trigger on close.
+  useEffect(() => {
+    if (!isOpen) return;
+    prevFocus.current = document.activeElement as HTMLElement | null;
+    const timer = window.setTimeout(() => firstFieldRef.current?.focus(), 0);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        handleReset();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener('keydown', onKey);
+      prevFocus.current?.focus?.();
+    };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!restaurantName || !phone) return;
-
-    const randomId = `DEMO-${Math.floor(1000 + Math.random() * 9000)}`;
-    setDemoId(randomId);
-    setSubmitted(true);
+    setFormError('');
+    const digits = phone.replace(/\D/g, '');
+    if (restaurantName.trim().length < 2) {
+      setFormError('Enter your restaurant or café name so we know who to reach.');
+      firstFieldRef.current?.focus();
+      return;
+    }
+    if (digits.length < 10 || digits.length > 12) {
+      setFormError('Enter a valid 10-digit WhatsApp mobile number so we can contact you.');
+      return;
+    }
+    setSubmitting(true);
+    // Simulated request round-trip; keeps the button label while it spins.
+    window.setTimeout(() => {
+      const randomId = `DEMO-${Math.floor(1000 + Math.random() * 9000)}`;
+      setDemoId(randomId);
+      setSubmitting(false);
+      setSubmitted(true);
+    }, 600);
   };
 
   const handleReset = () => {
@@ -32,6 +70,8 @@ export const DemoModal: React.FC<DemoModalProps> = ({ isOpen, onClose, defaultPl
     setRestaurantName('');
     setContactName('');
     setPhone('');
+    setFormError('');
+    setSubmitting(false);
     onClose();
   };
 
@@ -41,8 +81,14 @@ export const DemoModal: React.FC<DemoModalProps> = ({ isOpen, onClose, defaultPl
 
   return (
     <div className="modal-overlay" onClick={handleReset}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <button onClick={handleReset} className="modal-close-btn">
+      <div
+        className="modal-content"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="demo-modal-title"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button onClick={handleReset} className="modal-close-btn" aria-label="Close demo form">
           <X size={18} />
         </button>
 
@@ -51,7 +97,7 @@ export const DemoModal: React.FC<DemoModalProps> = ({ isOpen, onClose, defaultPl
             <span className="hero-pill-badge" style={{ marginBottom: '12px', display: 'inline-block' }}>
               15-MIN PERSONALIZED WALKTHROUGH
             </span>
-            <h3 className="modal-title">Book a Live FoodPOS Demo</h3>
+            <h3 className="modal-title" id="demo-modal-title">Book a Live FoodPOS Demo</h3>
             <p className="modal-subtitle">
               See how FoodPOS operates offline, handles rush-hour KOTs, and balances your drawer.
               {defaultPlan && (
@@ -61,15 +107,24 @@ export const DemoModal: React.FC<DemoModalProps> = ({ isOpen, onClose, defaultPl
               )}
             </p>
 
-            <form onSubmit={handleSubmit}>
+            {formError && (
+              <p role="alert" className="form-error" style={{ marginBottom: '10px' }}>
+                {formError}
+              </p>
+            )}
+
+            <form onSubmit={handleSubmit} noValidate>
               <div className="form-group">
-                <label className="form-label">Restaurant / Café Name *</label>
+                <label className="form-label" htmlFor="demo-restaurant">Restaurant / Café Name *</label>
                 <input
+                  id="demo-restaurant"
+                  ref={firstFieldRef}
                   type="text"
                   required
-                  placeholder="e.g. Royal Biryani &amp; Kebabs"
+                  placeholder="e.g. Royal Biryani & Kebabs"
                   className="form-input"
                   value={restaurantName}
+                  aria-invalid={formError.includes('restaurant')}
                   onChange={(e) => setRestaurantName(e.target.value)}
                 />
               </div>
@@ -121,13 +176,17 @@ export const DemoModal: React.FC<DemoModalProps> = ({ isOpen, onClose, defaultPl
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">WhatsApp Mobile Number *</label>
+                  <label className="form-label" htmlFor="demo-phone">WhatsApp Mobile Number *</label>
                   <input
+                    id="demo-phone"
                     type="tel"
                     required
+                    inputMode="tel"
+                    autoComplete="tel"
                     placeholder="e.g. 98220 00000"
                     className="form-input"
                     value={phone}
+                    aria-invalid={formError.includes('number')}
                     onChange={(e) => setPhone(e.target.value)}
                   />
                 </div>
@@ -137,8 +196,17 @@ export const DemoModal: React.FC<DemoModalProps> = ({ isOpen, onClose, defaultPl
                 type="submit"
                 className="btn btn-primary"
                 style={{ width: '100%', marginTop: '12px', padding: '14px' }}
+                disabled={submitting}
               >
-                <Sparkles size={18} /> Confirm Demo Request
+                {submitting ? (
+                  <>
+                    <Loader2 size={18} className="demo-spin" aria-hidden="true" /> Confirm Demo Request
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={18} /> Confirm Demo Request
+                  </>
+                )}
               </button>
             </form>
           </div>
