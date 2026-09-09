@@ -1,0 +1,187 @@
+/* FoodPOS Owner & Superadmin Console */
+.console-root {
+  min-height: 100vh;
+  background: var(--bg-canvas);
+  color: var(--color-charcoal);
+  font-family: var(--font-body);
+  display: flex;
+  flex-direction: column;
+}
+
+.console-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 24px;
+  background: #0c0c0c;
+  color: #fff;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.console-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 18px;
+}
+
+.console-topbar .console-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.console-main {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 28px 20px 60px;
+}
+
+.console-title {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--heading-color, #121212);
+  margin: 0 0 4px;
+}
+
+.console-subtitle {
+  color: var(--text-muted, #78716c);
+  margin: 0 0 22px;
+  font-size: 14px;
+}
+
+.console-banner {
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  font-size: 13px;
+  margin-bottom: 16px;
+  border: 1px solid transparent;
+}
+
+.console-banner-error { background: #fdeaea; color: var(--non-veg-red, #d90429); border-color: #f5c2c2; }
+.console-banner-info { background: #fff2ed; color: var(--orange-primary, #ff5722); border-color: var(--border-orange, #ffd8cc); }
+.console-banner-ok { background: #e9f6ef; color: var(--color-emerald, #2d6a4f); border-color: #cde9d9; }
+
+.console-grid { display: grid; gap: 16px; }
+.console-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; }
+.console-card {
+  background: #fff;
+  border-radius: var(--radius-card, 20px);
+  border: 1px solid #eee5dd;
+  padding: 18px;
+}
+.console-stat .stat-value { font-family: var(--font-display); font-weight: 800; font-size: 26px; color: var(--orange-primary, #ff5722); }
+.console-stat .stat-label { color: var(--text-muted, #78716c); font-size: 12px; margin-top: 2px; }
+
+.console-section-title { font-weight: 700; font-size: 15px; margin: 0 0 12px; }
+
+.console-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.console-table th { text-align: left; color: var(--text-muted, #78716c); font-weight: 600; padding: 8px 10px; border-bottom: 1px solid #eee5dd; }
+.console-table td { padding: 10px; border-bottom: 1px solid #f3ede6; vertical-align: top; }
+
+.console-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+.badge-trial, .badge-active { background: #e9f6ef; color: #2d6a4f; }
+.badge-past_due { background: #fff4e5; color: #b45309; }
+.badge-suspended, .badge-expired, .badge-closed, .badge-cancelled { background: #fdeaea; color: #d90429; }
+.badge-ok { background: #fff2ed; color: #ff5722; }
+
+.console-btn {
+  border: 0;
+  border-radius: 999px;
+  padding: 9px 18px;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: opacity 0.15s;
+}
+.console-btn:disabled { opacity: 0.5; cursor: default; }
+.console-btn-primary { background: var(--orange-primary, #ff5722); color: #fff; box-shadow: var(--shadow-pill); }
+.console-btn-primary:hover:not(:disabled) { background: #f4511e; }
+.console-btn-ghost { background: #fff; color: #1c1917; border: 1px solid #e7ddd2; }
+.console-btn-ghost:hover:not(:disabled) { border-color: var(--orange-primary, #ff5722); color: var(--orange-primary, #ff5722); }
+.console-btn-danger { background: #fff; color: #d90429; border: 1px solid #f0b8b8; }
+.console-btn-danger:hover:not(:disabled) { background: #fdeaea; }
+.console-btn-sm { padding: 6px 12px; font-size: 12px; }
+
+.console-form { display: grid; gap: 12px; }
+.console-field { display: grid; gap: 6px; }
+.console-field label { font-size: 12px; font-weight: 600; color: #4a443e; }
+.console-input, .console-select {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid #e7ddd2;
+  background: #fff;
+  font-size: 14px;
+  font-family: inherit;
+  color: #1c1917;
+  box-sizing: border-box;
+}
+.console-input:focus, .console-select:focus { outline: 2px solid var(--border-orange, #ffd8cc); border-color: var(--orange-primary, #ff5722); }
+
+.console-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.console-row .grow { flex: 1; min-width: 140px; }
+
+.console-list { display: grid; gap: 10px; }
+.console-item {
+  background: #fff;
+  border: 1px solid #eee5dd;
+  border-radius: 14px;
+  padding: 12px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.console-item .item-main { font-weight: 700; font-size: 14px; }
+.console-item .item-sub { color: #78716c; font-size: 12px; margin-top: 2px; }
+
+.console-dialog-overlay {
+  position: fixed; inset: 0; background: rgba(12,12,12,0.45);
+  display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 60;
+}
+.console-dialog {
+  background: #fff; border-radius: 22px; padding: 24px; width: 100%; max-width: 560px;
+  max-height: 88vh; overflow: auto;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.25);
+}
+.console-dialog h3 { margin: 0 0 14px; font-family: var(--font-display); font-size: 19px; }
+
+.console-login-wrap {
+  min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  padding: 24px; background: var(--bg-canvas);
+}
+.console-login-card {
+  width: 100%; max-width: 460px; background: #fff; border-radius: 24px;
+  padding: 30px; box-shadow: var(--shadow-float-card);
+}
+.console-login-card h2 { font-family: var(--font-display); font-size: 22px; margin: 0 0 4px; }
+.console-login-card .hint { color: #78716c; font-size: 13px; margin-bottom: 20px; }
+.console-tabs { display: flex; gap: 6px; background: #f3ede6; border-radius: 999px; padding: 4px; margin-bottom: 18px; }
+.console-tabs button {
+  flex: 1; border: 0; background: transparent; padding: 8px 10px; border-radius: 999px;
+  font-weight: 700; font-size: 13px; cursor: pointer; color: #4a443e; font-family: inherit;
+}
+.console-tabs button.active { background: #fff; color: var(--orange-primary, #ff5722); box-shadow: 0 1px 6px rgba(0,0,0,0.08); }
+.console-link { background: none; border: 0; color: var(--orange-primary, #ff5722); font-weight: 700; cursor: pointer; font-size: 13px; font-family: inherit; padding: 0; }
+.console-code { font-family: var(--font-mono); background: #f3ede6; border-radius: 10px; padding: 10px 14px; font-size: 15px; letter-spacing: 0.06em; }

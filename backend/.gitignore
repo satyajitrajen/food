@@ -1,0 +1,30 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/
+
+# Test artifacts
+*.test
+*.out
+
+# SQLite database and journals
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+
+# Environment / local settings
+.env
+.env.local
+
+# Built web assets (embedded at compile time by `make web`)
+internal/web/webroot/
+
+# IDE and OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

@@ -1,30 +1,55 @@
-# Binaries
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-bin/
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
 
-# Test artifacts
-*.test
-*.out
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
 
-# SQLite database and journals
-*.db
-*.db-shm
-*.db-wal
-*.db-journal
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
 
-# Environment / local settings
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# Monorepo additions (workspace root repo)
+**/.gradle/
+**/flutter/ephemeral/
+**/GeneratedPluginRegistrant.*
+node_modules/
+landing/dist/
 .env
 .env.local
-
-# Built web assets (embedded at compile time by `make web`)
-internal/web/webroot/
-
-# IDE and OS
-.DS_Store
-Thumbs.db
-.idea/
-.vscode/
+.commandcode/
