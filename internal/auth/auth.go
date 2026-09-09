@@ -24,10 +24,22 @@ const (
 	SSETicketTTL = 60 * time.Second
 )
 
+// Token scopes: staff (POS PIN login), owner (org account login) and admin
+// (platform superadmin). Role is the POS role for staff, the account role for
+// owners, and "superadmin" for platform admins.
+const (
+	ScopeStaff = "staff"
+	ScopeOwner = "owner"
+	ScopeAdmin = "admin"
+	SuperRole  = "superadmin"
+)
+
 type Claims struct {
-	StaffID  string `json:"sid"`
+	Scope    string `json:"scope"`
+	ActorID  string `json:"aid"`
 	Name     string `json:"name"`
-	Role     string `json:"role"`
+	Role     string `json:"role,omitempty"`
+	OrgID    string `json:"org,omitempty"`
 	OutletID string `json:"outlet,omitempty"`
 	jwt.RegisteredClaims
 }
@@ -59,17 +71,40 @@ func (m *Manager) CheckPIN(hash, pin string) bool {
 	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(pin)) == nil
 }
 
-// IssueToken returns a signed JWT valid for 15 minutes.
-func (m *Manager) IssueToken(staffID, name, role, outletID string) (string, error) {
-	claims := Claims{
-		StaffID: staffID, Name: name, Role: role, OutletID: outletID,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(AccessTTL)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			Issuer:    "foodpos",
-		},
+// HashPassword hashes an owner/platform-admin password (same bcrypt scheme as
+// staff PINs; the 4-15 cost clamp in New() keeps brute-force resistance sane).
+func (m *Manager) HashPassword(pw string) (string, error) { return m.HashPIN(pw) }
+func (m *Manager) CheckPassword(hash, pw string) bool     { return m.CheckPIN(hash, pw) }
+
+func (m *Manager) issue(claims Claims) (string, error) {
+	claims.RegisteredClaims = jwt.RegisteredClaims{
+		ExpiresAt: jwt.NewNumericDate(time.Now().Add(AccessTTL)),
+		IssuedAt:  jwt.NewNumericDate(time.Now()),
+		Issuer:    "foodpos",
 	}
 	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(m.Secret)
+}
+
+// IssueStaffToken returns a signed staff JWT valid for 15 minutes.
+func (m *Manager) IssueStaffToken(staffID, name, role, orgID, outletID string) (string, error) {
+	return m.issue(Claims{
+		Scope: ScopeStaff, ActorID: staffID, Name: name,
+		Role: role, OrgID: orgID, OutletID: outletID,
+	})
+}
+
+// IssueOwnerToken returns a signed org-owner JWT (role: owner/admin).
+func (m *Manager) IssueOwnerToken(accountID, name, role, orgID string) (string, error) {
+	return m.issue(Claims{
+		Scope: ScopeOwner, ActorID: accountID, Name: name, Role: role, OrgID: orgID,
+	})
+}
+
+// IssueAdminToken returns a signed platform-superadmin JWT.
+func (m *Manager) IssueAdminToken(adminID, name string) (string, error) {
+	return m.issue(Claims{
+		Scope: ScopeAdmin, ActorID: adminID, Name: name, Role: SuperRole,
+	})
 }
 
 // NewRefreshToken returns a fresh opaque refresh token plus its SHA-256
@@ -166,9 +201,12 @@ func (m *Manager) Parse(tokenString string) (*Claims, error) {
 	return claims, nil
 }
 
-// RoleRank maps roles to a numeric privilege level.
+// RoleRank maps POS roles to a numeric privilege level. Superadmin ranks
+// highest but is never used on tenant routes (scope middleware gates that).
 func RoleRank(role string) int {
 	switch role {
+	case "superadmin":
+		return 5
 	case "admin":
 		return 4
 	case "manager":

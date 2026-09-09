@@ -14,6 +14,7 @@ import (
 	"foodpos/backend/internal/httpx"
 	"foodpos/backend/internal/middleware"
 	"foodpos/backend/internal/store"
+	"foodpos/backend/internal/web"
 	"foodpos/backend/internal/ws"
 )
 
@@ -32,6 +33,7 @@ func (s *Server) Routes() http.Handler {
 	r.Use(chimw.RequestID)
 	r.Use(chimw.Recoverer)
 	r.Use(chimw.Logger)
+	r.Use(middleware.CORS(s.Cfg.CORSOrigins))
 
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		httpx.JSON(w, http.StatusOK, map[string]string{"status": "ok"})
@@ -43,17 +45,69 @@ func (s *Server) Routes() http.Handler {
 	}
 
 	// Public (auth routes are rate-limited per IP; staff profiles are public
-	// so terminals can render the PIN login screen before authentication)
+	// so terminals can render the PIN login screen before authentication).
 	authLimit := middleware.RateLimit(20, time.Minute)
+	registerLimit := middleware.RateLimit(10, time.Minute)
+	deviceLimit := middleware.RateLimit(60, time.Minute)
+
 	r.With(authLimit).Post("/api/v1/auth/login", s.handleLogin)
 	r.With(authLimit).Post("/api/v1/auth/refresh", s.handleRefresh)
 	r.With(authLimit).Post("/api/v1/auth/logout", s.handleLogout)
+
+	// SaaS self-registration + owner + platform admin auth.
+	r.With(registerLimit).Post("/api/v1/auth/register", s.handleRegisterOrg)
+	r.With(authLimit).Post("/api/v1/auth/account/login", s.handleAccountLogin)
+	r.With(authLimit).Post("/api/v1/auth/account/refresh", s.handleAccountRefresh)
+	r.With(authLimit).Post("/api/v1/auth/account/logout", s.handleAccountLogout)
+	r.With(registerLimit).Post("/api/v1/auth/account/forgot", s.handleForgotPassword)
+	r.With(registerLimit).Post("/api/v1/auth/account/reset", s.handleResetPassword)
+	r.With(registerLimit).Post("/api/v1/auth/account/verify", s.handleVerifyEmail)
+	r.With(authLimit).Post("/api/v1/admin/login", s.handleAdminLogin)
+	r.With(authLimit).Post("/api/v1/admin/refresh", s.handleAdminRefresh)
+	r.With(authLimit).Post("/api/v1/admin/logout", s.handleAdminLogout)
+	r.With(deviceLimit).Post("/api/v1/auth/device-options", s.handleDeviceOptions)
+
+	// Legacy terminal bootstrap (org_code optional; defaults to the demo org).
 	r.Get("/api/v1/outlets", s.handleListOutlets)
 	r.Get("/api/v1/staff", s.handleListStaff)
 	r.Get("/api/v1/ws", s.Hub.Handler())
-	// Authenticated
+
+	// Owner account APIs (scope: owner).
+	r.Route("/api/v1/saas", func(r chi.Router) {
+		r.Use(middleware.Auth(s.Auth))
+		r.Use(middleware.RequireScope(auth.ScopeOwner))
+		r.Get("/me", s.handleSaaSMe)
+		r.Get("/org", s.handleSaaSOrg)
+		r.Post("/outlets", s.handleSaaSCreateOutlet)
+		r.Post("/staff", s.handleSaaSCreateStaff)
+		r.Post("/subscription/cancel", s.handleSaaSCancelSubscription)
+		r.Post("/org/rotate-code", s.handleRotateOrgCode)
+		r.Get("/invoices/{id}/pdf", s.handleOwnerInvoicePDF)
+	})
+
+	// Platform superadmin APIs (scope: admin).
+	r.Route("/api/v1/admin", func(r chi.Router) {
+		r.Use(middleware.Auth(s.Auth))
+		r.Use(middleware.RequireScope(auth.ScopeAdmin))
+		r.Get("/orgs", s.handleListAdminOrgs)
+		r.Get("/orgs/{id}", s.handleAdminOrgDetail)
+		r.Post("/orgs/{id}/activate", s.handleAdminActivate)
+		r.Post("/orgs/{id}/extend", s.handleAdminExtend)
+		r.Post("/orgs/{id}/suspend", s.handleAdminSuspend)
+		r.Post("/orgs/{id}/cancel", s.handleAdminCancel)
+		r.Post("/orgs/{id}/checkout", s.handleAdminCheckout)
+		r.Get("/invoices/{id}/pdf", s.handleAdminInvoicePDF)
+		r.Get("/stats", s.handleAdminStats)
+	})
+
+	// Razorpay webhook (public; signature-verified).
+	r.Post("/api/v1/webhooks/razorpay", s.handleRazorpayWebhook)
+
+	// Authenticated POS routes (scope: staff, tenant-bound).
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Use(middleware.Auth(s.Auth))
+		r.Use(middleware.RequireScope(auth.ScopeStaff))
+		r.Use(middleware.StaffTenant())
 
 		// Kitchen display (role 'kitchen') is display-only. It may exchange
 		// its JWT for an SSE ticket and read the KOT board + hydrate its
@@ -79,9 +133,11 @@ func (s *Server) Routes() http.Handler {
 		r.Get("/purchases", s.handleListPurchases)
 		r.Get("/settings", s.handleGetSettings)
 
-		// ---- Writes & back-office — kitchen is denied ----
+		// ---- Writes & back-office — kitchen is denied; paid writes gated ----
 		r.Group(func(r chi.Router) {
+			r.Use(s.entitlementGate())
 			r.Use(middleware.DenyRoles("kitchen"))
+			r.Use(s.auditMiddleware())
 
 			r.Post("/auth/verify-manager-pin", s.handleVerifyManagerPin)
 
@@ -101,6 +157,7 @@ func (s *Server) Routes() http.Handler {
 			r.With(middleware.RequireRole("manager")).Patch("/menu/{id}", s.handlePatchMenuItem)
 			r.With(middleware.RequireRole("manager")).Delete("/menu/{id}", s.handleDeleteMenuItem)
 			r.With(middleware.RequireRole("manager")).Post("/uploads/menu-image", s.handleUploadMenuImage)
+			r.With(middleware.RequireRole("manager")).Post("/uploads/image", s.handleUploadMenuImage)
 
 			// Orders
 			r.Post("/orders", s.handleCreateOrder)
@@ -138,6 +195,10 @@ func (s *Server) Routes() http.Handler {
 			r.Get("/reports/shift/{id}/zreport", s.handleZReport)
 		})
 	})
+
+	// Embedded web app (landing + console) — catch-all, registered last so
+	// every API/media/ws route above wins.
+	r.Handle("/*", web.Handler())
 
 	return r
 }

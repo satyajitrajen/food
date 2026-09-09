@@ -12,8 +12,8 @@ import (
 
 // ---- Outlets ----
 
-func (s *Store) ListOutlets(ctx context.Context) ([]models.Outlet, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT id, name, address, terminal, gstin, fssai, phone, is_online FROM outlets ORDER BY name`)
+func (s *Store) ListOutlets(ctx context.Context, orgID string) ([]models.Outlet, error) {
+	rows, err := s.DB.QueryContext(ctx, `SELECT id, org_id, name, address, terminal, gstin, fssai, phone, is_online FROM outlets WHERE org_id = ? ORDER BY name`, orgID)
 	if err != nil {
 		return nil, err
 	}
@@ -22,7 +22,7 @@ func (s *Store) ListOutlets(ctx context.Context) ([]models.Outlet, error) {
 	for rows.Next() {
 		var o models.Outlet
 		var online int
-		if err := rows.Scan(&o.ID, &o.Name, &o.Address, &o.Terminal, &o.GSTIN, &o.FSSAI, &o.Phone, &online); err != nil {
+		if err := rows.Scan(&o.ID, &o.OrgID, &o.Name, &o.Address, &o.Terminal, &o.GSTIN, &o.FSSAI, &o.Phone, &online); err != nil {
 			return nil, err
 		}
 		o.IsOnline = online == 1
@@ -34,8 +34,8 @@ func (s *Store) ListOutlets(ctx context.Context) ([]models.Outlet, error) {
 func (s *Store) GetOutlet(ctx context.Context, id string) (*models.Outlet, error) {
 	var o models.Outlet
 	var online int
-	err := s.DB.QueryRowContext(ctx, `SELECT id, name, address, terminal, gstin, fssai, phone, is_online FROM outlets WHERE id = ?`, id).
-		Scan(&o.ID, &o.Name, &o.Address, &o.Terminal, &o.GSTIN, &o.FSSAI, &o.Phone, &online)
+	err := s.DB.QueryRowContext(ctx, `SELECT id, org_id, name, address, terminal, gstin, fssai, phone, is_online FROM outlets WHERE id = ?`, id).
+		Scan(&o.ID, &o.OrgID, &o.Name, &o.Address, &o.Terminal, &o.GSTIN, &o.FSSAI, &o.Phone, &online)
 	if err == sql.ErrNoRows {
 		return nil, httpx.ErrNotFound
 	}
@@ -46,6 +46,29 @@ func (s *Store) GetOutlet(ctx context.Context, id string) (*models.Outlet, error
 	return &o, nil
 }
 
+func (s *Store) CountOutlets(ctx context.Context, orgID string) (int, error) {
+	var n int
+	err := s.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM outlets WHERE org_id = ?`, orgID).Scan(&n)
+	return n, err
+}
+
+// CreateOutlet provisions a new outlet under an org (SaaS onboarding).
+func (s *Store) CreateOutlet(ctx context.Context, orgID string, o models.Outlet) (*models.Outlet, error) {
+	id := NewID("out")
+	online := 1
+	if !o.IsOnline {
+		online = 0
+	}
+	_, err := s.DB.ExecContext(ctx,
+		`INSERT INTO outlets (id, org_id, name, address, terminal, gstin, fssai, phone, is_online)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		id, orgID, o.Name, o.Address, o.Terminal, o.GSTIN, o.FSSAI, o.Phone, online)
+	if err != nil {
+		return nil, err
+	}
+	return s.GetOutlet(ctx, id)
+}
+
 // ---- Staff ----
 
 type StaffRow struct {
@@ -53,30 +76,53 @@ type StaffRow struct {
 	PINHash string
 }
 
-func (s *Store) ListStaff(ctx context.Context) ([]models.Staff, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT id, name, role, avatar_url, mobile, is_active FROM staff WHERE is_active = 1 ORDER BY name`)
+// ListStaff lists active staff of an org. When outletID is non-empty only that
+// outlet's staff (plus org-wide staff with outlet_id NULL) are returned.
+func (s *Store) ListStaff(ctx context.Context, orgID, outletID string) ([]models.Staff, error) {
+	q := `SELECT id, org_id, outlet_id, name, role, avatar_url, mobile, is_active FROM staff WHERE org_id = ? AND is_active = 1`
+	args := []any{orgID}
+	if outletID != "" {
+		q += ` AND (outlet_id = ? OR outlet_id IS NULL)`
+		args = append(args, outletID)
+	}
+	q += ` ORDER BY name`
+	rows, err := s.DB.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	var out []models.Staff
 	for rows.Next() {
-		var st models.Staff
-		var active int
-		if err := rows.Scan(&st.ID, &st.Name, &st.Role, &st.AvatarURL, &st.Mobile, &active); err != nil {
+		st, err := scanStaff(rows)
+		if err != nil {
 			return nil, err
 		}
-		st.IsActive = active == 1
-		out = append(out, st)
+		out = append(out, *st)
 	}
 	return out, rows.Err()
 }
 
+func scanStaff(sc interface{ Scan(...any) error }) (*models.Staff, error) {
+	var st models.Staff
+	var outlet sql.NullString
+	var active int
+	if err := sc.Scan(&st.ID, &st.OrgID, &outlet, &st.Name, &st.Role, &st.AvatarURL, &st.Mobile, &active); err != nil {
+		return nil, err
+	}
+	st.IsActive = active == 1
+	if outlet.Valid {
+		st.OutletID = &outlet.String
+	}
+	return &st, nil
+}
+
 func (s *Store) GetStaff(ctx context.Context, id string) (*StaffRow, error) {
 	var st StaffRow
+	var outlet sql.NullString
 	var active int
-	err := s.DB.QueryRowContext(ctx, `SELECT id, name, role, avatar_url, mobile, is_active, pin_hash FROM staff WHERE id = ?`, id).
-		Scan(&st.ID, &st.Name, &st.Role, &st.AvatarURL, &st.Mobile, &active, &st.PINHash)
+	err := s.DB.QueryRowContext(ctx,
+		`SELECT id, org_id, outlet_id, name, role, avatar_url, mobile, is_active, pin_hash FROM staff WHERE id = ?`, id).
+		Scan(&st.ID, &st.OrgID, &outlet, &st.Name, &st.Role, &st.AvatarURL, &st.Mobile, &active, &st.PINHash)
 	if err == sql.ErrNoRows {
 		return nil, httpx.ErrNotFound
 	}
@@ -84,14 +130,22 @@ func (s *Store) GetStaff(ctx context.Context, id string) (*StaffRow, error) {
 		return nil, err
 	}
 	st.IsActive = active == 1
+	if outlet.Valid {
+		st.OutletID = &outlet.String
+	}
 	return &st, nil
 }
 
-func (s *Store) CreateStaff(ctx context.Context, st models.StaffCreate, pinHash string) (*models.Staff, error) {
+func (s *Store) CreateStaff(ctx context.Context, orgID string, st models.StaffCreate, pinHash string) (*models.Staff, error) {
 	id := NewID("st")
+	outlet := any(nil)
+	if st.OutletID != nil && *st.OutletID != "" {
+		outlet = *st.OutletID
+	}
 	_, err := s.DB.ExecContext(ctx,
-		`INSERT INTO staff (id, name, role, pin_hash, avatar_url, mobile, is_active) VALUES (?, ?, ?, ?, ?, ?, 1)`,
-		id, st.Name, st.Role, pinHash, st.AvatarURL, st.Mobile)
+		`INSERT INTO staff (id, org_id, outlet_id, name, role, pin_hash, avatar_url, mobile, is_active)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+		id, orgID, outlet, st.Name, st.Role, pinHash, st.AvatarURL, st.Mobile)
 	if err != nil {
 		return nil, err
 	}
@@ -487,10 +541,12 @@ func (s *Store) GetSettings(ctx context.Context, outletID string) (*models.Setti
 	var sectionsTxt string
 	err := s.DB.QueryRowContext(ctx,
 		`SELECT outlet_id, restaurant_name, gst_percent, is_gst_inclusive, service_percent, packaging_paise, delivery_paise,
-		        auto_print_kot, allow_reprint, billing_printer, kitchen_printer, bar_printer, sections
+		        auto_print_kot, allow_reprint, billing_printer, kitchen_printer, bar_printer, sections,
+		        upi_id, upi_name, upi_qr_image
 		 FROM settings WHERE outlet_id = ?`, outletID).
 		Scan(&st.OutletID, &st.RestaurantName, &st.GSTPercent, &incl, &st.ServicePercent, &st.PackagingPaise, &st.DeliveryPaise,
-			&auto, &allow, &st.BillingPrinter, &st.KitchenPrinter, &st.BarPrinter, &sectionsTxt)
+			&auto, &allow, &st.BillingPrinter, &st.KitchenPrinter, &st.BarPrinter, &sectionsTxt,
+			&st.UPIID, &st.UPIName, &st.UPIQrImage)
 	if err == sql.ErrNoRows {
 		return nil, httpx.ErrNotFound
 	}
@@ -509,17 +565,20 @@ func (s *Store) GetSettings(ctx context.Context, outletID string) (*models.Setti
 func (s *Store) PutSettings(ctx context.Context, st models.Settings) error {
 	_, err := s.DB.ExecContext(ctx,
 		`INSERT INTO settings (outlet_id, restaurant_name, gst_percent, is_gst_inclusive, service_percent, packaging_paise, delivery_paise,
-		       auto_print_kot, allow_reprint, billing_printer, kitchen_printer, bar_printer, sections)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		       auto_print_kot, allow_reprint, billing_printer, kitchen_printer, bar_printer, sections,
+		       upi_id, upi_name, upi_qr_image)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(outlet_id) DO UPDATE SET
 		   restaurant_name = excluded.restaurant_name, gst_percent = excluded.gst_percent,
 		   is_gst_inclusive = excluded.is_gst_inclusive, service_percent = excluded.service_percent,
 		   packaging_paise = excluded.packaging_paise, delivery_paise = excluded.delivery_paise,
 		   auto_print_kot = excluded.auto_print_kot, allow_reprint = excluded.allow_reprint,
 		   billing_printer = excluded.billing_printer, kitchen_printer = excluded.kitchen_printer,
-		   bar_printer = excluded.bar_printer, sections = excluded.sections`,
+		   bar_printer = excluded.bar_printer, sections = excluded.sections,
+		   upi_id = excluded.upi_id, upi_name = excluded.upi_name, upi_qr_image = excluded.upi_qr_image`,
 		st.OutletID, st.RestaurantName, st.GSTPercent, b2i(st.IsGSTInclusive), st.ServicePercent, st.PackagingPaise, st.DeliveryPaise,
-		b2i(st.AutoPrintKOT), b2i(st.AllowReprint), st.BillingPrinter, st.KitchenPrinter, st.BarPrinter, sectionsJSON(st.Sections))
+		b2i(st.AutoPrintKOT), b2i(st.AllowReprint), st.BillingPrinter, st.KitchenPrinter, st.BarPrinter, sectionsJSON(st.Sections),
+		st.UPIID, st.UPIName, st.UPIQrImage)
 	return err
 }
 

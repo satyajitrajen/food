@@ -4,6 +4,13 @@ REST + SSE backend for the FoodPOS Flutter app. PostgreSQL with
 integer-paise money math throughout. See `../docs/ARCHITECTURE.md` for the
 full design and `../docs/PRD.md` for requirements.
 
+## Single binary (site + APIs)
+
+The built React landing & owner/superadmin console is embedded and served at
+`/` and `/console/*`; APIs stay under `/api/v1`, media under `/media/*`.
+Refresh the embedded site with `make web` (builds `../landing`) before
+`go build ./cmd/server` — the assets are gitignored (`internal/web/webroot/`).
+
 ## Run
 
 ```powershell
@@ -17,9 +24,12 @@ go run ./cmd/server
 Demo staff PINs after seeding: cashier `1234`, manager `9999`, admin `0000`,
 waiters `1111`/`2222`, kitchen `5555`. See
 [`docs/2026-09-09-kitchen-role-dining-sections.md`](docs/2026-09-09-kitchen-role-dining-sections.md)
-for the kitchen role, dining sections, and role/permission matrix, and
+for the kitchen role, dining sections, and role/permission matrix,
 [`docs/2026-09-09-menu-photos-addons.md`](docs/2026-09-09-menu-photos-addons.md)
-for menu photo upload and editable variants/add-ons.
+for menu photo upload and editable variants/add-ons, and
+[`docs/2026-09-09-saas-conversion.md`](docs/2026-09-09-saas-conversion.md)
+for the SaaS tenant/subscription model, superadmin setup and the manual
+billing runbook (org self-registration, owner APIs, admin CLI, daily job).
 
 ## Config (env)
 
