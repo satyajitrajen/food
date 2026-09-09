@@ -17,7 +17,9 @@ go run ./cmd/server
 Demo staff PINs after seeding: cashier `1234`, manager `9999`, admin `0000`,
 waiters `1111`/`2222`, kitchen `5555`. See
 [`docs/2026-09-09-kitchen-role-dining-sections.md`](docs/2026-09-09-kitchen-role-dining-sections.md)
-for the kitchen role, dining sections, and role/permission matrix.
+for the kitchen role, dining sections, and role/permission matrix, and
+[`docs/2026-09-09-menu-photos-addons.md`](docs/2026-09-09-menu-photos-addons.md)
+for menu photo upload and editable variants/add-ons.
 
 ## Config (env)
 
@@ -28,6 +30,7 @@ for the kitchen role, dining sections, and role/permission matrix.
 | `FOODPOS_JWT_SECRET` | dev-secret-change-me | JWT signing secret (change in prod!) |
 | `FOODPOS_SEED` | 0 | `1` seeds demo data |
 | `FOODPOS_BCRYPT_COST` | 10 | PIN hashing cost |
+| `FOODPOS_UPLOAD_DIR` | ./uploads | Menu photo storage (served at `/media/*`) |
 
 ## Verify
 
@@ -45,6 +48,9 @@ go vet ./... ; go test ./... ; go build ./...
 - `internal/api/kitchen_role_integration_test.go` — kitchen display-only
   gates, admin-only revenue dashboard, settings sections round-trip, order
   customer-phone patch.
+- `internal/api/menu_admin_integration_test.go` — menu create/edit with
+  variants & add-on groups, availability toggle preserving add-ons, photo
+  upload + public media serving, cashier upload denied.
 - `cmd/loadtest` — paced order-write load test (create → item → KOT → pay)
   with p50/p95/p99 latencies:
 
@@ -68,6 +74,7 @@ GET  /staff (public: login profiles)   POST /staff (manager)
 GET  /tables?outlet_id=&floor=                  POST /tables
 PATCH /tables/{id} {status,guest_count,waiter_id,floor}   POST /tables/{id}/move|merge|unmerge
 GET  /menu?outlet_id=&category_id=              GET/POST/PATCH/DELETE /menu*
+POST /uploads/menu-image (manager; multipart)   GET /media/* (public photos)
 GET  /orders?outlet_id=&status=                 POST /orders
 GET/PATCH /orders/{id}                         POST /orders/{id}/items
 PATCH /orders/{id}/items/{itemId} {quantity}   (0 cancels the line)

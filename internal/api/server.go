@@ -18,11 +18,12 @@ import (
 )
 
 type Server struct {
-	Store   *store.Store
-	Auth    *auth.Manager
-	Hub     *ws.Hub
-	Tickets *auth.TicketStore
-	Cfg     config.Config
+	Store     *store.Store
+	Auth      *auth.Manager
+	Hub       *ws.Hub
+	Tickets   *auth.TicketStore
+	Cfg       config.Config
+	UploadDir string // where menu photos are stored; served at /media/*
 }
 
 func (s *Server) Routes() http.Handler {
@@ -35,6 +36,11 @@ func (s *Server) Routes() http.Handler {
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		httpx.JSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
+
+	// Public static media (menu photos) — loaded by <img> tags without auth.
+	if s.UploadDir != "" {
+		r.Handle("/media/*", http.StripPrefix("/media/", http.FileServer(http.Dir(s.UploadDir))))
+	}
 
 	// Public (auth routes are rate-limited per IP; staff profiles are public
 	// so terminals can render the PIN login screen before authentication)
@@ -94,6 +100,7 @@ func (s *Server) Routes() http.Handler {
 			r.With(middleware.RequireRole("manager")).Post("/menu", s.handleCreateMenuItem)
 			r.With(middleware.RequireRole("manager")).Patch("/menu/{id}", s.handlePatchMenuItem)
 			r.With(middleware.RequireRole("manager")).Delete("/menu/{id}", s.handleDeleteMenuItem)
+			r.With(middleware.RequireRole("manager")).Post("/uploads/menu-image", s.handleUploadMenuImage)
 
 			// Orders
 			r.Post("/orders", s.handleCreateOrder)

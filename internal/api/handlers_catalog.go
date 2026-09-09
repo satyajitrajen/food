@@ -226,6 +226,15 @@ func (s *Server) handleCreateMenuItem(w http.ResponseWriter, r *http.Request) {
 			outletID = c.OutletID
 		}
 	}
+	// Admin clients send the category *name*; resolve to the real id.
+	if req.CategoryID != nil {
+		id, err := s.Store.CategoryID(r.Context(), outletID, *req.CategoryID)
+		if err != nil {
+			httpx.ErrorJSON(w, r, err)
+			return
+		}
+		req.CategoryID = &id
+	}
 	m, err := s.Store.CreateMenuItem(r.Context(), outletID, req)
 	if err != nil {
 		httpx.ErrorJSON(w, r, err)
@@ -239,6 +248,19 @@ func (s *Server) handlePatchMenuItem(w http.ResponseWriter, r *http.Request) {
 	if err := httpx.Decode(r, &req); err != nil {
 		httpx.ErrorJSON(w, r, err)
 		return
+	}
+	if req.CategoryID != nil {
+		item, err := s.Store.GetMenuItem(r.Context(), pathID(r, "id"))
+		if err != nil {
+			httpx.ErrorJSON(w, r, err)
+			return
+		}
+		id, err := s.Store.CategoryID(r.Context(), item.OutletID, *req.CategoryID)
+		if err != nil {
+			httpx.ErrorJSON(w, r, err)
+			return
+		}
+		req.CategoryID = &id
 	}
 	m, err := s.Store.PatchMenuItem(r.Context(), pathID(r, "id"), req)
 	if err != nil {
