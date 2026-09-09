@@ -25,10 +25,10 @@ const (
 )
 
 type Claims struct {
-	StaffID   string `json:"sid"`
-	Name      string `json:"name"`
-	Role      string `json:"role"`
-	OutletID  string `json:"outlet,omitempty"`
+	StaffID  string `json:"sid"`
+	Name     string `json:"name"`
+	Role     string `json:"role"`
+	OutletID string `json:"outlet,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -177,6 +177,10 @@ func RoleRank(role string) int {
 		return 2
 	case "waiter":
 		return 1
+	case "kitchen":
+		// Display-only KOT role: rank 0 keeps it out of every RequireRole
+		// gate; middleware.DenyRoles blocks its writes to money routes.
+		return 0
 	default:
 		return 0
 	}

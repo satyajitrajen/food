@@ -14,7 +14,10 @@ $env:FOODPOS_DSN  = 'postgres://foodpos:foodpos@localhost/foodpos?sslmode=disabl
 go run ./cmd/server
 ```
 
-Demo staff PINs after seeding: cashier `1234`, manager `9999`, admin `0000`.
+Demo staff PINs after seeding: cashier `1234`, manager `9999`, admin `0000`,
+waiters `1111`/`2222`, kitchen `5555`. See
+[`docs/2026-09-09-kitchen-role-dining-sections.md`](docs/2026-09-09-kitchen-role-dining-sections.md)
+for the kitchen role, dining sections, and role/permission matrix.
 
 ## Config (env)
 
@@ -39,6 +42,9 @@ go vet ./... ; go test ./... ; go build ./...
   payment → refund → shift close → Z-report, plus idempotency, role gates,
   purchases/stock intake, customer credit, refresh-token rotation and the
   login rate limiter.
+- `internal/api/kitchen_role_integration_test.go` — kitchen display-only
+  gates, admin-only revenue dashboard, settings sections round-trip, order
+  customer-phone patch.
 - `cmd/loadtest` — paced order-write load test (create → item → KOT → pay)
   with p50/p95/p99 latencies:
 
@@ -60,7 +66,7 @@ POST /auth/logout {refresh_token}          POST /auth/verify-manager-pin {pin}
 GET  /outlets                                  GET /outlets/{id}
 GET  /staff (public: login profiles)   POST /staff (manager)
 GET  /tables?outlet_id=&floor=                  POST /tables
-PATCH /tables/{id}     POST /tables/{id}/move|merge|unmerge
+PATCH /tables/{id} {status,guest_count,waiter_id,floor}   POST /tables/{id}/move|merge|unmerge
 GET  /menu?outlet_id=&category_id=              GET/POST/PATCH/DELETE /menu*
 GET  /orders?outlet_id=&status=                 POST /orders
 GET/PATCH /orders/{id}                         POST /orders/{id}/items
@@ -80,8 +86,8 @@ GET  /inventory/{id}/adjustments                (stock audit log)
 GET  /suppliers         POST /suppliers
 GET  /purchases         POST /purchases {invoice_no,supplier_id,status,total_paise,items[]}
 PATCH /purchases/{id} {status}   (pending→paid settles supplier outstanding)
-GET  /settings          PUT /settings (manager)
-GET  /reports/dashboard GET /reports/shift/{id}/zreport
+GET  /settings          PUT /settings (manager; incl. sections JSON list)
+GET  /reports/dashboard (admin only) GET /reports/shift/{id}/zreport
 GET  /ws?outlet_id=&token=   (server-sent events: kot.*, table.*, order.*, shift.*)
 ```
 

@@ -62,6 +62,10 @@ func seedServer(st *store.Store, mgr *auth.Manager) {
 	st.DB.Exec(`INSERT INTO staff (id, name, role, pin_hash, is_active) VALUES ('st-01', 'Rahul', 'cashier', ?, 1)`, hash)
 	hash2, _ := mgr.HashPIN("9999")
 	st.DB.Exec(`INSERT INTO staff (id, name, role, pin_hash, is_active) VALUES ('st-02', 'Priya', 'manager', ?, 1)`, hash2)
+	hash3, _ := mgr.HashPIN("0000")
+	st.DB.Exec(`INSERT INTO staff (id, name, role, pin_hash, is_active) VALUES ('st-03', 'Vikram', 'admin', ?, 1)`, hash3)
+	hash4, _ := mgr.HashPIN("5555")
+	st.DB.Exec(`INSERT INTO staff (id, name, role, pin_hash, is_active) VALUES ('st-06', 'Chef', 'kitchen', ?, 1)`, hash4)
 	st.DB.Exec(`INSERT INTO tables (id, outlet_id, table_number, seats, floor, status) VALUES ('t-01', 'out-01', 'T01', 4, 'Ground', 'available')`)
 	st.DB.Exec(`INSERT INTO tables (id, outlet_id, table_number, seats, floor, status) VALUES ('t-02', 'out-01', 'T02', 2, 'Ground', 'available')`)
 	st.DB.Exec(`INSERT INTO menu_categories (id, outlet_id, name) VALUES ('cat-1', 'out-01', 'Starters')`)
@@ -163,7 +167,7 @@ func TestFullOrderLifecycle(t *testing.T) {
 	// Add item WITH modifier (+₹20)
 	code, body = e.do(t, "POST", "/api/v1/orders/"+orderID+"/items", map[string]any{
 		"menu_item_id": "m-01", "quantity": 1,
-		"modifiers":    []map[string]any{{"modifier_item_id": "mo-1"}},
+		"modifiers": []map[string]any{{"modifier_item_id": "mo-1"}},
 	}, true)
 	if code != 201 {
 		t.Fatalf("add modified item failed: %d %v", code, body)
@@ -879,11 +883,11 @@ func TestInclusiveGSTOrder(t *testing.T) {
 	t.Cleanup(func() { e.token = old })
 
 	code, body := e.do(t, "PUT", "/api/v1/settings?outlet_id=out-01", map[string]any{
-		"restaurant_name": "Test Resto",
-		"gst_percent":     5.0,
+		"restaurant_name":  "Test Resto",
+		"gst_percent":      5.0,
 		"is_gst_inclusive": true,
-		"packaging_paise": 0,
-		"delivery_paise":  0,
+		"packaging_paise":  0,
+		"delivery_paise":   0,
 	}, true)
 	if code != 200 {
 		t.Fatalf("settings put failed: %d %v", code, body)
