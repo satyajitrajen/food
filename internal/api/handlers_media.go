@@ -47,6 +47,20 @@ func (s *Server) handleUploadMenuImage(w http.ResponseWriter, r *http.Request) {
 	contentType := strings.ToLower(header.Header.Get("Content-Type"))
 	ext, ok := imageExts[strings.TrimSpace(strings.Split(contentType, ";")[0])]
 	if !ok {
+		// Some clients (Go's multipart writer, some CLIs) omit the part's
+		// Content-Type — detect the type from the actual bytes instead of
+		// trusting the header alone.
+		if sk, canSeek := file.(io.ReadSeeker); canSeek {
+			head := make([]byte, 512)
+			n, _ := io.ReadFull(sk, head)
+			if _, err := sk.Seek(0, io.SeekStart); err == nil {
+				if sniffed, ok2 := imageExts[http.DetectContentType(head[:n])]; ok2 {
+					ext, ok = sniffed, true
+				}
+			}
+		}
+	}
+	if !ok {
 		httpx.ErrorJSON(w, r, httpx.NewError(400, "bad_type", "Only JPEG, PNG, WebP or GIF images are allowed"))
 		return
 	}
