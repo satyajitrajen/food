@@ -134,11 +134,20 @@ past_due → suspended after 3 extra days. Every transition writes an
 go vet ./... ; go build ./... ; go test ./internal/service ./internal/license ./internal/billing
 ```
 
+## Realtime resume (SSE)
+
+Events carry per-outlet sequence numbers (`id:` lines). The Flutter client
+tracks the last id and reconnects with `last_event_id`; the hub replays newer
+events from its in-memory ring (cap 1000/outlet) before going live. This is a
+**single-instance** assumption — with multiple server instances the ring would
+move to shared storage (queue/Redis) — documented in the architecture notes.
+
 ## Known follow-ups
 
-1. Flutter POS: org-code bootstrap UI, license banner + read-only lock using
-   the signed `entitlement_token`.
-2. Owner + superadmin web console (API-first — endpoints are ready; the
+1. Owner + superadmin web console (API-first — endpoints are ready; the
    portal app was deferred again).
-3. SMTP e-mail templates polish + transactional delivery provider option;
+2. SMTP e-mail templates polish + transactional delivery provider option;
    e-invoice PDF layout polish (the generator is intentionally minimal).
+3. Auto-verified UPI food payments: optional hosted payment-link integration
+   behind the gateway seam; needs PSP merchant keys + an offline-first policy
+   decision (manual-confirm tender remains the default).

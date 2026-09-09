@@ -541,10 +541,12 @@ func (s *Store) GetSettings(ctx context.Context, outletID string) (*models.Setti
 	var sectionsTxt string
 	err := s.DB.QueryRowContext(ctx,
 		`SELECT outlet_id, restaurant_name, gst_percent, is_gst_inclusive, service_percent, packaging_paise, delivery_paise,
-		        auto_print_kot, allow_reprint, billing_printer, kitchen_printer, bar_printer, sections
+		        auto_print_kot, allow_reprint, billing_printer, kitchen_printer, bar_printer, sections,
+		        upi_id, upi_name, upi_qr_image
 		 FROM settings WHERE outlet_id = ?`, outletID).
 		Scan(&st.OutletID, &st.RestaurantName, &st.GSTPercent, &incl, &st.ServicePercent, &st.PackagingPaise, &st.DeliveryPaise,
-			&auto, &allow, &st.BillingPrinter, &st.KitchenPrinter, &st.BarPrinter, &sectionsTxt)
+			&auto, &allow, &st.BillingPrinter, &st.KitchenPrinter, &st.BarPrinter, &sectionsTxt,
+			&st.UPIID, &st.UPIName, &st.UPIQrImage)
 	if err == sql.ErrNoRows {
 		return nil, httpx.ErrNotFound
 	}
@@ -563,17 +565,20 @@ func (s *Store) GetSettings(ctx context.Context, outletID string) (*models.Setti
 func (s *Store) PutSettings(ctx context.Context, st models.Settings) error {
 	_, err := s.DB.ExecContext(ctx,
 		`INSERT INTO settings (outlet_id, restaurant_name, gst_percent, is_gst_inclusive, service_percent, packaging_paise, delivery_paise,
-		       auto_print_kot, allow_reprint, billing_printer, kitchen_printer, bar_printer, sections)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		       auto_print_kot, allow_reprint, billing_printer, kitchen_printer, bar_printer, sections,
+		       upi_id, upi_name, upi_qr_image)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(outlet_id) DO UPDATE SET
 		   restaurant_name = excluded.restaurant_name, gst_percent = excluded.gst_percent,
 		   is_gst_inclusive = excluded.is_gst_inclusive, service_percent = excluded.service_percent,
 		   packaging_paise = excluded.packaging_paise, delivery_paise = excluded.delivery_paise,
 		   auto_print_kot = excluded.auto_print_kot, allow_reprint = excluded.allow_reprint,
 		   billing_printer = excluded.billing_printer, kitchen_printer = excluded.kitchen_printer,
-		   bar_printer = excluded.bar_printer, sections = excluded.sections`,
+		   bar_printer = excluded.bar_printer, sections = excluded.sections,
+		   upi_id = excluded.upi_id, upi_name = excluded.upi_name, upi_qr_image = excluded.upi_qr_image`,
 		st.OutletID, st.RestaurantName, st.GSTPercent, b2i(st.IsGSTInclusive), st.ServicePercent, st.PackagingPaise, st.DeliveryPaise,
-		b2i(st.AutoPrintKOT), b2i(st.AllowReprint), st.BillingPrinter, st.KitchenPrinter, st.BarPrinter, sectionsJSON(st.Sections))
+		b2i(st.AutoPrintKOT), b2i(st.AllowReprint), st.BillingPrinter, st.KitchenPrinter, st.BarPrinter, sectionsJSON(st.Sections),
+		st.UPIID, st.UPIName, st.UPIQrImage)
 	return err
 }
 

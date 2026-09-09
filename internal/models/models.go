@@ -522,6 +522,10 @@ type Settings struct {
 	KitchenPrinter string   `json:"kitchen_printer"`
 	BarPrinter     string   `json:"bar_printer"`
 	Sections       []string `json:"sections"`
+	// UPI QR payment display (customer food payments).
+	UPIID      string `json:"upi_id"`
+	UPIName    string `json:"upi_name"`
+	UPIQrImage string `json:"upi_qr_image"`
 }
 
 type DashboardReport struct {

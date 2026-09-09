@@ -155,6 +155,7 @@ func (s *Server) Routes() http.Handler {
 			r.With(middleware.RequireRole("manager")).Patch("/menu/{id}", s.handlePatchMenuItem)
 			r.With(middleware.RequireRole("manager")).Delete("/menu/{id}", s.handleDeleteMenuItem)
 			r.With(middleware.RequireRole("manager")).Post("/uploads/menu-image", s.handleUploadMenuImage)
+			r.With(middleware.RequireRole("manager")).Post("/uploads/image", s.handleUploadMenuImage)
 
 			// Orders
 			r.Post("/orders", s.handleCreateOrder)
