@@ -1,0 +1,113 @@
+/* FoodPOS landing — UI polish layer (loaded after app.css).
+   Fixes the referenced-but-undefined .btn* primitives and adds consistent
+   motion, hover states, focus rings and spacing refinements. */
+
+/* ---------- Buttons: define the primitives components actually use ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 9999px;
+  padding: 13px 26px;
+  font-family: var(--font-display, inherit);
+  font-weight: 700;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.2s ease, background 0.2s ease, opacity 0.2s ease;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn:active { transform: translateY(1px) scale(0.99); }
+.btn:focus-visible,
+.btn-pill-primary:focus-visible,
+.btn-pill-outline:focus-visible {
+  outline: 3px solid rgba(255, 87, 34, 0.45);
+  outline-offset: 3px;
+}
+.btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.btn-primary {
+  background: var(--orange-primary, #ff5722);
+  color: #fff;
+  box-shadow: var(--shadow-pill, 0 12px 24px rgba(255, 87, 34, 0.3));
+}
+.btn-primary:hover:not(:disabled) {
+  background: #f4511e;
+  transform: translateY(-2px);
+  box-shadow: 0 16px 30px rgba(255, 87, 34, 0.35);
+}
+
+.btn-secondary {
+  background: #fff;
+  color: var(--color-charcoal, #1c1917);
+  border: 1.5px solid #e7ddd2;
+  box-shadow: 0 4px 14px rgba(28, 25, 23, 0.06);
+}
+.btn-secondary:hover:not(:disabled) {
+  border-color: var(--orange-primary, #ff5722);
+  color: var(--orange-primary, #ff5722);
+  transform: translateY(-2px);
+}
+
+.btn-whatsapp {
+  background: #1faa59;
+  color: #fff;
+  box-shadow: 0 10px 22px rgba(31, 170, 89, 0.28);
+}
+.btn-whatsapp:hover:not(:disabled) {
+  background: #17994e;
+  transform: translateY(-2px);
+}
+
+/* ---------- Consistent hover lift for cards ---------- */
+.pricing-card,
+.testimonial-card,
+.faq-item {
+  transition: transform 0.22s ease, box-shadow 0.25s ease, border-color 0.2s ease;
+}
+.pricing-card:hover,
+.testimonial-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-float-card, 0 18px 40px rgba(28, 25, 23, 0.12));
+}
+.pricing-card.featured:hover { transform: translateY(-6px); }
+
+/* ---------- Nav pill subtle depth + blur ---------- */
+.nav-wrapper {
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+.nav-pill-item { transition: background 0.18s ease, color 0.18s ease; }
+.nav-pill-item:hover { transform: translateY(-1px); }
+
+/* ---------- Micro polish ---------- */
+.section-eyebrow { letter-spacing: 0.12em; }
+.section-header,
+section[id] { scroll-margin-top: 92px; }
+
+.faq-item .faq-icon { transition: transform 0.2s ease; }
+.faq-item.open .faq-icon { transform: rotate(45deg); }
+.faq-item .faq-answer { transition: opacity 0.18s ease; }
+
+::selection { background: rgba(255, 87, 34, 0.22); }
+a { transition: color 0.18s ease; }
+.toggle-btn { transition: background 0.18s ease, color 0.18s ease; }
+
+.modal-content { animation: foodpos-modal-in 0.22s ease; }
+@keyframes foodpos-modal-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ---------- Responsive refinements ---------- */
+@media (max-width: 720px) {
+  .btn { padding: 12px 20px; font-size: 14px; }
+  .pricing-card:hover,
+  .testimonial-card:hover { transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
+}
