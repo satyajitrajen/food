@@ -1,6 +1,5 @@
 /// Subscription payloads for the POS app's Settings subscription card.
 /// Money stays in paise ints here; `dto.dart` converts to rupees at the edge.
-
 class SubscriptionStatus {
   final String planCode;
   final String planName;
