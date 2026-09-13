@@ -12,6 +12,7 @@ import '../../core/theme/app_theme.dart';
 import '../../models/settings_model.dart';
 import '../../models/table_model.dart';
 import '../../providers/pos_provider.dart';
+import 'subscription_card.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -54,6 +55,17 @@ class SettingsScreen extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
+
+            // Subscription (API terminals, admins only)
+            if (provider.apiEnabled && provider.isAdmin) ...[
+              _buildSettingsSection(
+                title: 'Subscription',
+                subtitle: 'Plan, billing & auto-renew',
+                icon: Icons.workspace_premium_outlined,
+                children: const [SubscriptionCardBody()],
+              ),
+              const SizedBox(height: 16),
+            ],
 
             // Taxes & Billing Charges
             _buildSettingsSection(
