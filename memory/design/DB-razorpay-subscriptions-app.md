@@ -23,12 +23,15 @@ Decisions (user-approved):
 
 ## Backend additions
 
-- `GET /api/v1/saas/subscription/status` — staff token (admin/manager);
-  returns `{plan_code, plan_name, status, gateway_status, period_end,
-  price_paise, registration_paise}`. GETs pass the entitlement gate, so an
-  expired org can still open the card and renew. A pure read — no gateway
-  calls, no key-config branching (the app hides payment actions based on
-  gateway errors at action time, not here).
+- `GET /api/v1/saas/subscription/status` — staff token, registered with the
+  OTHER READS (outside the entitlement-gate group) and wrapped in
+  `middleware.RequireRole("manager")` (rank ≥ manager → admin + manager only;
+  kitchen/cashier/waiter denied). **The gate blocks by group membership, not
+  HTTP method** — a status read placed inside the gate group would 402 for
+  expired orgs, exactly when the card is needed most. Returns `{plan_code,
+  plan_name, status, gateway_status, period_end, price_paise}`. A pure read —
+  no gateway calls, no key-config branching (the app hides payment actions
+  based on gateway errors at action time, not here).
 - `POST /api/v1/saas/subscription/manual-order` — owner token. Creates a
   Razorpay ORDER for one cycle at gross (base + 18% via storeRound), notes
   `{org_id}` (existing manual-capture path activates on payment.captured).
@@ -48,7 +51,9 @@ KEY_SECRET never leaves the server: both checkouts receive KEY_ID only.
 - `SubscriptionStatus` model parsed in `core/api/dto.dart`; paise at edge,
   `toRupees` at display.
 - Owner re-auth helper: dialog pattern mirrors verifyManagerPin; returns the
-  owner token or null; inline error on login failure.
+  owner token or null; inline error on login failure. `/api/v1/auth/account/
+  login` returns `{token, refresh_token, account, org, entitlement…}` — the
+  app uses `token` for the single action and drops it.
 
 ## App: checkout wrapper
 
