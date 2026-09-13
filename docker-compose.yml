@@ -1,0 +1,22 @@
+# Local development database. Matches the backend integration-test default
+# DSN: postgres://foodpos:foodpos@localhost:5432/foodpos_test?sslmode=disable
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: foodpos
+      POSTGRES_PASSWORD: foodpos
+      POSTGRES_DB: foodpos_test
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./backend/scripts/init-dbs.sql:/docker-entrypoint-initdb.d/init-dbs.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U foodpos -d foodpos_test"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:
