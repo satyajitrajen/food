@@ -123,3 +123,50 @@ func (s *Server) handleSubscriptionAppStatus(w http.ResponseWriter, r *http.Requ
 		PricePaise:    plan.PricePaise,
 	})
 }
+
+// handleOwnerManualOrder creates a one-cycle Razorpay order for the org's
+// current plan at gross (base + 18%) so the POS app can pay without the
+// console. notes.org_id is set by CreateCheckout; payment.captured activates.
+func (s *Server) handleOwnerManualOrder(w http.ResponseWriter, r *http.Request) {
+	c, ok := claimsFrom(r)
+	if !ok {
+		httpx.ErrorJSON(w, r, httpx.ErrUnauthorized)
+		return
+	}
+	gw := s.razorpayGateway()
+	if gw == nil {
+		httpx.ErrorJSON(w, r, httpx.NewError(503, "gateway_unconfigured", "Razorpay keys are not configured"))
+		return
+	}
+	sub, err := s.Store.GetSubscriptionWithPlan(r.Context(), c.OrgID)
+	if err != nil {
+		httpx.ErrorJSON(w, r, err)
+		return
+	}
+	plan := sub.Plan
+	if plan == nil {
+		httpx.ErrorJSON(w, r, httpx.NewError(404, "no_plan", "Organization has no plan"))
+		return
+	}
+	switch sub.GatewayStatus {
+	case "active", "authenticated", "pending", "halted":
+		httpx.ErrorJSON(w, r, httpx.NewError(409, "auto_renew_owns_billing",
+			"Auto-renew is active — cancel it before paying manually"))
+		return
+	}
+	gross := plan.PricePaise + storeRound(plan.PricePaise)
+	co, err := gw.CreateCheckout(r.Context(), c.OrgID, gross, "manual renewal")
+	if err != nil {
+		httpx.ErrorJSON(w, r, httpx.NewError(502, "gateway_error", err.Error()))
+		return
+	}
+	_ = s.Store.AddOrgEvent(r.Context(), c.OrgID, c.ActorID, "razorpay.manual_order_created",
+		store.MetaJSON(map[string]any{"order_id": co.GatewayID, "amount_paise": gross}))
+	httpx.JSON(w, http.StatusOK, models.RazorpayManualOrder{
+		OrderID:     co.GatewayID,
+		KeyID:       s.Cfg.RazorpayKey,
+		AmountPaise: gross,
+		Currency:    co.Currency,
+		PlanName:    plan.Name,
+	})
+}

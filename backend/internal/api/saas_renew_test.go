@@ -51,6 +51,7 @@ func newRenewEnv(t *testing.T, hits *map[string]string) (*env, config.Config) {
 		})
 	}
 	record("/v1/plans", `{"id":"plan_fake1"}`)
+	record("/v1/orders", `{"id":"order_fake1"}`)
 	record("/v1/subscriptions", `{"id":"sub_fake1","status":"created"}`)
 	record("/v1/subscriptions/sub_fake1/addons", `{}`)
 	record("/v1/subscriptions/sub_fake1/cancel", `{"id":"sub_fake1","status":"active"}`)
@@ -509,4 +510,47 @@ func TestSubscriptionAppStatusForStaff(t *testing.T) {
 		t.Fatalf("cashier must be denied, got %d", code)
 	}
 	e.token = saved
+}
+
+func TestOwnerManualRenewalOrder(t *testing.T) {
+	hits := map[string]string{}
+	e, cfg := newRenewEnv(t, &hits)
+	registerOwner(t, e, "renew-manual@test")
+	orgID := subOrgIDForToken(t, e)
+	ctx := context.Background()
+
+	// One cycle at gross (pro base 199900 + 18% = 235882).
+	code, body := e.do(t, "POST", "/api/v1/saas/subscription/manual-order", map[string]any{}, true)
+	if code != 200 {
+		t.Fatalf("manual order failed: %d %v", code, body)
+	}
+	if body["order_id"] != "order_fake1" {
+		t.Fatalf("unexpected order id: %v", body)
+	}
+	if body["amount_paise"] != float64(235882) {
+		t.Fatalf("unexpected amount: %v", body["amount_paise"])
+	}
+	if body["key_id"] != cfg.RazorpayKey {
+		t.Fatalf("unexpected key id: %v", body["key_id"])
+	}
+	if orderBody := hits["/v1/orders|POST"]; !strings.Contains(orderBody, orgID) {
+		t.Fatalf("order missing org_id note: %s", orderBody)
+	}
+
+	// While auto-renew is live the gateway owns billing — manual orders are refused.
+	if err := e.st.SetOrgGatewaySubscription(ctx, orgID, "sub_fake1", "active"); err != nil {
+		t.Fatal(err)
+	}
+	code, _ = e.do(t, "POST", "/api/v1/saas/subscription/manual-order", map[string]any{}, true)
+	if code != 409 {
+		t.Fatalf("expected 409 while auto-renew active, got %d", code)
+	}
+
+	// Unconfigured keys → 503.
+	e2 := newEnvWithCfg(t, config.Load())
+	registerOwner(t, e2, "renew-manual2@test")
+	code, _ = e2.do(t, "POST", "/api/v1/saas/subscription/manual-order", map[string]any{}, true)
+	if code != 503 {
+		t.Fatalf("expected 503 unconfigured, got %d", code)
+	}
 }

@@ -249,6 +249,16 @@ type SubscriptionAppStatus struct {
 	PricePaise    int64      `json:"price_paise"`
 }
 
+// RazorpayManualOrder is the owner one-cycle checkout payload
+// (POST /api/v1/saas/subscription/manual-order).
+type RazorpayManualOrder struct {
+	OrderID     string `json:"order_id"`
+	KeyID       string `json:"key_id"`
+	AmountPaise int64  `json:"amount_paise"`
+	Currency    string `json:"currency"`
+	PlanName    string `json:"plan_name"`
+}
+
 // ---- Account token ops (email verify / password reset) ----
 
 type ForgotPasswordReq struct {
