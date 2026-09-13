@@ -6,6 +6,9 @@ package api
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -267,10 +270,19 @@ type razorpayWebhookEnvelope struct {
 	} `json:"payload"`
 }
 
+// verifyWebhookSignature checks a Razorpay webhook HMAC-SHA256 signature.
+func verifyWebhookSignature(secret string, payload []byte, signature string) bool {
+	mac := hmac.New(sha256.New, []byte(secret))
+	_, _ = mac.Write(payload)
+	want := hex.EncodeToString(mac.Sum(nil))
+	return hmac.Equal([]byte(want), []byte(signature))
+}
+
 func (s *Server) handleRazorpayWebhook(w http.ResponseWriter, r *http.Request) {
-	gw := s.razorpayGateway()
-	if gw == nil {
-		httpx.ErrorJSON(w, r, httpx.NewError(503, "gateway_unconfigured", "Razorpay is not configured"))
+	// Incoming lifecycle events only need signature verification + DB writes —
+	// the API keys (gw) are required for outbound calls, not for this handler.
+	if s.Cfg.RazorpayWebhookSecret == "" {
+		httpx.ErrorJSON(w, r, httpx.NewError(503, "gateway_unconfigured", "Razorpay webhook secret is not configured"))
 		return
 	}
 	raw, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
@@ -278,7 +290,7 @@ func (s *Server) handleRazorpayWebhook(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorJSON(w, r, err)
 		return
 	}
-	if !gw.VerifySignature(raw, r.Header.Get("X-Razorpay-Signature")) {
+	if !verifyWebhookSignature(s.Cfg.RazorpayWebhookSecret, raw, r.Header.Get("X-Razorpay-Signature")) {
 		httpx.ErrorJSON(w, r, httpx.NewError(401, "bad_signature", "Invalid webhook signature"))
 		return
 	}

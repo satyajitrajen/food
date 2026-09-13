@@ -683,10 +683,16 @@ func (s *Store) RegisterOrg(ctx context.Context, name, email, gstin, ownerName, 
 		return nil, err
 	}
 	outletID := NewID("out")
+	// outlets.terminal is NOT NULL (default 'POS-01'); an absent terminal in
+	// the registration request must fall back to that default, not NULL.
+	term := strings.TrimSpace(terminal)
+	if term == "" {
+		term = "POS-01"
+	}
 	if _, err := tx.ExecContext(ctx,
 		`INSERT INTO outlets (id, org_id, name, address, terminal, gstin, fssai, phone, is_online)
 		 VALUES (?, ?, ?, '', ?, '', '', '', 1)`,
-		outletID, orgID, outletName, orNil(terminal)); err != nil {
+		outletID, orgID, outletName, term); err != nil {
 		return nil, err
 	}
 	staffID := NewID("st")
