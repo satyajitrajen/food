@@ -79,11 +79,14 @@ class _PosMenuScreenState extends State<PosMenuScreen> {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
             child: Row(
-              mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  'Table $tableName',
-                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: AppColors.textDark),
+                Flexible(
+                  child: Text(
+                    'Table $tableName',
+                    style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: AppColors.textDark),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
                 const SizedBox(width: 4),
                 const Icon(Icons.keyboard_arrow_down, size: 20, color: AppColors.textMuted),
@@ -279,25 +282,31 @@ class _PosMenuScreenState extends State<PosMenuScreen> {
             .fold(0, (sum, i) => sum + i.quantity) ??
         0;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: () => _handleItemTap(context, item, provider),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: cartQty > 0 ? AppColors.primaryOrange.withValues(alpha: 0.5) : AppColors.borderLight,
-          width: 1.2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: cartQty > 0 ? AppColors.primaryOrange.withValues(alpha: 0.5) : AppColors.borderLight,
+              width: 1.2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.02),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
           // Image with Veg/Non-Veg Tag
           Expanded(
             flex: 5,
@@ -454,17 +463,19 @@ class _PosMenuScreenState extends State<PosMenuScreen> {
                                   child: Icon(Icons.add, size: 16, color: Colors.white),
                                 ),
                               ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
-                    ],
-                  ),
-                ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    );
-  }
+    ),
+  );
+}
 }

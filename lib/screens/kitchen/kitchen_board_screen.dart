@@ -128,28 +128,38 @@ class _KitchenBoardScreenState extends State<KitchenBoardScreen> with SingleTick
               children: [
                 // Header
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Row(
-                      children: [
-                        Text(
-                          kot.kotNumber,
-                          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: AppColors.textDark),
-                        ),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: AppColors.primaryOrangeLight,
-                            borderRadius: BorderRadius.circular(8),
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              kot.kotNumber,
+                              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: AppColors.textDark),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
-                          child: Text(
-                            kot.tableNumber != null ? 'Table ${kot.tableNumber}' : kot.orderType.name.toUpperCase(),
-                            style: const TextStyle(color: AppColors.primaryOrange, fontWeight: FontWeight.w800, fontSize: 12),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppColors.primaryOrangeLight,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                kot.tableNumber != null ? 'Table ${kot.tableNumber}' : kot.orderType.name.toUpperCase(),
+                                style: const TextStyle(color: AppColors.primaryOrange, fontWeight: FontWeight.w800, fontSize: 12),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
+                    const SizedBox(width: 8),
                     StatusBadge.forKOT(kot.status),
                   ],
                 ),

@@ -291,35 +291,43 @@ class PosDashboardScreen extends StatelessWidget {
                     border: Border.all(color: AppColors.borderLight),
                   ),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: AppColors.creamSubtle,
-                              borderRadius: BorderRadius.circular(10),
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: AppColors.creamSubtle,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(Icons.fastfood, color: AppColors.primaryOrange, size: 20),
                             ),
-                            child: const Icon(Icons.fastfood, color: AppColors.primaryOrange, size: 20),
-                          ),
-                          const SizedBox(width: 12),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '${order.orderNumber} · ${order.tableNumber != null ? "Table ${order.tableNumber}" : order.orderTypeLabel}',
-                                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '${order.orderNumber} · ${order.tableNumber != null ? "Table ${order.tableNumber}" : order.orderTypeLabel}',
+                                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    '${order.totalItemCount} Items · $timeStr · ${order.statusLabel}',
+                                    style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
                               ),
-                              const SizedBox(height: 2),
-                              Text(
-                                '${order.totalItemCount} Items · $timeStr · ${order.statusLabel}',
-                                style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
-                              ),
-                            ],
-                          ),
-                        ],
+                            ),
+                          ],
+                        ),
                       ),
+                      const SizedBox(width: 8),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [

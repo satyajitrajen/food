@@ -3,6 +3,7 @@ import 'package:food_pos/core/api/dto.dart';
 import 'package:food_pos/core/sync/outbox.dart';
 import 'package:food_pos/models/order_model.dart';
 import 'package:food_pos/models/settings_model.dart';
+import 'package:food_pos/models/staff_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -93,6 +94,23 @@ void main() {
       expect(back.isGstInclusive, isTrue);
       expect(back.defaultPackagingCharge, 30.0);
       expect(back.autoPrintKOT, isFalse);
+    });
+  });
+
+  group('staff role mapping', () {
+    test('preserves every backend role, kitchen included', () {
+      for (final r in ['admin', 'manager', 'cashier', 'waiter', 'kitchen']) {
+        expect(staffRoleFromApi(r), r);
+      }
+    });
+
+    test('staffFromApi keeps a kitchen profile as kitchen', () {
+      final staff = staffFromApi({'id': 'st-06', 'name': 'Chef Sharma', 'role': 'kitchen'});
+      expect(staff.role, StaffRole.kitchen);
+    });
+
+    test('unknown roles still fall back to waiter', () {
+      expect(staffRoleFromApi('supervisor'), 'waiter');
     });
   });
 

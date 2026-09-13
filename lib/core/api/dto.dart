@@ -173,6 +173,8 @@ String staffRoleFromApi(String s) {
       return 'manager';
     case 'cashier':
       return 'cashier';
+    case 'kitchen':
+      return 'kitchen';
     default:
       return 'waiter';
   }

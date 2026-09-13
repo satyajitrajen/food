@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/customer_model.dart';
+import '../../models/staff_model.dart';
 import '../../providers/pos_provider.dart';
 
 class GuestDetailsDialog extends StatefulWidget {
@@ -31,9 +32,12 @@ class _GuestDetailsDialogState extends State<GuestDetailsDialog> {
   void initState() {
     super.initState();
     final provider = context.read<PosProvider>();
+    final me = provider.currentStaff;
     _guestCount = provider.selectedTable?.guestCount ?? 2;
     if (_guestCount <= 0) _guestCount = 2;
-    _selectedWaiter = provider.selectedTable?.assignedWaiter ?? provider.currentStaff?.name ?? '';
+    _selectedWaiter = me != null && me.role == StaffRole.waiter
+        ? me.name
+        : provider.selectedTable?.assignedWaiter ?? me?.name ?? '';
     _customerController = TextEditingController(text: provider.activeOrder?.customerName ?? '');
     _phoneController = TextEditingController(text: provider.activeOrder?.customerPhone ?? '');
     _notesController = TextEditingController(text: provider.activeOrder?.orderNote ?? '');
@@ -112,7 +116,11 @@ class _GuestDetailsDialogState extends State<GuestDetailsDialog> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<PosProvider>();
-    final waiters = provider.staffList.where((s) => s.role.name == 'waiter' || s.role.name == 'cashier').toList();
+    final me = provider.currentStaff;
+    final allWaiters = provider.staffList.where((s) => s.role.name == 'waiter' || s.role.name == 'cashier').toList();
+    final waiters = me != null && me.role == StaffRole.waiter
+        ? allWaiters.where((s) => s.id == me.id).toList()
+        : allWaiters;
 
     return Dialog(
       child: ConstrainedBox(
