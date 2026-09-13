@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { Check } from 'lucide-react';
+import { useRouter } from '../router';
 
-interface PricingProps {
-  onOpenDemo: (planName?: string) => void;
-}
+// Plan codes must match the backend catalog seeded in store/saas.go.
+const planCode = (base: string, isAnnual: boolean) => (isAnnual ? `${base}-annual` : base);
 
-export const Pricing: React.FC<PricingProps> = ({ onOpenDemo }) => {
+export const Pricing: React.FC = () => {
   const [isAnnual, setIsAnnual] = useState<boolean>(true);
+  const { navigate } = useRouter();
 
   return (
     <section id="pricing" className="p-section">
@@ -54,7 +55,7 @@ export const Pricing: React.FC<PricingProps> = ({ onOpenDemo }) => {
               </div>
               <button
                 className="p-btn p-btn-secondary"
-                onClick={() => onOpenDemo('Starter Café')}
+                onClick={() => navigate(`/console/register?plan=${planCode('starter', isAnnual)}`)}
               >
                 Choose Starter
               </button>
@@ -116,7 +117,7 @@ export const Pricing: React.FC<PricingProps> = ({ onOpenDemo }) => {
                 </div>
                 <button
                   className="p-btn p-btn-secondary"
-                  onClick={() => onOpenDemo('Pro Dining')}
+                  onClick={() => navigate(`/console/register?plan=${planCode('pro', isAnnual)}`)}
                 >
                   Choose Pro Dining
                 </button>
@@ -170,7 +171,7 @@ export const Pricing: React.FC<PricingProps> = ({ onOpenDemo }) => {
               </div>
               <button
                 className="p-btn p-btn-dark"
-                onClick={() => onOpenDemo('Multi-Outlet Chain')}
+                onClick={() => navigate(`/console/register?plan=${planCode('chain', isAnnual)}`)}
               >
                 Get Multi-Outlet
               </button>

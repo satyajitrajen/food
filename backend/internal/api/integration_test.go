@@ -29,9 +29,16 @@ type env struct {
 	ts     *httptest.Server
 	client *http.Client
 	token  string
+	st     *store.Store
+	mgr    *auth.Manager
 }
 
 func newEnv(t *testing.T) *env {
+	t.Helper()
+	return newEnvWithCfg(t, config.Load())
+}
+
+func newEnvWithCfg(t *testing.T, cfg config.Config) *env {
 	t.Helper()
 	dsn := os.Getenv("FOODPOS_TEST_DSN")
 	if dsn == "" {
@@ -58,10 +65,10 @@ func newEnv(t *testing.T) *env {
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(upTmp) })
 
-	srv := &api.Server{Store: st, Auth: mgr, Hub: hub, Tickets: tickets, Cfg: config.Load(), UploadDir: upTmp}
+	srv := &api.Server{Store: st, Auth: mgr, Hub: hub, Tickets: tickets, Cfg: cfg, UploadDir: upTmp}
 	ts := httptest.NewServer(srv.Routes())
 	t.Cleanup(ts.Close)
-	return &env{ts: ts, client: ts.Client()}
+	return &env{ts: ts, client: ts.Client(), st: st, mgr: mgr}
 }
 
 // seedServer mirrors main's seed() with a minimal staff+table+menu set.
@@ -83,10 +90,14 @@ func seedServer(st *store.Store, mgr *auth.Manager) {
 	st.DB.Exec(`INSERT INTO modifier_items (id, group_id, name, price_paise) VALUES ('mo-1', 'mg-1', 'Extra Chutney', 2000)`)
 	st.DB.Exec(`INSERT INTO settings (outlet_id, restaurant_name) VALUES ('out-01', 'Test Resto')`)
 
-	// SaaS: default plan + active subscription for the legacy demo org, and a
-	// platform superadmin for manual-billing tests.
+	// SaaS: default plan catalog + active subscription for the legacy demo org,
+	// and a platform superadmin for manual-billing tests.
 	ctx := context.Background()
-	if plan, err := st.SeedDefaultPlan(ctx); err == nil {
+	if err := st.SeedDefaultPlans(ctx); err == nil {
+		plan, perr := st.GetPlanByCode(ctx, "pro")
+		if perr != nil {
+			panic(perr)
+		}
 		now := time.Now().UTC()
 		end := now.AddDate(0, 1, 0)
 		_ = st.UpsertSubscription(ctx, &models.OrgSubscription{

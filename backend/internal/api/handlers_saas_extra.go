@@ -81,7 +81,14 @@ func (s *Server) handleForgotPassword(w http.ResponseWriter, r *http.Request) {
 	}
 	sender := s.mailer()
 	if !sender.Enabled() {
-		httpx.JSON(w, http.StatusOK, models.MailResp{Delivered: false, Token: token, Message: "SMTP disabled — dev reset token returned"})
+		if s.Cfg.Dev {
+			httpx.JSON(w, http.StatusOK, models.MailResp{Delivered: false, Token: token, Message: "SMTP disabled — dev reset token returned"})
+			return
+		}
+		// Never echo the token outside dev: the response would grant account
+		// takeover to anyone holding an e-mail address.
+		httpx.ErrorJSON(w, r, httpx.NewError(503, "mail_unconfigured",
+			"Password reset is unavailable because mail is not configured on this server. Please contact support."))
 		return
 	}
 	go func() {
@@ -271,30 +278,48 @@ func (s *Server) handleRazorpayWebhook(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorJSON(w, r, httpx.NewError(400, "bad_payload", "Malformed webhook"))
 		return
 	}
-	if env.Event != "payment.captured" {
-		httpx.JSON(w, http.StatusOK, map[string]any{"ignored": env.Event})
-		return
-	}
 	orgID := env.Payload.Payment.Entity.Notes["org_id"]
-	if orgID == "" {
-		httpx.ErrorJSON(w, r, httpx.NewError(400, "no_org", "Webhook payload missing org_id"))
-		return
+	switch env.Event {
+	case "payment.captured":
+		if orgID == "" {
+			httpx.ErrorJSON(w, r, httpx.NewError(400, "no_org", "Webhook payload missing org_id"))
+			return
+		}
+		// entity.amount is gross (INR paise) — extract the taxable base (÷1.18).
+		gross := env.Payload.Payment.Entity.Amount
+		base := int64(float64(gross)/1.18 + 0.5)
+		// Guard against duplicate webhook deliveries (idempotent activation).
+		if sub, serr := s.Store.GetSubscription(r.Context(), orgID); serr == nil &&
+			sub.Status == models.SubActive && sub.CurrentPeriodEnd != nil && sub.CurrentPeriodEnd.After(time.Now()) {
+			httpx.JSON(w, http.StatusOK, map[string]any{"activated": false, "reason": "already_active"})
+			return
+		}
+		// period_days 0 => ActivateOrg uses the org's plan interval.
+		_, inv, err := s.Store.ActivateOrg(r.Context(), orgID, "razorpay-webhook", "razorpay",
+			0, base, env.Payload.Payment.Entity.ID, "Razorpay payment captured")
+		if err != nil {
+			httpx.ErrorJSON(w, r, err)
+			return
+		}
+		httpx.JSON(w, http.StatusOK, map[string]any{"activated": true, "invoice": inv.InvoiceNo})
+	case "payment.failed", "payment.refunded":
+		// Audit only: the billing cron owns the subscription lifecycle, and a
+		// single failed capture must not suspend an org on its own.
+		if orgID == "" {
+			httpx.JSON(w, http.StatusOK, map[string]any{"ignored": env.Event})
+			return
+		}
+		action := "razorpay.payment_failed"
+		if env.Event == "payment.refunded" {
+			action = "razorpay.payment_refunded"
+		}
+		_ = s.Store.AddOrgEvent(r.Context(), orgID, "razorpay-webhook", action,
+			store.MetaJSON(map[string]any{
+				"payment_id":   env.Payload.Payment.Entity.ID,
+				"amount_paise": env.Payload.Payment.Entity.Amount,
+			}))
+		httpx.JSON(w, http.StatusOK, map[string]any{"recorded": env.Event})
+	default:
+		httpx.JSON(w, http.StatusOK, map[string]any{"ignored": env.Event})
 	}
-	// entity.amount is gross (INR paise) — extract the taxable base (÷1.18).
-	gross := env.Payload.Payment.Entity.Amount
-	base := int64(float64(gross)/1.18 + 0.5)
-	// Guard against duplicate webhook deliveries (idempotent activation).
-	if sub, serr := s.Store.GetSubscription(r.Context(), orgID); serr == nil &&
-		sub.Status == models.SubActive && sub.CurrentPeriodEnd != nil && sub.CurrentPeriodEnd.After(time.Now()) {
-		httpx.JSON(w, http.StatusOK, map[string]any{"activated": false, "reason": "already_active"})
-		return
-	}
-	// period_days 0 => ActivateOrg uses the org's plan interval.
-	_, inv, err := s.Store.ActivateOrg(r.Context(), orgID, "razorpay-webhook", "razorpay",
-		0, base, env.Payload.Payment.Entity.ID, "Razorpay payment captured")
-	if err != nil {
-		httpx.ErrorJSON(w, r, err)
-		return
-	}
-	httpx.JSON(w, http.StatusOK, map[string]any{"activated": true, "invoice": inv.InvoiceNo})
 }

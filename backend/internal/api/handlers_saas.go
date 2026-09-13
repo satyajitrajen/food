@@ -5,6 +5,7 @@ package api
 
 import (
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"math/big"
 	"net/http"
@@ -60,8 +61,12 @@ func (s *Server) handleRegisterOrg(w http.ResponseWriter, r *http.Request) {
 	}
 
 	res, err := s.Store.RegisterOrg(r.Context(), req.OrgName, req.Email, req.GSTIN,
-		req.OwnerName, pwHash, req.OutletName, req.Terminal, pinHash)
+		req.OwnerName, pwHash, req.OutletName, req.Terminal, pinHash, req.PlanCode)
 	if err != nil {
+		if errors.Is(err, store.ErrUnknownPlan) {
+			httpx.ErrorJSON(w, r, httpx.NewError(400, "invalid_plan", "Unknown plan code"))
+			return
+		}
 		if isUniqueViolation(err) {
 			httpx.ErrorJSON(w, r, httpx.NewError(409, "email_taken", "An account with this email already exists"))
 			return

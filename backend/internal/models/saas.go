@@ -136,6 +136,8 @@ type RegisterOrgReq struct {
 	GSTIN      string `json:"gstin,omitempty"`
 	OutletName string `json:"outlet_name"`
 	Terminal   string `json:"terminal,omitempty"`
+	// PlanCode selects the subscription tier (landing pricing). Empty → "pro".
+	PlanCode string `json:"plan_code,omitempty"`
 }
 
 type RegisterOrgResp struct {
@@ -232,8 +234,34 @@ type VerifyEmailReq struct {
 }
 
 type MailResp struct {
-	// Delivered is false when SMTP is unconfigured (dev fallback: token echoed).
+	// Delivered is false when SMTP is unconfigured (dev fallback: token echoed
+	// only when the server runs with FOODPOS_DEV=1).
 	Delivered bool   `json:"delivered"`
 	Token     string `json:"token,omitempty"` // echoed in dev when SMTP disabled
 	Message   string `json:"message"`
+}
+
+// ---- Landing leads (marketing funnel) ----
+
+type LeadCreateReq struct {
+	RestaurantName string `json:"restaurant_name"`
+	ContactName    string `json:"contact_name,omitempty"`
+	Phone          string `json:"phone"`
+	City           string `json:"city,omitempty"`
+	OutletFormat   string `json:"outlet_format,omitempty"`
+	PlanInterest   string `json:"plan_interest,omitempty"`
+	Source         string `json:"source,omitempty"`
+}
+
+type Lead struct {
+	ID             string `json:"id"`
+	RestaurantName string `json:"restaurant_name"`
+	ContactName    string `json:"contact_name"`
+	Phone          string `json:"phone"`
+	City           string `json:"city,omitempty"`
+	OutletFormat   string `json:"outlet_format,omitempty"`
+	PlanInterest   string `json:"plan_interest,omitempty"`
+	Source         string `json:"source"`
+	Status         string `json:"status"`
+	CreatedAt      string `json:"created_at"`
 }

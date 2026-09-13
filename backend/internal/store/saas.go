@@ -10,6 +10,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"math/big"
 	"strconv"
 	"strings"
@@ -18,6 +19,10 @@ import (
 	"foodpos/backend/internal/httpx"
 	"foodpos/backend/internal/models"
 )
+
+// ErrUnknownPlan is returned when a registration names a plan code that does
+// not exist; the API layer maps it to 400 invalid_plan.
+var ErrUnknownPlan = errors.New("unknown plan")
 
 // ---- Lookup helpers ----
 
@@ -270,15 +275,42 @@ func (s *Store) CountPlatformAdmins(ctx context.Context) (int, error) {
 
 // ---- Plans ----
 
-// SeedDefaultPlan inserts the v1 plan (idempotent) and returns it.
-func (s *Store) SeedDefaultPlan(ctx context.Context) (*models.Plan, error) {
-	_, err := s.DB.ExecContext(ctx,
-		`INSERT INTO plans (id, code, name, price_paise, interval_days, max_outlets, max_staff, trial_days, is_active)
-		 VALUES ('plan-pro', 'pro', 'Pro', 149900, 30, 5, 20, 14, 1) ON CONFLICT (code) DO NOTHING`)
-	if err != nil {
-		return nil, err
+// seedPlanRow mirrors one tier of the landing pricing page (Pricing.tsx).
+type seedPlanRow struct {
+	code, name        string
+	price             int64
+	interval, outlets int
+	staff, trial      int
+}
+
+// defaultPlans must stay in sync with the advertised tiers: starter/pro/chain
+// at ₹999/₹1,999/₹3,999 monthly and their 20%-off annual variants (interval
+// 365). Canonical codes are upserted so catalog changes ship with the binary;
+// superadmin-created plans use other codes and are never touched here.
+var defaultPlans = []seedPlanRow{
+	{"starter", "Starter Café", 99900, 30, 1, 10, 14},
+	{"pro", "Pro Dining", 199900, 30, 5, 20, 14},
+	{"chain", "Multi-Outlet Chain", 399900, 30, 100, 500, 14},
+	{"starter-annual", "Starter Café (Annual)", 958800, 365, 1, 10, 14},
+	{"pro-annual", "Pro Dining (Annual)", 1918800, 365, 5, 20, 14},
+	{"chain-annual", "Multi-Outlet Chain (Annual)", 3838800, 365, 100, 500, 14},
+}
+
+// SeedDefaultPlans upserts the landing pricing catalog (idempotent).
+func (s *Store) SeedDefaultPlans(ctx context.Context) error {
+	for _, p := range defaultPlans {
+		if _, err := s.DB.ExecContext(ctx,
+			`INSERT INTO plans (id, code, name, price_paise, interval_days, max_outlets, max_staff, trial_days, is_active)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+			 ON CONFLICT (code) DO UPDATE SET
+			   name = EXCLUDED.name, price_paise = EXCLUDED.price_paise,
+			   interval_days = EXCLUDED.interval_days, max_outlets = EXCLUDED.max_outlets,
+			   max_staff = EXCLUDED.max_staff, trial_days = EXCLUDED.trial_days, is_active = 1`,
+			"plan-"+p.code, p.code, p.name, p.price, p.interval, p.outlets, p.staff, p.trial); err != nil {
+			return err
+		}
 	}
-	return s.GetPlanByCode(ctx, "pro")
+	return nil
 }
 
 func (s *Store) GetPlanByCode(ctx context.Context, code string) (*models.Plan, error) {
@@ -599,11 +631,14 @@ func newOrgCode() (string, error) {
 // default plan subscription (trial) + first outlet + initial admin staff.
 // Runs in a transaction; password hashes must be precomputed by the caller.
 func (s *Store) RegisterOrg(ctx context.Context, name, email, gstin, ownerName, pwHash string,
-	outletName, terminal, adminPINHash string) (*RegisterResult, error) {
+	outletName, terminal, adminPINHash, planCode string) (*RegisterResult, error) {
 
-	plan, err := s.SeedDefaultPlan(ctx)
+	if planCode == "" {
+		planCode = "pro"
+	}
+	plan, err := s.GetPlanByCode(ctx, planCode)
 	if err != nil {
-		return nil, err
+		return nil, ErrUnknownPlan
 	}
 	orgID := NewID("org")
 	now := Now()

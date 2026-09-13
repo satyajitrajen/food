@@ -36,10 +36,11 @@ export const ConsoleApp: React.FC = () => {
     setSession(loadSession());
   }, [currentPath]);
 
-  if (currentPath === '/console/login') {
+  const routePath = currentPath.split('?')[0];
+  if (routePath === '/console/login') {
     return <LoginPage />;
   }
-  if (currentPath === '/console/register') {
+  if (routePath === '/console/register') {
     return <RegisterPage />;
   }
   if (!session) {
@@ -140,9 +141,22 @@ const LoginPage: React.FC = () => {
 };
 
 // ================= Registration =================
+
+// Must match the backend plan catalog (store/saas.go) and landing Pricing.
+const PLAN_LABELS: Record<string, string> = {
+  starter: 'Starter Café · ₹999/mo',
+  'starter-annual': 'Starter Café · ₹799/mo billed yearly',
+  pro: 'Pro Dining · ₹1,999/mo',
+  'pro-annual': 'Pro Dining · ₹1,599/mo billed yearly',
+  chain: 'Multi-Outlet Chain · ₹3,999/mo',
+  'chain-annual': 'Multi-Outlet Chain · ₹3,199/mo billed yearly',
+};
+
 const RegisterPage: React.FC = () => {
   const { navigate } = useRouter();
-  const [form, setForm] = useState({ org_name: '', owner_name: '', email: '', password: '', outlet_name: '', gstin: '' });
+  const planParam = new URLSearchParams(window.location.search).get('plan') ?? '';
+  const planCode = PLAN_LABELS[planParam] ? planParam : 'pro';
+  const [form, setForm] = useState({ org_name: '', owner_name: '', email: '', password: '', outlet_name: '', gstin: '', plan_code: planCode });
   const [error, setError] = useState('');
   const [info, setInfo] = useState<Record<string, any> | null>(null);
   const [busy, setBusy] = useState(false);
@@ -194,6 +208,9 @@ const RegisterPage: React.FC = () => {
       <div className="console-login-card">
         <h2>Create your account</h2>
         <p className="hint">One outlet is created for you; add more later from your plan.</p>
+        <p className="hint" style={{ fontWeight: 700, color: '#ea580c' }}>
+          Selected plan: {PLAN_LABELS[planCode]} · 14-day free trial
+        </p>
         {error && <div className="console-banner console-banner-error">{error}</div>}
         <form className="console-form" onSubmit={submit}>
           <input className="console-input" required placeholder="Restaurant name" value={form.org_name} onChange={set('org_name')} />

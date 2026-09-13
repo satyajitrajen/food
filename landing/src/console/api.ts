@@ -144,6 +144,25 @@ export interface RegisterPayload {
   gstin?: string;
   outlet_name: string;
   terminal?: string;
+  plan_code?: string;
+}
+
+// Sales WhatsApp line; override per deployment with VITE_FOODPOS_WHATSAPP.
+export const WHATSAPP_NUMBER: string =
+  ((import.meta as any).env && (import.meta as any).env.VITE_FOODPOS_WHATSAPP) || '919822000000';
+
+export interface LeadPayload {
+  restaurant_name: string;
+  contact_name?: string;
+  phone: string;
+  city?: string;
+  outlet_format?: string;
+  plan_interest?: string;
+  source?: string;
+}
+
+export async function createLead(payload: LeadPayload): Promise<{ id: string }> {
+  return request('/api/v1/leads', { method: 'POST', body: payload });
 }
 
 export async function registerOrg(payload: RegisterPayload): Promise<any> {

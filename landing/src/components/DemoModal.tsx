@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { X, Sparkles, CheckCircle2, MessageCircle, ArrowRight, Loader2 } from 'lucide-react';
+import { WHATSAPP_NUMBER, createLead } from '../console/api';
 
 interface DemoModalProps {
   isOpen: boolean;
@@ -14,6 +15,7 @@ export const DemoModal: React.FC<DemoModalProps> = ({ isOpen, onClose, defaultPl
   const [phone, setPhone] = useState('');
   const [outletFormat, setOutletFormat] = useState('Dine-in Restaurant');
   const [submitted, setSubmitted] = useState(false);
+  const [saved, setSaved] = useState(true);
   const [demoId, setDemoId] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
@@ -42,7 +44,7 @@ export const DemoModal: React.FC<DemoModalProps> = ({ isOpen, onClose, defaultPl
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
     const digits = phone.replace(/\D/g, '');
@@ -56,17 +58,34 @@ export const DemoModal: React.FC<DemoModalProps> = ({ isOpen, onClose, defaultPl
       return;
     }
     setSubmitting(true);
-    // Simulated request round-trip; keeps the button label while it spins.
-    window.setTimeout(() => {
-      const randomId = `DEMO-${Math.floor(1000 + Math.random() * 9000)}`;
-      setDemoId(randomId);
-      setSubmitting(false);
-      setSubmitted(true);
-    }, 600);
+    // Fallback reference for when the API is unreachable — the WhatsApp
+    // button below still gets the lead to a human.
+    let ref = `DEMO-${Math.floor(1000 + Math.random() * 9000)}`;
+    let ok = false;
+    try {
+      const res = await createLead({
+        restaurant_name: restaurantName.trim(),
+        contact_name: contactName.trim(),
+        phone: digits,
+        city,
+        outlet_format: outletFormat,
+        plan_interest: defaultPlan ?? '',
+        source: 'landing-demo',
+      });
+      if (res && typeof res.id === 'string') ref = res.id;
+      ok = true;
+    } catch {
+      ok = false;
+    }
+    setDemoId(ref);
+    setSaved(ok);
+    setSubmitting(false);
+    setSubmitted(true);
   };
 
   const handleReset = () => {
     setSubmitted(false);
+    setSaved(true);
     setRestaurantName('');
     setContactName('');
     setPhone('');
@@ -256,9 +275,15 @@ export const DemoModal: React.FC<DemoModalProps> = ({ isOpen, onClose, defaultPl
               </div>
             </div>
 
+            {!saved && (
+              <p style={{ color: 'var(--terracotta)', fontSize: '0.85rem', marginBottom: '12px' }}>
+                We couldn't save your request just now — please use WhatsApp below so we don't miss you.
+              </p>
+            )}
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <a
-                href={`https://wa.me/919822000000?text=${whatsappMessage}`}
+                href={`https://wa.me/${WHATSAPP_NUMBER}?text=${whatsappMessage}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="btn btn-whatsapp"

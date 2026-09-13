@@ -25,7 +25,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onOpenDemo }) => {
       <FeaturesGrid />
       <BenefitsSection />
       <PlayStoreBanner />
-      <Pricing onOpenDemo={onOpenDemo} />
+      <Pricing />
       <Testimonials />
       <FAQ />
     </main>
