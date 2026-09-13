@@ -31,7 +31,7 @@ func main() {
 	}
 	st := store.New(database)
 	ctx := context.Background()
-	if _, err := st.SeedDefaultPlan(ctx); err != nil {
+	if err := st.SeedDefaultPlans(ctx); err != nil {
 		slog.Error("plan seed failed", "err", err)
 		os.Exit(1)
 	}

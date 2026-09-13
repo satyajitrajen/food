@@ -5,6 +5,7 @@ package api
 
 import (
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"math/big"
 	"net/http"
@@ -60,8 +61,12 @@ func (s *Server) handleRegisterOrg(w http.ResponseWriter, r *http.Request) {
 	}
 
 	res, err := s.Store.RegisterOrg(r.Context(), req.OrgName, req.Email, req.GSTIN,
-		req.OwnerName, pwHash, req.OutletName, req.Terminal, pinHash)
+		req.OwnerName, pwHash, req.OutletName, req.Terminal, pinHash, req.PlanCode)
 	if err != nil {
+		if errors.Is(err, store.ErrUnknownPlan) {
+			httpx.ErrorJSON(w, r, httpx.NewError(400, "invalid_plan", "Unknown plan code"))
+			return
+		}
 		if isUniqueViolation(err) {
 			httpx.ErrorJSON(w, r, httpx.NewError(409, "email_taken", "An account with this email already exists"))
 			return
@@ -406,6 +411,19 @@ func (s *Server) handleSaaSCancelSubscription(w http.ResponseWriter, r *http.Req
 	if err := s.Store.UpsertSubscription(r.Context(), &next); err != nil {
 		httpx.ErrorJSON(w, r, err)
 		return
+	}
+	// Best-effort gateway cancel at cycle end; the local flag stays
+	// authoritative and the webhook records the final state. A silent failure
+	// here would let the next renewal reactivate a cancelled org, so audit it.
+	if sub.GatewaySubscriptionID != "" {
+		if gw := s.razorpayGateway(); gw != nil {
+			if st, err := gw.CancelSubscription(r.Context(), sub.GatewaySubscriptionID, true); err == nil {
+				_ = s.Store.SetOrgGatewaySubscription(r.Context(), c.OrgID, sub.GatewaySubscriptionID, st)
+			} else {
+				_ = s.Store.AddOrgEvent(r.Context(), c.OrgID, c.ActorID, "razorpay.cancel_failed",
+					store.MetaJSON(map[string]any{"gateway_sub_id": sub.GatewaySubscriptionID, "error": err.Error()}))
+			}
+		}
 	}
 	_ = s.Store.AddOrgEvent(r.Context(), c.OrgID, c.ActorID, "sub.cancel_requested", "{}")
 	httpx.JSON(w, http.StatusOK, map[string]any{"cancel_at_period_end": true})

@@ -62,30 +62,38 @@ class RunningOrderDetailScreen extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             color: Colors.white,
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          currentOrder.tableNumber != null ? 'Table ${currentOrder.tableNumber}' : currentOrder.orderTypeLabel,
-                          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20),
-                        ),
-                        if (table != null) ...[
-                          const SizedBox(width: 8),
-                          StatusBadge.forTable(table.status),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              currentOrder.tableNumber != null ? 'Table ${currentOrder.tableNumber}' : currentOrder.orderTypeLabel,
+                              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (table != null) ...[
+                            const SizedBox(width: 8),
+                            StatusBadge.forTable(table.status),
+                          ],
                         ],
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Waiter: ${currentOrder.waiterName ?? provider.currentStaff?.name ?? "Staff"} · ${currentOrder.guestCount} Guests',
-                      style: const TextStyle(color: AppColors.textMuted, fontSize: 13),
-                    ),
-                  ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Waiter: ${currentOrder.waiterName ?? provider.currentStaff?.name ?? "Staff"} · ${currentOrder.guestCount} Guests',
+                        style: const TextStyle(color: AppColors.textMuted, fontSize: 13),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
                 ),
+                const SizedBox(width: 12),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [

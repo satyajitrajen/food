@@ -23,7 +23,14 @@ import (
 
 func main() {
 	cfg := config.Load()
-	slog.Info("foodpos server starting", "port", cfg.Port, "dsn", cfg.DSN)
+	if err := cfg.Validate(); err != nil {
+		slog.Error("invalid config", "err", err)
+		os.Exit(1)
+	}
+	if cfg.Env == "production" && cfg.SMTPHost == "" {
+		slog.Warn("SMTP not configured; password reset and renewal e-mail are unavailable")
+	}
+	slog.Info("foodpos server starting", "port", cfg.Port, "dsn", cfg.DSN, "env", cfg.Env)
 
 	database, err := db.Open(cfg.DSN)
 	if err != nil {
@@ -331,7 +338,10 @@ func b2i(b bool) int {
 // subscription (legacy single-tenant data continues to operate as a tenant).
 func ensureDefaultTenant(st *store.Store) error {
 	ctx := context.Background()
-	plan, err := st.SeedDefaultPlan(ctx)
+	if err := st.SeedDefaultPlans(ctx); err != nil {
+		return err
+	}
+	plan, err := st.GetPlanByCode(ctx, "pro")
 	if err != nil {
 		return err
 	}

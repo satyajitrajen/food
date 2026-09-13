@@ -67,15 +67,16 @@ type OrgCode struct {
 }
 
 type Plan struct {
-	ID           string `json:"id"`
-	Code         string `json:"code"`
-	Name         string `json:"name"`
-	PricePaise   int64  `json:"price_paise"`
-	IntervalDays int    `json:"interval_days"`
-	MaxOutlets   int    `json:"max_outlets"`
-	MaxStaff     int    `json:"max_staff"`
-	TrialDays    int    `json:"trial_days"`
-	IsActive     bool   `json:"is_active"`
+	ID            string `json:"id"`
+	Code          string `json:"code"`
+	Name          string `json:"name"`
+	PricePaise    int64  `json:"price_paise"`
+	IntervalDays  int    `json:"interval_days"`
+	MaxOutlets    int    `json:"max_outlets"`
+	MaxStaff      int    `json:"max_staff"`
+	TrialDays     int    `json:"trial_days"`
+	IsActive      bool   `json:"is_active"`
+	GatewayPlanID string `json:"gateway_plan_id,omitempty"` // Razorpay plan id (auto-renew)
 }
 
 type OrgSubscription struct {
@@ -89,6 +90,11 @@ type OrgSubscription struct {
 	Notes              *string    `json:"notes"`
 	UpdatedAt          time.Time  `json:"updated_at"`
 	Plan               *Plan      `json:"plan,omitempty"`
+	// Razorpay hosted subscription (auto-renew). GatewayStatus mirrors the
+	// gateway-side lifecycle: created/authenticated/active/pending/halted/
+	// cancelled/completed.
+	GatewaySubscriptionID string `json:"gateway_subscription_id,omitempty"`
+	GatewayStatus         string `json:"gateway_status,omitempty"`
 }
 
 type SaaSInvoice struct {
@@ -136,6 +142,8 @@ type RegisterOrgReq struct {
 	GSTIN      string `json:"gstin,omitempty"`
 	OutletName string `json:"outlet_name"`
 	Terminal   string `json:"terminal,omitempty"`
+	// PlanCode selects the subscription tier (landing pricing). Empty → "pro".
+	PlanCode string `json:"plan_code,omitempty"`
 }
 
 type RegisterOrgResp struct {
@@ -216,6 +224,20 @@ type ExtendReq struct {
 	Notes string `json:"notes,omitempty"`
 }
 
+// ---- Razorpay hosted subscriptions (owner self-service auto-renew) ----
+
+// RazorpaySubscriptionStart is the payload the console needs to open hosted
+// checkout.js with subscription_id + key_id.
+type RazorpaySubscriptionStart struct {
+	SubscriptionID    string `json:"subscription_id"`
+	KeyID             string `json:"key_id"`
+	PlanCode          string `json:"plan_code"`
+	PlanName          string `json:"plan_name"`
+	AmountPaise       int64  `json:"amount_paise"` // gross per cycle (base + GST)
+	Currency          string `json:"currency"`
+	RegistrationPaise int64  `json:"registration_paise"` // one-time fee charged with cycle 1 (0 = none)
+}
+
 // ---- Account token ops (email verify / password reset) ----
 
 type ForgotPasswordReq struct {
@@ -232,8 +254,34 @@ type VerifyEmailReq struct {
 }
 
 type MailResp struct {
-	// Delivered is false when SMTP is unconfigured (dev fallback: token echoed).
+	// Delivered is false when SMTP is unconfigured (dev fallback: token echoed
+	// only when the server runs with FOODPOS_DEV=1).
 	Delivered bool   `json:"delivered"`
 	Token     string `json:"token,omitempty"` // echoed in dev when SMTP disabled
 	Message   string `json:"message"`
+}
+
+// ---- Landing leads (marketing funnel) ----
+
+type LeadCreateReq struct {
+	RestaurantName string `json:"restaurant_name"`
+	ContactName    string `json:"contact_name,omitempty"`
+	Phone          string `json:"phone"`
+	City           string `json:"city,omitempty"`
+	OutletFormat   string `json:"outlet_format,omitempty"`
+	PlanInterest   string `json:"plan_interest,omitempty"`
+	Source         string `json:"source,omitempty"`
+}
+
+type Lead struct {
+	ID             string `json:"id"`
+	RestaurantName string `json:"restaurant_name"`
+	ContactName    string `json:"contact_name"`
+	Phone          string `json:"phone"`
+	City           string `json:"city,omitempty"`
+	OutletFormat   string `json:"outlet_format,omitempty"`
+	PlanInterest   string `json:"plan_interest,omitempty"`
+	Source         string `json:"source"`
+	Status         string `json:"status"`
+	CreatedAt      string `json:"created_at"`
 }

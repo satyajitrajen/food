@@ -47,7 +47,7 @@ func (s *Server) Routes() http.Handler {
 	// Public (auth routes are rate-limited per IP; staff profiles are public
 	// so terminals can render the PIN login screen before authentication).
 	authLimit := middleware.RateLimit(20, time.Minute)
-	registerLimit := middleware.RateLimit(10, time.Minute)
+	registerLimit := middleware.RateLimit(30, time.Minute)
 	deviceLimit := middleware.RateLimit(60, time.Minute)
 
 	r.With(authLimit).Post("/api/v1/auth/login", s.handleLogin)
@@ -67,6 +67,9 @@ func (s *Server) Routes() http.Handler {
 	r.With(authLimit).Post("/api/v1/admin/logout", s.handleAdminLogout)
 	r.With(deviceLimit).Post("/api/v1/auth/device-options", s.handleDeviceOptions)
 
+	// Marketing lead capture from the landing page (public, rate-limited).
+	r.With(registerLimit).Post("/api/v1/leads", s.handleCreateLead)
+
 	// Legacy terminal bootstrap (org_code optional; defaults to the demo org).
 	r.Get("/api/v1/outlets", s.handleListOutlets)
 	r.Get("/api/v1/staff", s.handleListStaff)
@@ -81,6 +84,7 @@ func (s *Server) Routes() http.Handler {
 		r.Post("/outlets", s.handleSaaSCreateOutlet)
 		r.Post("/staff", s.handleSaaSCreateStaff)
 		r.Post("/subscription/cancel", s.handleSaaSCancelSubscription)
+		r.Post("/subscription/razorpay", s.handleOwnerStartSubscription)
 		r.Post("/org/rotate-code", s.handleRotateOrgCode)
 		r.Get("/invoices/{id}/pdf", s.handleOwnerInvoicePDF)
 	})
@@ -97,6 +101,7 @@ func (s *Server) Routes() http.Handler {
 		r.Post("/orgs/{id}/cancel", s.handleAdminCancel)
 		r.Post("/orgs/{id}/checkout", s.handleAdminCheckout)
 		r.Get("/invoices/{id}/pdf", s.handleAdminInvoicePDF)
+		r.Get("/leads", s.handleAdminListLeads)
 		r.Get("/stats", s.handleAdminStats)
 	})
 

@@ -11,6 +11,7 @@ import {
   loginOwner,
   registerOrg,
   saveSession,
+  startAutoRenew,
 } from './api';
 
 // ---- helpers ----
@@ -26,6 +27,19 @@ function errMessage(e: unknown): string {
   return e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Something went wrong';
 }
 
+// loadRazorpayScript injects checkout.js once per page load.
+function loadRazorpayScript(): Promise<void> {
+  const w = window as unknown as { Razorpay?: unknown };
+  if (w.Razorpay) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error('Could not load Razorpay checkout'));
+    document.head.appendChild(s);
+  });
+}
+
 // ================= Console root / layout =================
 export const ConsoleApp: React.FC = () => {
   const { currentPath } = useRouter();
@@ -36,10 +50,11 @@ export const ConsoleApp: React.FC = () => {
     setSession(loadSession());
   }, [currentPath]);
 
-  if (currentPath === '/console/login') {
+  const routePath = currentPath.split('?')[0];
+  if (routePath === '/console/login') {
     return <LoginPage />;
   }
-  if (currentPath === '/console/register') {
+  if (routePath === '/console/register') {
     return <RegisterPage />;
   }
   if (!session) {
@@ -140,9 +155,22 @@ const LoginPage: React.FC = () => {
 };
 
 // ================= Registration =================
+
+// Must match the backend plan catalog (store/saas.go) and landing Pricing.
+const PLAN_LABELS: Record<string, string> = {
+  starter: 'Starter Café · ₹999/mo',
+  'starter-annual': 'Starter Café · ₹799/mo billed yearly',
+  pro: 'Pro Dining · ₹1,999/mo',
+  'pro-annual': 'Pro Dining · ₹1,599/mo billed yearly',
+  chain: 'Multi-Outlet Chain · ₹3,999/mo',
+  'chain-annual': 'Multi-Outlet Chain · ₹3,199/mo billed yearly',
+};
+
 const RegisterPage: React.FC = () => {
   const { navigate } = useRouter();
-  const [form, setForm] = useState({ org_name: '', owner_name: '', email: '', password: '', outlet_name: '', gstin: '' });
+  const planParam = new URLSearchParams(window.location.search).get('plan') ?? '';
+  const planCode = PLAN_LABELS[planParam] ? planParam : 'pro';
+  const [form, setForm] = useState({ org_name: '', owner_name: '', email: '', password: '', outlet_name: '', gstin: '', plan_code: planCode });
   const [error, setError] = useState('');
   const [info, setInfo] = useState<Record<string, any> | null>(null);
   const [busy, setBusy] = useState(false);
@@ -194,6 +222,9 @@ const RegisterPage: React.FC = () => {
       <div className="console-login-card">
         <h2>Create your account</h2>
         <p className="hint">One outlet is created for you; add more later from your plan.</p>
+        <p className="hint" style={{ fontWeight: 700, color: '#ea580c' }}>
+          Selected plan: {PLAN_LABELS[planCode]} · 14-day free trial
+        </p>
         {error && <div className="console-banner console-banner-error">{error}</div>}
         <form className="console-form" onSubmit={submit}>
           <input className="console-input" required placeholder="Restaurant name" value={form.org_name} onChange={set('org_name')} />
@@ -269,6 +300,37 @@ const OwnerPanel: React.FC = () => {
     try {
       await fn();
       setNotice(okMsg);
+      await load();
+    } catch (e) {
+      setError(errMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const openAutoRenewCheckout = async () => {
+    setBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      const start = await startAutoRenew();
+      await loadRazorpayScript();
+      const w = window as unknown as {
+        Razorpay?: new (opts: Record<string, unknown>) => { open: () => void };
+      };
+      if (!w.Razorpay) throw new Error('Could not load Razorpay checkout');
+      const session = loadSession();
+      const rzp = new w.Razorpay({
+        key: start.key_id,
+        subscription_id: start.subscription_id,
+        name: 'FoodPOS',
+        description: `${start.plan_name} · auto-renew`,
+        prefill: session ? { email: session.email } : undefined,
+        theme: { color: '#e2572b' },
+        modal: { ondismiss: () => setNotice('Checkout closed — no charge was made') },
+      });
+      rzp.open();
+      setNotice('Complete the payment in the Razorpay window to enable auto-renew');
       await load();
     } catch (e) {
       setError(errMessage(e));
@@ -400,12 +462,23 @@ const OwnerPanel: React.FC = () => {
           <div className="console-card">
             <h3 className="console-section-title">Subscription</h3>
             <p style={{ fontSize: 13, color: '#4a443e' }}>
-              Renewals are handled by the FoodPOS team after payment (bank/UPI). Need to stop? You can request cancellation.
+              Auto-renew charges your plan each cycle via UPI/card — no manual follow-up. Cancel anytime; renewals stop after the current period.
             </p>
-            <button className="console-btn console-btn-danger console-btn-sm" disabled={busy}
-              onClick={() => { if (confirm('Stop renewing after the current period?')) run(api.cancelSubscription, 'Cancellation requested — renewals stop after this period'); }}>
-              Cancel at period end
-            </button>
+            <div className="console-row" style={{ gap: 8 }}>
+              {sub.gateway_status !== 'active' && (
+                <button className="console-btn console-btn-primary console-btn-sm" disabled={busy}
+                  onClick={openAutoRenewCheckout}>
+                  Enable auto-renew (UPI / Card)
+                </button>
+              )}
+              <button className="console-btn console-btn-danger console-btn-sm" disabled={busy}
+                onClick={() => { if (confirm('Stop renewing after the current period?')) run(api.cancelSubscription, 'Cancellation requested — renewals stop after this period'); }}>
+                Cancel at period end
+              </button>
+            </div>
+            {sub.gateway_status === 'active' && (
+              <p style={{ fontSize: 12, color: '#78716c', marginTop: 10 }}>Auto-renew is active for this subscription.</p>
+            )}
           </div>
         )}
       </div>

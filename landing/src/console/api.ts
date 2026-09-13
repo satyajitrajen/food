@@ -144,10 +144,47 @@ export interface RegisterPayload {
   gstin?: string;
   outlet_name: string;
   terminal?: string;
+  plan_code?: string;
+}
+
+// Sales WhatsApp line; override per deployment with VITE_FOODPOS_WHATSAPP.
+export const WHATSAPP_NUMBER: string =
+  ((import.meta as any).env && (import.meta as any).env.VITE_FOODPOS_WHATSAPP) || '919822000000';
+
+export interface LeadPayload {
+  restaurant_name: string;
+  contact_name?: string;
+  phone: string;
+  city?: string;
+  outlet_format?: string;
+  plan_interest?: string;
+  source?: string;
+}
+
+export async function createLead(payload: LeadPayload): Promise<{ id: string }> {
+  return request('/api/v1/leads', { method: 'POST', body: payload });
 }
 
 export async function registerOrg(payload: RegisterPayload): Promise<any> {
   return request('/api/v1/auth/register', { method: 'POST', body: payload });
+}
+
+// ---- Razorpay auto-renew ----
+
+export interface RazorpaySubscriptionStart {
+  subscription_id: string;
+  key_id: string;
+  plan_code: string;
+  plan_name: string;
+  amount_paise: number;
+  currency: string;
+  registration_paise: number;
+}
+
+// Creates a hosted Razorpay subscription for the org's current plan; open
+// checkout.js with the returned subscription_id + key_id.
+export async function startAutoRenew(): Promise<RazorpaySubscriptionStart> {
+  return request('/api/v1/saas/subscription/razorpay', { method: 'POST', token: sessionToken() });
 }
 
 // ---- owner APIs ----

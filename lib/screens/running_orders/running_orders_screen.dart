@@ -122,28 +122,38 @@ class _RunningOrdersScreenState extends State<RunningOrdersScreen> with SingleTi
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Row(
-                      children: [
-                        Text(
-                          order.orderNumber,
-                          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
-                        ),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: AppColors.primaryOrangeLight,
-                            borderRadius: BorderRadius.circular(8),
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              order.orderNumber,
+                              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
-                          child: Text(
-                            tableName,
-                            style: const TextStyle(color: AppColors.primaryOrange, fontWeight: FontWeight.w800, fontSize: 12),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppColors.primaryOrangeLight,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                tableName,
+                                style: const TextStyle(color: AppColors.primaryOrange, fontWeight: FontWeight.w800, fontSize: 12),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
+                    const SizedBox(width: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
@@ -161,6 +171,8 @@ class _RunningOrdersScreenState extends State<RunningOrdersScreen> with SingleTi
                 Text(
                   '${order.totalItemCount} Items · ₹${order.grandTotal.toStringAsFixed(0)} · Waiter: ${order.waiterName ?? "Staff"}',
                   style: const TextStyle(color: AppColors.textMuted, fontSize: 13, fontWeight: FontWeight.w600),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const Divider(height: 20, color: AppColors.borderLight),
                 Row(

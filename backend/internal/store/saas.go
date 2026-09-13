@@ -10,6 +10,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"math/big"
 	"strconv"
 	"strings"
@@ -18,6 +19,10 @@ import (
 	"foodpos/backend/internal/httpx"
 	"foodpos/backend/internal/models"
 )
+
+// ErrUnknownPlan is returned when a registration names a plan code that does
+// not exist; the API layer maps it to 400 invalid_plan.
+var ErrUnknownPlan = errors.New("unknown plan")
 
 // ---- Lookup helpers ----
 
@@ -32,10 +37,12 @@ func scanOrg(sc interface{ Scan(...any) error }) (*models.Organization, error) {
 	return &o, nil
 }
 
+const planCols = `id, code, name, price_paise, interval_days, max_outlets, max_staff, trial_days, is_active, gateway_plan_id`
+
 func scanPlan(sc interface{ Scan(...any) error }) (*models.Plan, error) {
 	var p models.Plan
 	var active int
-	if err := sc.Scan(&p.ID, &p.Code, &p.Name, &p.PricePaise, &p.IntervalDays, &p.MaxOutlets, &p.MaxStaff, &p.TrialDays, &active); err != nil {
+	if err := sc.Scan(&p.ID, &p.Code, &p.Name, &p.PricePaise, &p.IntervalDays, &p.MaxOutlets, &p.MaxStaff, &p.TrialDays, &active, &p.GatewayPlanID); err != nil {
 		return nil, err
 	}
 	p.IsActive = active == 1
@@ -47,7 +54,8 @@ func scanSubscription(sc interface{ Scan(...any) error }) (*models.OrgSubscripti
 	var trial, pStart, pEnd, updated string
 	var cancel int
 	var notes sql.NullString
-	if err := sc.Scan(&s.OrgID, &s.PlanID, &s.Status, &trial, &pStart, &pEnd, &cancel, &notes, &updated); err != nil {
+	if err := sc.Scan(&s.OrgID, &s.PlanID, &s.Status, &trial, &pStart, &pEnd, &cancel, &notes, &updated,
+		&s.GatewaySubscriptionID, &s.GatewayStatus); err != nil {
 		return nil, err
 	}
 	s.TrialEndsAt = parseOptTime(trial)
@@ -270,23 +278,50 @@ func (s *Store) CountPlatformAdmins(ctx context.Context) (int, error) {
 
 // ---- Plans ----
 
-// SeedDefaultPlan inserts the v1 plan (idempotent) and returns it.
-func (s *Store) SeedDefaultPlan(ctx context.Context) (*models.Plan, error) {
-	_, err := s.DB.ExecContext(ctx,
-		`INSERT INTO plans (id, code, name, price_paise, interval_days, max_outlets, max_staff, trial_days, is_active)
-		 VALUES ('plan-pro', 'pro', 'Pro', 149900, 30, 5, 20, 14, 1) ON CONFLICT (code) DO NOTHING`)
-	if err != nil {
-		return nil, err
+// seedPlanRow mirrors one tier of the landing pricing page (Pricing.tsx).
+type seedPlanRow struct {
+	code, name        string
+	price             int64
+	interval, outlets int
+	staff, trial      int
+}
+
+// defaultPlans must stay in sync with the advertised tiers: starter/pro/chain
+// at ₹999/₹1,999/₹3,999 monthly and their 20%-off annual variants (interval
+// 365). Canonical codes are upserted so catalog changes ship with the binary;
+// superadmin-created plans use other codes and are never touched here.
+var defaultPlans = []seedPlanRow{
+	{"starter", "Starter Café", 99900, 30, 1, 10, 14},
+	{"pro", "Pro Dining", 199900, 30, 5, 20, 14},
+	{"chain", "Multi-Outlet Chain", 399900, 30, 100, 500, 14},
+	{"starter-annual", "Starter Café (Annual)", 958800, 365, 1, 10, 14},
+	{"pro-annual", "Pro Dining (Annual)", 1918800, 365, 5, 20, 14},
+	{"chain-annual", "Multi-Outlet Chain (Annual)", 3838800, 365, 100, 500, 14},
+}
+
+// SeedDefaultPlans upserts the landing pricing catalog (idempotent).
+func (s *Store) SeedDefaultPlans(ctx context.Context) error {
+	for _, p := range defaultPlans {
+		if _, err := s.DB.ExecContext(ctx,
+			`INSERT INTO plans (id, code, name, price_paise, interval_days, max_outlets, max_staff, trial_days, is_active)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+			 ON CONFLICT (code) DO UPDATE SET
+			   name = EXCLUDED.name, price_paise = EXCLUDED.price_paise,
+			   interval_days = EXCLUDED.interval_days, max_outlets = EXCLUDED.max_outlets,
+			   max_staff = EXCLUDED.max_staff, trial_days = EXCLUDED.trial_days, is_active = 1`,
+			"plan-"+p.code, p.code, p.name, p.price, p.interval, p.outlets, p.staff, p.trial); err != nil {
+			return err
+		}
 	}
-	return s.GetPlanByCode(ctx, "pro")
+	return nil
 }
 
 func (s *Store) GetPlanByCode(ctx context.Context, code string) (*models.Plan, error) {
 	var p models.Plan
 	var active int
 	err := s.DB.QueryRowContext(ctx,
-		`SELECT id, code, name, price_paise, interval_days, max_outlets, max_staff, trial_days, is_active FROM plans WHERE code = ?`, code).
-		Scan(&p.ID, &p.Code, &p.Name, &p.PricePaise, &p.IntervalDays, &p.MaxOutlets, &p.MaxStaff, &p.TrialDays, &active)
+		`SELECT `+planCols+` FROM plans WHERE code = ?`, code).
+		Scan(&p.ID, &p.Code, &p.Name, &p.PricePaise, &p.IntervalDays, &p.MaxOutlets, &p.MaxStaff, &p.TrialDays, &active, &p.GatewayPlanID)
 	if err == sql.ErrNoRows {
 		return nil, httpx.ErrNotFound
 	}
@@ -299,7 +334,7 @@ func (s *Store) GetPlanByCode(ctx context.Context, code string) (*models.Plan, e
 
 // ---- Subscriptions ----
 
-const subscriptionCols = `org_id, plan_id, status, trial_ends_at, current_period_start, current_period_end, cancel_at_period_end, notes, updated_at`
+const subscriptionCols = `org_id, plan_id, status, trial_ends_at, current_period_start, current_period_end, cancel_at_period_end, notes, updated_at, gateway_subscription_id, gateway_status`
 
 func (s *Store) GetSubscription(ctx context.Context, orgID string) (*models.OrgSubscription, error) {
 	var sub models.OrgSubscription
@@ -307,7 +342,8 @@ func (s *Store) GetSubscription(ctx context.Context, orgID string) (*models.OrgS
 	var cancel int
 	var notes sql.NullString
 	err := s.DB.QueryRowContext(ctx, `SELECT `+subscriptionCols+` FROM org_subscriptions WHERE org_id = ?`, orgID).
-		Scan(&sub.OrgID, &sub.PlanID, &sub.Status, &trial, &pStart, &pEnd, &cancel, &notes, &updated)
+		Scan(&sub.OrgID, &sub.PlanID, &sub.Status, &trial, &pStart, &pEnd, &cancel, &notes, &updated,
+			&sub.GatewaySubscriptionID, &sub.GatewayStatus)
 	if err == sql.ErrNoRows {
 		return nil, httpx.ErrNotFound
 	}
@@ -342,8 +378,8 @@ func (s *Store) GetPlanByID(ctx context.Context, id string) (*models.Plan, error
 	var p models.Plan
 	var active int
 	err := s.DB.QueryRowContext(ctx,
-		`SELECT id, code, name, price_paise, interval_days, max_outlets, max_staff, trial_days, is_active FROM plans WHERE id = ?`, id).
-		Scan(&p.ID, &p.Code, &p.Name, &p.PricePaise, &p.IntervalDays, &p.MaxOutlets, &p.MaxStaff, &p.TrialDays, &active)
+		`SELECT `+planCols+` FROM plans WHERE id = ?`, id).
+		Scan(&p.ID, &p.Code, &p.Name, &p.PricePaise, &p.IntervalDays, &p.MaxOutlets, &p.MaxStaff, &p.TrialDays, &active, &p.GatewayPlanID)
 	if err == sql.ErrNoRows {
 		return nil, httpx.ErrNotFound
 	}
@@ -599,11 +635,14 @@ func newOrgCode() (string, error) {
 // default plan subscription (trial) + first outlet + initial admin staff.
 // Runs in a transaction; password hashes must be precomputed by the caller.
 func (s *Store) RegisterOrg(ctx context.Context, name, email, gstin, ownerName, pwHash string,
-	outletName, terminal, adminPINHash string) (*RegisterResult, error) {
+	outletName, terminal, adminPINHash, planCode string) (*RegisterResult, error) {
 
-	plan, err := s.SeedDefaultPlan(ctx)
+	if planCode == "" {
+		planCode = "pro"
+	}
+	plan, err := s.GetPlanByCode(ctx, planCode)
 	if err != nil {
-		return nil, err
+		return nil, ErrUnknownPlan
 	}
 	orgID := NewID("org")
 	now := Now()

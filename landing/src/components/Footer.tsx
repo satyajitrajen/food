@@ -1,5 +1,6 @@
 import React from 'react';
 import { useRouter } from '../router';
+import { WHATSAPP_NUMBER } from '../console/api';
 import { UtensilsCrossed, MessageCircle, Mail, MapPin } from 'lucide-react';
 
 export const Footer: React.FC = () => {
@@ -101,7 +102,7 @@ export const Footer: React.FC = () => {
             <ul className="footer-links">
               <li>
                 <a
-                  href="https://wa.me/919822000000?text=Hi%20FoodPOS%2C%20I%20would%20like%20to%20speak%20with%20a%20product%20specialist."
+                  href={`https://wa.me/${WHATSAPP_NUMBER}?text=Hi%20FoodPOS%2C%20I%20would%20like%20to%20speak%20with%20a%20product%20specialist.`}
                   target="_blank"
                   rel="noopener noreferrer"
                   style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: '#25D366', fontWeight: 600 }}

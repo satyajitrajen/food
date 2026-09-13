@@ -177,17 +177,30 @@ class SettingsScreen extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 4),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(
-              color: AppColors.creamSubtle,
-              borderRadius: BorderRadius.circular(8),
+          Expanded(
+            child: Row(
+              children: [
+                Flexible(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.creamSubtle,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      t.tableNumber,
+                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text('${t.seats} seats', style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+              ],
             ),
-            child: Text(t.tableNumber, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
           ),
-          const SizedBox(width: 6),
-          Text('${t.seats} seats', style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
-          const Spacer(),
+          const SizedBox(width: 8),
           DropdownButton<String>(
             value: sections.contains(t.floor) ? t.floor : null,
             underline: const SizedBox.shrink(),

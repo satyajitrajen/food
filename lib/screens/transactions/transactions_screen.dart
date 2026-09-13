@@ -165,12 +165,23 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                     ),
                                   ),
                                   const SizedBox(width: 8),
-                                  Text(
-                                    tx.tableNumber != null ? 'Table ${tx.tableNumber}' : tx.orderTypeLabel,
-                                    style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+                                  Flexible(
+                                    child: Text(
+                                      tx.tableNumber != null ? 'Table ${tx.tableNumber}' : tx.orderTypeLabel,
+                                      style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
                                   ),
                                   const SizedBox(width: 8),
-                                  Text('· $dateStr', style: const TextStyle(color: AppColors.textLight, fontSize: 12)),
+                                  Flexible(
+                                    child: Text(
+                                      '· $dateStr',
+                                      style: const TextStyle(color: AppColors.textLight, fontSize: 12),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
                                 ],
                               ),
                               const SizedBox(height: 12),
