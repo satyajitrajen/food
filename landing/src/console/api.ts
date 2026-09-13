@@ -169,6 +169,24 @@ export async function registerOrg(payload: RegisterPayload): Promise<any> {
   return request('/api/v1/auth/register', { method: 'POST', body: payload });
 }
 
+// ---- Razorpay auto-renew ----
+
+export interface RazorpaySubscriptionStart {
+  subscription_id: string;
+  key_id: string;
+  plan_code: string;
+  plan_name: string;
+  amount_paise: number;
+  currency: string;
+  registration_paise: number;
+}
+
+// Creates a hosted Razorpay subscription for the org's current plan; open
+// checkout.js with the returned subscription_id + key_id.
+export async function startAutoRenew(): Promise<RazorpaySubscriptionStart> {
+  return request('/api/v1/saas/subscription/razorpay', { method: 'POST', token: sessionToken() });
+}
+
 // ---- owner APIs ----
 export const api = {
   me: () => request('/api/v1/saas/me', { token: sessionToken() }),

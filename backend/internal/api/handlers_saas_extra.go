@@ -5,6 +5,7 @@ package api
 // offline entitlement tokens (embedding into login payloads).
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -202,7 +203,7 @@ func (s *Server) handleAdminInvoicePDF(w http.ResponseWriter, r *http.Request) {
 // ---- Razorpay checkout (superadmin) + webhook ----
 
 func (s *Server) razorpayGateway() *billing.RazorpayGateway {
-	return billing.NewRazorpay(s.Cfg.RazorpayKey, s.Cfg.RazorpaySecret, s.Cfg.RazorpayWebhookSecret)
+	return billing.NewRazorpay(s.Cfg.RazorpayKey, s.Cfg.RazorpaySecret, s.Cfg.RazorpayWebhookSecret, s.Cfg.RazorpayBaseURL)
 }
 
 func (s *Server) handleAdminCheckout(w http.ResponseWriter, r *http.Request) {
@@ -255,6 +256,13 @@ type razorpayWebhookEnvelope struct {
 				Notes  map[string]string `json:"notes"`
 			} `json:"entity"`
 		} `json:"payment"`
+		Subscription struct {
+			Entity struct {
+				ID     string            `json:"id"`
+				Status string            `json:"status"`
+				Notes  map[string]string `json:"notes"`
+			} `json:"entity"`
+		} `json:"subscription"`
 	} `json:"payload"`
 }
 
@@ -319,7 +327,143 @@ func (s *Server) handleRazorpayWebhook(w http.ResponseWriter, r *http.Request) {
 				"amount_paise": env.Payload.Payment.Entity.Amount,
 			}))
 		httpx.JSON(w, http.StatusOK, map[string]any{"recorded": env.Event})
+	case "subscription.charged":
+		s.handleSubscriptionCharged(w, r, &env)
+	case "subscription.authenticated", "subscription.activated", "subscription.pending", "subscription.halted":
+		s.handleSubscriptionStatus(w, r, &env)
+	case "subscription.cancelled", "subscription.completed":
+		s.handleSubscriptionEnded(w, r, &env, env.Event)
 	default:
 		httpx.JSON(w, http.StatusOK, map[string]any{"ignored": env.Event})
 	}
+}
+
+// subEntityOrg resolves the org behind a hosted subscription: the org_id note
+// set at creation, falling back to the stored gateway_subscription_id.
+func (s *Server) subEntityOrg(ctx context.Context, subID string, notes map[string]string) (string, error) {
+	if id := notes["org_id"]; id != "" {
+		return id, nil
+	}
+	if subID == "" {
+		return "", httpx.NewError(400, "no_org", "Webhook payload missing org reference")
+	}
+	return s.Store.GetOrgIDByGatewaySubscriptionID(ctx, subID)
+}
+
+// handleSubscriptionCharged records the cycle payment: opens a fresh paid
+// period (ActivateOrg) for the org. Idempotent per gateway payment id —
+// duplicate webhook deliveries must not double-extend the period.
+func (s *Server) handleSubscriptionCharged(w http.ResponseWriter, r *http.Request, env *razorpayWebhookEnvelope) {
+	ctx := r.Context()
+	subEnt := env.Payload.Subscription.Entity
+	orgID, err := s.subEntityOrg(ctx, subEnt.ID, subEnt.Notes)
+	if err != nil {
+		httpx.ErrorJSON(w, r, err)
+		return
+	}
+	paymentID := env.Payload.Payment.Entity.ID
+	if paymentID == "" {
+		httpx.ErrorJSON(w, r, httpx.NewError(400, "bad_payload", "Webhook payload missing payment id"))
+		return
+	}
+	if exists, err := s.Store.SaaSInvoiceExistsWithReference(ctx, orgID, paymentID); err == nil && exists {
+		httpx.JSON(w, http.StatusOK, map[string]any{"renewed": false, "reason": "duplicate"})
+		return
+	}
+	sub, err := s.Store.GetSubscription(ctx, orgID)
+	if err != nil {
+		httpx.ErrorJSON(w, r, err)
+		return
+	}
+	plan, err := s.Store.GetPlanByID(ctx, sub.PlanID)
+	if err != nil {
+		httpx.ErrorJSON(w, r, err)
+		return
+	}
+	_ = s.Store.SetOrgGatewaySubscription(ctx, orgID, subEnt.ID, "active")
+	// The first charge (org still in trial) also collects the one-time
+	// registration add-on, so the invoice records the plan base only; renewals
+	// extract the taxable base from the gross payment (÷1.18).
+	gross := env.Payload.Payment.Entity.Amount
+	base := plan.PricePaise
+	if sub.Status != models.SubTrial {
+		base = int64(float64(gross)/1.18 + 0.5)
+	}
+	_, inv, err := s.Store.ActivateOrg(ctx, orgID, "razorpay-webhook", "razorpay",
+		0, base, paymentID, "Razorpay subscription charged")
+	if err != nil {
+		httpx.ErrorJSON(w, r, err)
+		return
+	}
+	_ = s.Store.AddOrgEvent(ctx, orgID, "razorpay-webhook", "razorpay.subscription_charged",
+		store.MetaJSON(map[string]any{
+			"payment_id":         paymentID,
+			"gross_amount_paise": gross,
+			"gateway_sub_id":     subEnt.ID,
+		}))
+	httpx.JSON(w, http.StatusOK, map[string]any{"renewed": true, "invoice": inv.InvoiceNo})
+}
+
+// handleSubscriptionStatus mirrors gateway-side mandate/status transitions
+// (authenticated/activated/pending/halted) onto the local subscription row.
+func (s *Server) handleSubscriptionStatus(w http.ResponseWriter, r *http.Request, env *razorpayWebhookEnvelope) {
+	ctx := r.Context()
+	subEnt := env.Payload.Subscription.Entity
+	orgID, err := s.subEntityOrg(ctx, subEnt.ID, subEnt.Notes)
+	if err != nil {
+		httpx.JSON(w, http.StatusOK, map[string]any{"ignored": env.Event})
+		return
+	}
+	status := strings.TrimPrefix(env.Event, "subscription.")
+	if status == "activated" {
+		status = "active"
+	}
+	_ = s.Store.SetOrgGatewaySubscription(ctx, orgID, subEnt.ID, status)
+	_ = s.Store.AddOrgEvent(ctx, orgID, "razorpay-webhook", "razorpay.subscription_"+status,
+		store.MetaJSON(map[string]any{"gateway_sub_id": subEnt.ID}))
+	httpx.JSON(w, http.StatusOK, map[string]any{"recorded": env.Event})
+}
+
+// handleSubscriptionEnded closes out auto-renew: an immediate gateway cancel
+// (or the completed event at the end of the last paid cycle) lapses the local
+// subscription. A still-running paid period keeps its access until it ends.
+func (s *Server) handleSubscriptionEnded(w http.ResponseWriter, r *http.Request, env *razorpayWebhookEnvelope, event string) {
+	ctx := r.Context()
+	subEnt := env.Payload.Subscription.Entity
+	orgID, err := s.subEntityOrg(ctx, subEnt.ID, subEnt.Notes)
+	if err != nil {
+		httpx.JSON(w, http.StatusOK, map[string]any{"ignored": event})
+		return
+	}
+	gwStatus := "cancelled"
+	if event == "subscription.completed" {
+		gwStatus = "completed"
+	}
+	_ = s.Store.SetOrgGatewaySubscription(ctx, orgID, subEnt.ID, gwStatus)
+	sub, err := s.Store.GetSubscription(ctx, orgID)
+	if err != nil {
+		httpx.ErrorJSON(w, r, err)
+		return
+	}
+	periodRunning := sub.CurrentPeriodEnd != nil && sub.CurrentPeriodEnd.After(time.Now())
+	if event == "subscription.cancelled" && !periodRunning {
+		next := *sub
+		next.Status = models.SubCancelled
+		if err := s.Store.UpsertSubscription(ctx, &next); err != nil {
+			httpx.ErrorJSON(w, r, err)
+			return
+		}
+		_ = s.Store.SetOrgStatus(ctx, orgID, models.OrgExpired)
+	} else if event == "subscription.completed" && (sub.Status == models.SubActive || sub.Status == models.SubPastDue) {
+		next := *sub
+		next.Status = models.SubExpired
+		if err := s.Store.UpsertSubscription(ctx, &next); err != nil {
+			httpx.ErrorJSON(w, r, err)
+			return
+		}
+		_ = s.Store.SetOrgStatus(ctx, orgID, models.OrgExpired)
+	}
+	_ = s.Store.AddOrgEvent(ctx, orgID, "razorpay-webhook", "razorpay.subscription_"+gwStatus,
+		store.MetaJSON(map[string]any{"gateway_sub_id": subEnt.ID, "event": event}))
+	httpx.JSON(w, http.StatusOK, map[string]any{"recorded": event})
 }

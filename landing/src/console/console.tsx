@@ -11,6 +11,7 @@ import {
   loginOwner,
   registerOrg,
   saveSession,
+  startAutoRenew,
 } from './api';
 
 // ---- helpers ----
@@ -24,6 +25,19 @@ function fmtDate(v: string | null | undefined): string {
 }
 function errMessage(e: unknown): string {
   return e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Something went wrong';
+}
+
+// loadRazorpayScript injects checkout.js once per page load.
+function loadRazorpayScript(): Promise<void> {
+  const w = window as unknown as { Razorpay?: unknown };
+  if (w.Razorpay) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error('Could not load Razorpay checkout'));
+    document.head.appendChild(s);
+  });
 }
 
 // ================= Console root / layout =================
@@ -294,6 +308,37 @@ const OwnerPanel: React.FC = () => {
     }
   };
 
+  const openAutoRenewCheckout = async () => {
+    setBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      const start = await startAutoRenew();
+      await loadRazorpayScript();
+      const w = window as unknown as {
+        Razorpay?: new (opts: Record<string, unknown>) => { open: () => void };
+      };
+      if (!w.Razorpay) throw new Error('Could not load Razorpay checkout');
+      const session = loadSession();
+      const rzp = new w.Razorpay({
+        key: start.key_id,
+        subscription_id: start.subscription_id,
+        name: 'FoodPOS',
+        description: `${start.plan_name} · auto-renew`,
+        prefill: session ? { email: session.email } : undefined,
+        theme: { color: '#e2572b' },
+        modal: { ondismiss: () => setNotice('Checkout closed — no charge was made') },
+      });
+      rzp.open();
+      setNotice('Complete the payment in the Razorpay window to enable auto-renew');
+      await load();
+    } catch (e) {
+      setError(errMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div>
       <h1 className="console-title">Dashboard</h1>
@@ -417,12 +462,23 @@ const OwnerPanel: React.FC = () => {
           <div className="console-card">
             <h3 className="console-section-title">Subscription</h3>
             <p style={{ fontSize: 13, color: '#4a443e' }}>
-              Renewals are handled by the FoodPOS team after payment (bank/UPI). Need to stop? You can request cancellation.
+              Auto-renew charges your plan each cycle via UPI/card — no manual follow-up. Cancel anytime; renewals stop after the current period.
             </p>
-            <button className="console-btn console-btn-danger console-btn-sm" disabled={busy}
-              onClick={() => { if (confirm('Stop renewing after the current period?')) run(api.cancelSubscription, 'Cancellation requested — renewals stop after this period'); }}>
-              Cancel at period end
-            </button>
+            <div className="console-row" style={{ gap: 8 }}>
+              {sub.gateway_status !== 'active' && (
+                <button className="console-btn console-btn-primary console-btn-sm" disabled={busy}
+                  onClick={openAutoRenewCheckout}>
+                  Enable auto-renew (UPI / Card)
+                </button>
+              )}
+              <button className="console-btn console-btn-danger console-btn-sm" disabled={busy}
+                onClick={() => { if (confirm('Stop renewing after the current period?')) run(api.cancelSubscription, 'Cancellation requested — renewals stop after this period'); }}>
+                Cancel at period end
+              </button>
+            </div>
+            {sub.gateway_status === 'active' && (
+              <p style={{ fontSize: 12, color: '#78716c', marginTop: 10 }}>Auto-renew is active for this subscription.</p>
+            )}
           </div>
         )}
       </div>

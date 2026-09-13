@@ -202,8 +202,7 @@ func (s *Store) ApplyDueTransitions(ctx context.Context, now time.Time) (expired
 // ListSubscriptions returns every subscription for the platform dashboard.
 func (s *Store) ListSubscriptions(ctx context.Context) ([]models.OrgSubscription, error) {
 	rows, err := s.DB.QueryContext(ctx,
-		`SELECT org_id, plan_id, status, trial_ends_at, current_period_start, current_period_end, cancel_at_period_end, notes, updated_at
-		 FROM org_subscriptions ORDER BY updated_at DESC`)
+		`SELECT `+subscriptionCols+` FROM org_subscriptions ORDER BY updated_at DESC`)
 	if err != nil {
 		return nil, err
 	}

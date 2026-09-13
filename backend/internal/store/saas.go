@@ -37,10 +37,12 @@ func scanOrg(sc interface{ Scan(...any) error }) (*models.Organization, error) {
 	return &o, nil
 }
 
+const planCols = `id, code, name, price_paise, interval_days, max_outlets, max_staff, trial_days, is_active, gateway_plan_id`
+
 func scanPlan(sc interface{ Scan(...any) error }) (*models.Plan, error) {
 	var p models.Plan
 	var active int
-	if err := sc.Scan(&p.ID, &p.Code, &p.Name, &p.PricePaise, &p.IntervalDays, &p.MaxOutlets, &p.MaxStaff, &p.TrialDays, &active); err != nil {
+	if err := sc.Scan(&p.ID, &p.Code, &p.Name, &p.PricePaise, &p.IntervalDays, &p.MaxOutlets, &p.MaxStaff, &p.TrialDays, &active, &p.GatewayPlanID); err != nil {
 		return nil, err
 	}
 	p.IsActive = active == 1
@@ -52,7 +54,8 @@ func scanSubscription(sc interface{ Scan(...any) error }) (*models.OrgSubscripti
 	var trial, pStart, pEnd, updated string
 	var cancel int
 	var notes sql.NullString
-	if err := sc.Scan(&s.OrgID, &s.PlanID, &s.Status, &trial, &pStart, &pEnd, &cancel, &notes, &updated); err != nil {
+	if err := sc.Scan(&s.OrgID, &s.PlanID, &s.Status, &trial, &pStart, &pEnd, &cancel, &notes, &updated,
+		&s.GatewaySubscriptionID, &s.GatewayStatus); err != nil {
 		return nil, err
 	}
 	s.TrialEndsAt = parseOptTime(trial)
@@ -317,8 +320,8 @@ func (s *Store) GetPlanByCode(ctx context.Context, code string) (*models.Plan, e
 	var p models.Plan
 	var active int
 	err := s.DB.QueryRowContext(ctx,
-		`SELECT id, code, name, price_paise, interval_days, max_outlets, max_staff, trial_days, is_active FROM plans WHERE code = ?`, code).
-		Scan(&p.ID, &p.Code, &p.Name, &p.PricePaise, &p.IntervalDays, &p.MaxOutlets, &p.MaxStaff, &p.TrialDays, &active)
+		`SELECT `+planCols+` FROM plans WHERE code = ?`, code).
+		Scan(&p.ID, &p.Code, &p.Name, &p.PricePaise, &p.IntervalDays, &p.MaxOutlets, &p.MaxStaff, &p.TrialDays, &active, &p.GatewayPlanID)
 	if err == sql.ErrNoRows {
 		return nil, httpx.ErrNotFound
 	}
@@ -331,7 +334,7 @@ func (s *Store) GetPlanByCode(ctx context.Context, code string) (*models.Plan, e
 
 // ---- Subscriptions ----
 
-const subscriptionCols = `org_id, plan_id, status, trial_ends_at, current_period_start, current_period_end, cancel_at_period_end, notes, updated_at`
+const subscriptionCols = `org_id, plan_id, status, trial_ends_at, current_period_start, current_period_end, cancel_at_period_end, notes, updated_at, gateway_subscription_id, gateway_status`
 
 func (s *Store) GetSubscription(ctx context.Context, orgID string) (*models.OrgSubscription, error) {
 	var sub models.OrgSubscription
@@ -339,7 +342,8 @@ func (s *Store) GetSubscription(ctx context.Context, orgID string) (*models.OrgS
 	var cancel int
 	var notes sql.NullString
 	err := s.DB.QueryRowContext(ctx, `SELECT `+subscriptionCols+` FROM org_subscriptions WHERE org_id = ?`, orgID).
-		Scan(&sub.OrgID, &sub.PlanID, &sub.Status, &trial, &pStart, &pEnd, &cancel, &notes, &updated)
+		Scan(&sub.OrgID, &sub.PlanID, &sub.Status, &trial, &pStart, &pEnd, &cancel, &notes, &updated,
+			&sub.GatewaySubscriptionID, &sub.GatewayStatus)
 	if err == sql.ErrNoRows {
 		return nil, httpx.ErrNotFound
 	}
@@ -374,8 +378,8 @@ func (s *Store) GetPlanByID(ctx context.Context, id string) (*models.Plan, error
 	var p models.Plan
 	var active int
 	err := s.DB.QueryRowContext(ctx,
-		`SELECT id, code, name, price_paise, interval_days, max_outlets, max_staff, trial_days, is_active FROM plans WHERE id = ?`, id).
-		Scan(&p.ID, &p.Code, &p.Name, &p.PricePaise, &p.IntervalDays, &p.MaxOutlets, &p.MaxStaff, &p.TrialDays, &active)
+		`SELECT `+planCols+` FROM plans WHERE id = ?`, id).
+		Scan(&p.ID, &p.Code, &p.Name, &p.PricePaise, &p.IntervalDays, &p.MaxOutlets, &p.MaxStaff, &p.TrialDays, &active, &p.GatewayPlanID)
 	if err == sql.ErrNoRows {
 		return nil, httpx.ErrNotFound
 	}

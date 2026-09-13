@@ -19,15 +19,24 @@ day per design DB-saas-product-fixes.md:
 - Infra/docs: docker-compose Postgres (matches test DSN), GitHub Actions CI
   (go vet/test/build + flutter + landing), real README, release Flutter builds
   strip the demo seed dataset (kDebugMode guard).
+- Razorpay Subscriptions auto-renew (design DB-razorpay-subscriptions.md):
+  migration 010 (plans.gateway_plan_id, org_subscriptions.gateway_subscription_id
+  /gateway_status), billing gateway CreatePlan/CreateSubscription/addon/cancel
+  with injectable base URL, webhook handles subscription.charged (renews +
+  invoices, idempotent per payment id) / authenticated / activated / pending /
+  halted / cancelled / completed, owner POST /api/v1/saas/subscription/razorpay
+  + console "Enable auto-renew" hosted checkout, ₹101 registration fee as
+  first-cycle add-on (FOODPOS_RAZORPAY_REGISTRATION_AMOUNT_PAISE). Live keys
+  in gitignored .env only; rotate KEY_SECRET (it was pasted in chat).
 Gates green: `flutter analyze` 0 issues, `flutter test` 34/34, `go vet` clean,
-`go build ./...` OK, DB-free unit tests pass (new clientIP/rate-limit tests);
-backend integration tests + new saas_fixes_test.go run in CI against the
-compose Postgres (no local Postgres/Docker on this machine).
+`go build ./...` OK, DB-free unit tests pass (clientIP/rate-limit, Razorpay
+subscription flow); backend integration tests (incl. saas_renew_test.go) run
+in CI against the compose Postgres (no local Postgres/Docker on this machine).
 ## Next (ordered)
-1. Deploy: set FOODPOS_ENV=production + strong FOODPOS_JWT_SECRET + SMTP on
-   the live server (resets the S3/S4 exposure; SMTP-off now fails honestly).
-2. Razorpay renewals (auto-charge or subscriptions API) — M2's remaining half.
-3. Pilot hardening: SSE Last-Event-ID resume (Q-5), split-tender UI (Q-1),
+1. Deploy: set FOODPOS_ENV=production + strong FOODPOS_JWT_SECRET + SMTP +
+   FOODPOS_RAZORPAY_WEBHOOK_SECRET on the live server; configure the
+   subscription.* + payment.* webhook events in the Razorpay dashboard.
+2. Pilot hardening: SSE Last-Event-ID resume (Q-5), split-tender UI (Q-1),
    printer hardware validation (Q-4).
 
 ## Done
