@@ -503,13 +503,44 @@ func TestSubscriptionAppStatusForStaff(t *testing.T) {
 		t.Fatalf("cashier login failed: %d %v", code, body)
 	}
 	cashierToken := body["token"].(string)
-	saved := e.token
 	e.token = cashierToken
 	code, _ = e.do(t, "GET", "/api/v1/saas/subscription/status", nil, true)
 	if code != 403 {
 		t.Fatalf("cashier must be denied, got %d", code)
 	}
-	e.token = saved
+}
+
+// Regression for chi mount shadowing + the gate bypass: the status route lives
+// at the root (static beats the /api/v1/saas owner mount's catch-all) and
+// outside the entitlement gate, so an expired org — the moment the app most
+// needs the card — still gets a 200, not the gate's 402.
+func TestSubscriptionAppStatusReachableWhenOrgExpired(t *testing.T) {
+	hits := map[string]string{}
+	e, _ := newRenewEnv(t, &hits)
+	orgID := registerAndStaffLogin(t, e, "status-expired@test")
+	ctx := context.Background()
+
+	// Cron-style lapse: subscription expired and org flagged expired.
+	sub, err := e.st.GetSubscription(ctx, orgID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	next := *sub
+	next.Status = models.SubExpired
+	if err := e.st.UpsertSubscription(ctx, &next); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.st.SetOrgStatus(ctx, orgID, models.OrgExpired); err != nil {
+		t.Fatal(err)
+	}
+
+	code, body := e.do(t, "GET", "/api/v1/saas/subscription/status", nil, true)
+	if code != 200 {
+		t.Fatalf("expired org must still read its subscription status, got %d %v", code, body)
+	}
+	if body["status"] != models.SubExpired {
+		t.Fatalf("expected expired status payload, got %v", body)
+	}
 }
 
 func TestOwnerManualRenewalOrder(t *testing.T) {
@@ -533,21 +564,48 @@ func TestOwnerManualRenewalOrder(t *testing.T) {
 	if body["key_id"] != cfg.RazorpayKey {
 		t.Fatalf("unexpected key id: %v", body["key_id"])
 	}
-	if orderBody := hits["/v1/orders|POST"]; !strings.Contains(orderBody, orgID) {
-		t.Fatalf("order missing org_id note: %s", orderBody)
+	var orderReq struct {
+		Notes map[string]string `json:"notes"`
+	}
+	if err := json.Unmarshal([]byte(hits["/v1/orders|POST"]), &orderReq); err != nil {
+		t.Fatalf("bad order body: %v (%s)", err, hits["/v1/orders|POST"])
+	}
+	if orderReq.Notes["org_id"] != orgID {
+		t.Fatalf("order notes missing org_id: %v", orderReq.Notes)
+	}
+
+	// A paid period that's still running (manual/bank-activated org, stale UI,
+	// two devices) must also refuse a manual order — the webhook's
+	// already-active guard would otherwise ignore the captured payment.
+	sub, err := e.st.GetSubscription(ctx, orgID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	future := time.Now().AddDate(0, 0, 15)
+	next := *sub
+	next.Status = models.SubActive
+	next.CurrentPeriodEnd = &future
+	if err := e.st.UpsertSubscription(ctx, &next); err != nil {
+		t.Fatal(err)
+	}
+	code, body = e.do(t, "POST", "/api/v1/saas/subscription/manual-order", map[string]any{}, true)
+	if errObj, _ := body["error"].(map[string]any); code != 409 || errObj["code"] != "already_paid" {
+		t.Fatalf("expected 409 already_paid while paid period runs, got %d %v", code, body)
 	}
 
 	// While auto-renew is live the gateway owns billing — manual orders are refused.
 	if err := e.st.SetOrgGatewaySubscription(ctx, orgID, "sub_fake1", "active"); err != nil {
 		t.Fatal(err)
 	}
-	code, _ = e.do(t, "POST", "/api/v1/saas/subscription/manual-order", map[string]any{}, true)
-	if code != 409 {
-		t.Fatalf("expected 409 while auto-renew active, got %d", code)
+	code, body = e.do(t, "POST", "/api/v1/saas/subscription/manual-order", map[string]any{}, true)
+	if errObj, _ := body["error"].(map[string]any); code != 409 || errObj["code"] != "auto_renew_owns_billing" {
+		t.Fatalf("expected 409 auto_renew_owns_billing while auto-renew active, got %d %v", code, body)
 	}
 
-	// Unconfigured keys → 503.
-	e2 := newEnvWithCfg(t, config.Load())
+	// Unconfigured keys → 503 (explicitly zeroed so ambient env vars can't leak in).
+	emptyCfg := config.Load()
+	emptyCfg.RazorpayKey, emptyCfg.RazorpaySecret = "", ""
+	e2 := newEnvWithCfg(t, emptyCfg)
 	registerOwner(t, e2, "renew-manual2@test")
 	code, _ = e2.do(t, "POST", "/api/v1/saas/subscription/manual-order", map[string]any{}, true)
 	if code != 503 {

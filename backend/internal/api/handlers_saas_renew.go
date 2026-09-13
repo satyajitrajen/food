@@ -6,11 +6,22 @@ package api
 
 import (
 	"net/http"
+	"time"
 
 	"foodpos/backend/internal/httpx"
 	"foodpos/backend/internal/models"
 	"foodpos/backend/internal/store"
 )
+
+// autoRenewLive reports whether the gateway mandate is live or mid-
+// authentication — auto-renew owns billing in these states.
+func autoRenewLive(gwStatus string) bool {
+	switch gwStatus {
+	case "active", "authenticated", "pending", "halted":
+		return true
+	}
+	return false
+}
 
 func (s *Server) handleOwnerStartSubscription(w http.ResponseWriter, r *http.Request) {
 	c, ok := claimsFrom(r)
@@ -37,8 +48,7 @@ func (s *Server) handleOwnerStartSubscription(w http.ResponseWriter, r *http.Req
 	// auto-renew is already on — starting again would orphan the old
 	// subscription on Razorpay with a live mandate against this org. A stale
 	// "created" link (dismissed checkout) is fine to recreate.
-	switch sub.GatewayStatus {
-	case "active", "authenticated", "pending", "halted":
+	if autoRenewLive(sub.GatewayStatus) {
 		httpx.ErrorJSON(w, r, httpx.NewError(409, "already_active",
 			"Auto-renew is already active on this subscription"))
 		return
@@ -148,10 +158,16 @@ func (s *Server) handleOwnerManualOrder(w http.ResponseWriter, r *http.Request) 
 		httpx.ErrorJSON(w, r, httpx.NewError(404, "no_plan", "Organization has no plan"))
 		return
 	}
-	switch sub.GatewayStatus {
-	case "active", "authenticated", "pending", "halted":
+	if autoRenewLive(sub.GatewayStatus) {
 		httpx.ErrorJSON(w, r, httpx.NewError(409, "auto_renew_owns_billing",
 			"Auto-renew is active — cancel it before paying manually"))
+		return
+	}
+	// A paid period that's still running means the org is already covered —
+	// selling another cycle would be a captured payment the webhook ignores.
+	if sub.Status == models.SubActive && sub.CurrentPeriodEnd != nil && sub.CurrentPeriodEnd.After(time.Now()) {
+		httpx.ErrorJSON(w, r, httpx.NewError(409, "already_paid",
+			"Subscription is already paid through "+sub.CurrentPeriodEnd.Format("2006-01-02")))
 		return
 	}
 	gross := plan.PricePaise + storeRound(plan.PricePaise)

@@ -90,6 +90,16 @@ func (s *Server) Routes() http.Handler {
 		r.Get("/invoices/{id}/pdf", s.handleOwnerInvoicePDF)
 	})
 
+	// Staff-scoped subscription status for the POS app's Settings card.
+	// Root-level static route: /api/v1/saas/* is claimed by the owner mount
+	// above, so this cannot be registered inside the staff group. The full
+	// staff chain is replicated explicitly. A pure read — deliberately NOT
+	// behind the entitlement gate so an expired org can still see its status
+	// and renew (the gate blocks by group membership, not HTTP method).
+	r.With(middleware.Auth(s.Auth), middleware.RequireScope(auth.ScopeStaff),
+		middleware.StaffTenant(), middleware.RequireRole("manager")).
+		Get("/api/v1/saas/subscription/status", s.handleSubscriptionAppStatus)
+
 	// Platform superadmin APIs (scope: admin).
 	r.Route("/api/v1/admin", func(r chi.Router) {
 		r.Use(middleware.Auth(s.Auth))
@@ -138,10 +148,6 @@ func (s *Server) Routes() http.Handler {
 		r.Get("/suppliers", s.handleListSuppliers)
 		r.Get("/purchases", s.handleListPurchases)
 		r.Get("/settings", s.handleGetSettings)
-
-		// Subscription card read (admin/manager). Deliberately OUTSIDE the
-		// entitlement-gate group so expired orgs can still see status + renew.
-		r.With(middleware.RequireRole("manager")).Get("/saas/subscription/status", s.handleSubscriptionAppStatus)
 
 		// ---- Writes & back-office — kitchen is denied; paid writes gated ----
 		r.Group(func(r chi.Router) {

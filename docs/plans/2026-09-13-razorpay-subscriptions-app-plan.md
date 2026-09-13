@@ -184,14 +184,20 @@ func (s *Server) handleSubscriptionAppStatus(w http.ResponseWriter, r *http.Requ
 }
 ```
 
-- [ ] **Step 5: Register the route (reads section, staff scope)**
+- [ ] **Step 5: Register the route (root-level static, staff chain)**
 
-In `backend/internal/api/server.go`, inside the staff-scope group, immediately after `r.Get("/settings", s.handleGetSettings)`:
+In `backend/internal/api/server.go`, at the ROOT level, immediately after the owner group (`r.Route("/api/v1/saas", ...)` block). The owner mount claims ALL `/api/v1/saas/*` subpaths with no fall-through, so an in-group registration in the staff group would be unreachable shadowed dead code; a root-level static route beats the mount's catch-all:
 
 ```go
-		// Subscription card read (admin/manager). Deliberately OUTSIDE the
-		// entitlement-gate group so expired orgs can still see status + renew.
-		r.With(middleware.RequireRole("manager")).Get("/saas/subscription/status", s.handleSubscriptionAppStatus)
+	// Staff-scoped subscription status for the POS app's Settings card.
+	// Root-level static route: /api/v1/saas/* is claimed by the owner mount
+	// above, so this cannot be registered inside the staff group. The full
+	// staff chain is replicated explicitly. A pure read — deliberately NOT
+	// behind the entitlement gate so an expired org can still see its status
+	// and renew (the gate blocks by group membership, not HTTP method).
+	r.With(middleware.Auth(s.Auth), middleware.RequireScope(auth.ScopeStaff),
+		middleware.StaffTenant(), middleware.RequireRole("manager")).
+		Get("/api/v1/saas/subscription/status", s.handleSubscriptionAppStatus)
 ```
 
 - [ ] **Step 6: Verify gates**
