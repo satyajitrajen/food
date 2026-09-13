@@ -39,6 +39,12 @@ day per design DB-saas-product-fixes.md:
   detection (gross > planGross ⇒ add-on present, invoice = plan base) instead
   of trial-status check; 409 start guard covers active/authenticated/pending/
   halted; cancel failure audits razorpay.cancel_failed.
+  App-side subscriptions (design DB-razorpay-subscriptions-app.md): staff-scoped
+  GET /api/v1/saas/subscription/status (registered OUTSIDE the entitlement gate
+  so expired orgs can renew) + owner POST /api/v1/saas/subscription/manual-order
+  (one cycle at gross, 409 when auto-renew owns billing); Settings subscription
+  card (admins) with one-shot owner re-auth and native razorpay_flutter
+  checkout (subscription + order); webhooks remain the sole state writer.
 Gates green: `flutter analyze` 0 issues, `flutter test` 34/34, `go vet` clean,
 `go build ./...` OK, DB-free unit tests pass (clientIP/rate-limit, Razorpay
 subscription flow); backend integration tests (incl. saas_renew_test.go) run
