@@ -79,8 +79,10 @@ Rows: Plan · Status (+days left, reuse entitlement snapshot) · Auto-renew
   shown only when gateway_status ∉ {active, authenticated, pending, halted}
   — enable → owner re-auth → start endpoint → native subscription checkout;
   pay-now → owner re-auth → manual-order → native order checkout.
-- **Cancel auto-renew** when gateway_status = active → owner re-auth →
-  cancel endpoint.
+- **Cancel auto-renew** when auto-renew is live (any of active /
+  authenticated / pending / halted — a deliberate superset of "active only":
+  Razorpay accepts cancel in all four states, and hiding Cancel mid-auth
+  would strand a stuck mandate) → owner re-auth → cancel endpoint.
 
 Visible to `isAdmin` (billing is owner-level; managers don't need it).
 Refresh on card open, after checkout closes, and on app resume
