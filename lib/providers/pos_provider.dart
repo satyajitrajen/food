@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import '../core/api/api_client.dart';
 import '../core/api/dto.dart';
@@ -68,6 +69,14 @@ class PosProvider extends ChangeNotifier {
       );
       _registerOps();
       unawaited(_bootstrap());
+    }
+    if (!kDebugMode) {
+      // Release binaries ship without the demo dataset (fake staff, plaintext
+      // demo PINs, fabricated GSTINs); real data arrives via hydration.
+      _outlets.clear();
+      _staffList.clear();
+      _tables.clear();
+      _menuItems.clear();
     }
     _seedData();
   }
@@ -3039,6 +3048,9 @@ class PosProvider extends ChangeNotifier {
 
   // Seed sample initial transactions if empty
   void _seedData() {
+    if (!kDebugMode) {
+      return; // no demo orders/shifts in release builds
+    }
     if (apiEnabled) {
       // No plaintext PINs on real terminals: the server bcrypt-verifies and
       // offline reuse is handled by PinVault (salted hashes cached per
