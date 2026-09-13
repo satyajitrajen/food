@@ -499,8 +499,12 @@ class PosProvider extends ChangeNotifier {
 
   /// One-shot owner login for billing actions. Returns the owner token or
   /// null; the token is used for a single request and never persisted.
+  /// Bad credentials leave the action error null (the dialog shows a generic
+  /// message); an unreachable server sets 'Server unreachable' so the dialog
+  /// does not blame the credentials.
   Future<String?> loginOwnerForAction(String email, String password) async {
     if (_api == null) return null;
+    _subscriptionActionError = null;
     try {
       final data = await _api!.request('POST', '/api/v1/auth/account/login',
           body: {'email': email, 'password': password}, auth: false);
@@ -511,6 +515,8 @@ class PosProvider extends ChangeNotifier {
     } on ApiException {
       return null;
     } on NetworkException {
+      _subscriptionActionError = 'Server unreachable';
+      notifyListeners();
       return null;
     }
   }

@@ -80,7 +80,7 @@ class _SubscriptionCardBodyState extends State<SubscriptionCardBody>
         _row('Status', _statusLabel(status.status)),
         _row('Auto-renew', status.autoRenewLive ? 'On' : 'Off'),
         _row('Next cycle', periodText),
-        _row('Price', '₹${status.priceRupees.toStringAsFixed(0)}'),
+        _row('Price (excl. GST)', '₹${status.priceRupees.toStringAsFixed(0)}'),
         const SizedBox(height: 8),
         _actions(provider, status),
       ],
@@ -215,8 +215,9 @@ class _SubscriptionCardBodyState extends State<SubscriptionCardBody>
                     emailCtrl.text.trim(), passCtrl.text);
                 if (!dialogContext.mounted) return;
                 if (token == null) {
-                  setDialogState(
-                      () => error = 'Invalid owner email or password');
+                  setDialogState(() => error =
+                      provider.subscriptionActionError ??
+                          'Invalid owner email or password');
                   return;
                 }
                 Navigator.pop(
