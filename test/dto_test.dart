@@ -152,8 +152,17 @@ void main() {
       expect(status.planName, 'Pro');
       expect(status.status, 'trial');
       expect(status.gatewayStatus, '');
-      expect(status.periodEnd, DateTime.utc(2026, 9, 20));
+      expect(status.periodEnd, DateTime.parse('2026-09-20T00:00:00Z').toLocal());
       expect(status.priceRupees, 1999.0);
+      expect(status.autoRenewLive, isFalse);
+    });
+
+    test('subscriptionStatusFromApi tolerates missing period_end', () {
+      final status = subscriptionStatusFromApi({
+        'plan_code': 'starter', 'plan_name': 'Starter', 'status': 'trial',
+        'gateway_status': '', 'price_paise': 99900,
+      });
+      expect(status.periodEnd, isNull);
       expect(status.autoRenewLive, isFalse);
     });
 

@@ -504,9 +504,10 @@ class PosProvider extends ChangeNotifier {
     try {
       final data = await _api!.request('POST', '/api/v1/auth/account/login',
           body: {'email': email, 'password': password}, auth: false);
-      final token =
-          data is Map<String, dynamic> ? data['token'] as String? : null;
-      return (token != null && token.isNotEmpty) ? token : null;
+      if (data is! Map<String, dynamic>) return null;
+      final t = data['token'];
+      final token = (t is String && t.isNotEmpty) ? t : null;
+      return token;
     } on ApiException {
       return null;
     } on NetworkException {
@@ -526,20 +527,9 @@ class PosProvider extends ChangeNotifier {
   }
 
   Future<bool> cancelAutoRenew(String ownerToken) async {
-    _subscriptionActionError = null;
-    try {
-      await _api!.request('POST', '/api/v1/saas/subscription/cancel',
-          token: ownerToken);
-      return true;
-    } on ApiException catch (e) {
-      _subscriptionActionError = e.message;
-      notifyListeners();
-      return false;
-    } on NetworkException {
-      _subscriptionActionError = 'Server unreachable';
-      notifyListeners();
-      return false;
-    }
+    return (await _ownerBillingCall<bool>(
+            ownerToken, '/api/v1/saas/subscription/cancel', (_) => true)) ??
+        false;
   }
 
   Future<T?> _ownerBillingCall<T>(
@@ -547,6 +537,7 @@ class PosProvider extends ChangeNotifier {
     String path,
     T Function(Map<String, dynamic>) parse,
   ) async {
+    if (_api == null) return null;
     _subscriptionActionError = null;
     try {
       final data = await _api!.request('POST', path, token: ownerToken);

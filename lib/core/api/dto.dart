@@ -600,9 +600,7 @@ SubscriptionStatus subscriptionStatusFromApi(Map<String, dynamic> j) =>
       planName: _str(j['plan_name']),
       status: _str(j['status']),
       gatewayStatus: _str(j['gateway_status']),
-      periodEnd: j['period_end'] == null
-          ? null
-          : DateTime.tryParse(j['period_end'].toString()),
+      periodEnd: _dt(j['period_end']),
       priceRupees: toRupees(_int(j['price_paise'])),
     );
 

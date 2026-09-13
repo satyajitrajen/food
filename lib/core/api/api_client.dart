@@ -105,7 +105,8 @@ class ApiClient {
     if (res.statusCode == 401 && auth && token == null && session != null && !retried) {
       final refreshed = await refreshSession();
       if (refreshed) {
-        return _send(method, path, body, idempotencyKey, query, auth, timeout, retried: true);
+        return _send(method, path, body, idempotencyKey, query, auth, timeout,
+            retried: true, token: token);
       }
     }
 
