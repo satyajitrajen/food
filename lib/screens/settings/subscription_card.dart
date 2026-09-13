@@ -42,6 +42,7 @@ class _SubscriptionCardBodyState extends State<SubscriptionCardBody>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      if (!mounted) return;
       context.read<PosProvider>().loadSubscriptionStatus();
     }
   }
@@ -252,6 +253,8 @@ class _SubscriptionCardBodyState extends State<SubscriptionCardBody>
         _snack(context, 'Payment handed off to ${result.wallet}');
       } else if (!result.success) {
         _snack(context, result.error ?? 'Payment cancelled');
+      } else {
+        _snack(context, 'Payment received — status updating');
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -282,6 +285,8 @@ class _SubscriptionCardBodyState extends State<SubscriptionCardBody>
         _snack(context, 'Payment handed off to ${result.wallet}');
       } else if (!result.success) {
         _snack(context, result.error ?? 'Payment cancelled');
+      } else {
+        _snack(context, 'Payment received — status updating');
       }
     } finally {
       if (mounted) setState(() => _busy = false);

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
 
 class CheckoutResult {
@@ -13,10 +14,17 @@ class CheckoutResult {
 /// Thin wrapper over razorpay_flutter: opens native checkout and converts the
 /// event stream into a single Future. Server webhooks own subscription state —
 /// this result is UI feedback only, never a source of truth.
+/// Not safe for concurrent [open] calls; callers must serialize (the subscription card's busy flag does).
 class RazorpayCheckout {
   final Razorpay _rzp = Razorpay();
 
   Future<CheckoutResult> open(Map<String, dynamic> options) {
+    if (defaultTargetPlatform != TargetPlatform.android &&
+        defaultTargetPlatform != TargetPlatform.iOS) {
+      return Future.value(const CheckoutResult(
+          success: false, error: 'Checkout is only supported on Android and iOS'));
+    }
+
     final completer = Completer<CheckoutResult>();
 
     void done(CheckoutResult result) {
