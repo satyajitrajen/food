@@ -179,6 +179,7 @@ void main() {
       });
       expect(start.subscriptionId, 'sub_1');
       expect(start.keyId, 'rzp_test_1');
+      expect(start.planCode, 'pro');
       expect(start.planName, 'Pro');
       expect(start.amountPaise, 235882);
       expect(start.currency, 'INR');
