@@ -128,6 +128,8 @@ func (g *RazorpayGateway) CreatePlan(ctx context.Context, name string, amountPai
 	if intervalDays > 31 {
 		period = "yearly"
 	}
+	// NOTE: Razorpay also supports period=monthly with interval=N; the seeded
+	// catalog is 30/365-day only, so monthly/yearly @ interval 1 is sufficient.
 	var out razorpayIDResp
 	err := g.call(ctx, http.MethodPost, "/v1/plans", razorpayPlanReq{
 		Period: period, Interval: 1,

@@ -413,11 +413,15 @@ func (s *Server) handleSaaSCancelSubscription(w http.ResponseWriter, r *http.Req
 		return
 	}
 	// Best-effort gateway cancel at cycle end; the local flag stays
-	// authoritative and the webhook records the final state.
+	// authoritative and the webhook records the final state. A silent failure
+	// here would let the next renewal reactivate a cancelled org, so audit it.
 	if sub.GatewaySubscriptionID != "" {
 		if gw := s.razorpayGateway(); gw != nil {
 			if st, err := gw.CancelSubscription(r.Context(), sub.GatewaySubscriptionID, true); err == nil {
 				_ = s.Store.SetOrgGatewaySubscription(r.Context(), c.OrgID, sub.GatewaySubscriptionID, st)
+			} else {
+				_ = s.Store.AddOrgEvent(r.Context(), c.OrgID, c.ActorID, "razorpay.cancel_failed",
+					store.MetaJSON(map[string]any{"gateway_sub_id": sub.GatewaySubscriptionID, "error": err.Error()}))
 			}
 		}
 	}

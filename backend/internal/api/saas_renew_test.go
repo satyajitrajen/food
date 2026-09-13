@@ -226,24 +226,175 @@ func TestSubscriptionChargedWebhookLifecycle(t *testing.T) {
 		t.Fatalf("period not extended: %v", end)
 	}
 
-	// Completed (cycle-end cancel) while active → expired.
-	raw = `{"event":"subscription.completed","payload":{"subscription":{"entity":{"id":"sub_fake1","status":"completed","notes":{"org_id":"` + orgID + `"}}}}}`
-	if code, body := signedWebhook(t, e, cfg.RazorpayWebhookSecret, raw); code != 200 {
-		t.Fatalf("completed webhook failed: %d %v", code, body)
-	}
-	sub, _ = e.st.GetSubscription(ctx, orgID)
-	if sub.Status != models.SubExpired {
-		t.Fatalf("expected expired after completed, got %s", sub.Status)
-	}
-
-	// Immediate cancel with no running period → cancelled.
+	// Immediate cancel while the paid period still runs: no-renewal flagged,
+	// access kept.
 	raw = `{"event":"subscription.cancelled","payload":{"subscription":{"entity":{"id":"sub_fake1","status":"cancelled","notes":{"org_id":"` + orgID + `"}}}}}`
 	if code, body := signedWebhook(t, e, cfg.RazorpayWebhookSecret, raw); code != 200 {
 		t.Fatalf("cancelled webhook failed: %d %v", code, body)
 	}
 	sub, _ = e.st.GetSubscription(ctx, orgID)
-	if sub.Status != models.SubCancelled || sub.GatewayStatus != "cancelled" {
-		t.Fatalf("expected cancelled sub + gateway_status, got %s / %s", sub.Status, sub.GatewayStatus)
+	if sub.Status != models.SubActive || sub.GatewayStatus != "cancelled" || !sub.CancelAtPeriodEnd {
+		t.Fatalf("cancel with running period must keep access + flag no-renewal, got %s / %s / %v",
+			sub.Status, sub.GatewayStatus, sub.CancelAtPeriodEnd)
+	}
+
+	// Completed only records gateway state — the billing cron lapses the org
+	// at period end, so a running paid period must not be cut short.
+	raw = `{"event":"subscription.completed","payload":{"subscription":{"entity":{"id":"sub_fake1","status":"completed","notes":{"org_id":"` + orgID + `"}}}}}`
+	if code, body := signedWebhook(t, e, cfg.RazorpayWebhookSecret, raw); code != 200 {
+		t.Fatalf("completed webhook failed: %d %v", code, body)
+	}
+	sub, _ = e.st.GetSubscription(ctx, orgID)
+	if sub.Status != models.SubActive || sub.GatewayStatus != "completed" {
+		t.Fatalf("completed must not cut a running period, got %s / %s", sub.Status, sub.GatewayStatus)
+	}
+
+	// Once the period has lapsed (cron), the immediate-cancel branch applies.
+	past := time.Now().Add(-time.Hour)
+	next := *sub
+	next.CurrentPeriodEnd = &past
+	if err := e.st.UpsertSubscription(ctx, &next); err != nil {
+		t.Fatal(err)
+	}
+	raw = `{"event":"subscription.cancelled","payload":{"subscription":{"entity":{"id":"sub_fake1","status":"cancelled","notes":{"org_id":"` + orgID + `"}}}}}`
+	if code, body := signedWebhook(t, e, cfg.RazorpayWebhookSecret, raw); code != 200 {
+		t.Fatalf("cancelled-after-period webhook failed: %d %v", code, body)
+	}
+	sub, _ = e.st.GetSubscription(ctx, orgID)
+	if sub.Status != models.SubCancelled {
+		t.Fatalf("expected cancelled sub after period lapsed, got %s", sub.Status)
+	}
+}
+
+func TestPaymentCapturedSkipsSubscriptionPayments(t *testing.T) {
+	hits := map[string]string{}
+	e, cfg := newRenewEnv(t, &hits)
+	registerOwner(t, e, "renew-doublefire@test")
+	orgID := subOrgIDForToken(t, e)
+	ctx := context.Background()
+
+	// First subscription charge → active, one invoice.
+	raw := `{"event":"subscription.charged","payload":{"payment":{"entity":{"id":"pay_first","amount":245982}},` +
+		`"subscription":{"entity":{"id":"sub_fake1","status":"active","notes":{"org_id":"` + orgID + `"}}}}}`
+	if code, body := signedWebhook(t, e, cfg.RazorpayWebhookSecret, raw); code != 200 {
+		t.Fatalf("charged webhook failed: %d %v", code, body)
+	}
+	before, err := e.st.ListSaaSInvoices(ctx, orgID)
+	if err != nil || len(before) != 1 {
+		t.Fatalf("expected exactly 1 invoice, got %d (%v)", len(before), err)
+	}
+
+	// Razorpay also fires payment.captured for the same payment. It must be
+	// ignored — subscription.charged owns subscription billing.
+	raw = `{"event":"payment.captured","payload":{"payment":{"entity":{"id":"pay_first","amount":245982,` +
+		`"subscription_id":"sub_fake1","notes":{"org_id":"` + orgID + `"}}}}}`
+	code, body := signedWebhook(t, e, cfg.RazorpayWebhookSecret, raw)
+	if code != 200 {
+		t.Fatalf("captured webhook failed: %d %v", code, body)
+	}
+	if body["reason"] != "subscription_payment" {
+		t.Fatalf("expected subscription_payment ignore reason, got %v", body)
+	}
+	after, _ := e.st.ListSaaSInvoices(ctx, orgID)
+	if len(after) != 1 {
+		t.Fatalf("payment.captured must not add an invoice, got %d", len(after))
+	}
+
+	// While auto-renew is live, a stray manual order capture is ignored too.
+	raw = `{"event":"payment.captured","payload":{"payment":{"entity":{"id":"pay_manual","amount":235882,` +
+		`"notes":{"org_id":"` + orgID + `"}}}}}`
+	code, body = signedWebhook(t, e, cfg.RazorpayWebhookSecret, raw)
+	if code != 200 || body["reason"] != "auto_renew_owns_billing" {
+		t.Fatalf("expected auto_renew_owns_billing, got %d %v", code, body)
+	}
+	if after2, _ := e.st.ListSaaSInvoices(ctx, orgID); len(after2) != 1 {
+		t.Fatalf("manual capture must not add an invoice, got %d", len(after2))
+	}
+
+	// Immediate cancel while the paid period still runs: no-renewal flagged,
+	// access kept — a manual capture now just hits the already-active guard.
+	raw = `{"event":"subscription.cancelled","payload":{"subscription":{"entity":{"id":"sub_fake1","status":"cancelled","notes":{"org_id":"` + orgID + `"}}}}}`
+	if code, body := signedWebhook(t, e, cfg.RazorpayWebhookSecret, raw); code != 200 {
+		t.Fatalf("cancelled webhook failed: %d %v", code, body)
+	}
+	sub, _ := e.st.GetSubscription(ctx, orgID)
+	if sub.Status != models.SubActive || sub.GatewayStatus != "cancelled" || !sub.CancelAtPeriodEnd {
+		t.Fatalf("cancel with running period must keep access, got %s / %s / %v",
+			sub.Status, sub.GatewayStatus, sub.CancelAtPeriodEnd)
+	}
+	raw = `{"event":"payment.captured","payload":{"payment":{"entity":{"id":"pay_manual2","amount":235882,` +
+		`"notes":{"org_id":"` + orgID + `"}}}}}`
+	code, body = signedWebhook(t, e, cfg.RazorpayWebhookSecret, raw)
+	if code != 200 || body["reason"] != "already_active" {
+		t.Fatalf("expected already_active while paid period runs, got %d %v", code, body)
+	}
+
+	// After the billing cron lapses the period, the manual order flow can
+	// activate the org again.
+	past := time.Now().Add(-time.Hour)
+	next := *sub
+	next.CurrentPeriodEnd = &past
+	if err := e.st.UpsertSubscription(ctx, &next); err != nil {
+		t.Fatal(err)
+	}
+	raw = `{"event":"payment.captured","payload":{"payment":{"entity":{"id":"pay_manual3","amount":235882,` +
+		`"notes":{"org_id":"` + orgID + `"}}}}}`
+	code, body = signedWebhook(t, e, cfg.RazorpayWebhookSecret, raw)
+	if code != 200 || body["activated"] != true {
+		t.Fatalf("manual capture should activate after lapse, got %d %v", code, body)
+	}
+	sub, _ = e.st.GetSubscription(ctx, orgID)
+	if sub.Status != models.SubActive {
+		t.Fatalf("expected active after manual capture, got %s", sub.Status)
+	}
+}
+
+func TestFirstChargeAfterTrialExpired(t *testing.T) {
+	hits := map[string]string{}
+	e, cfg := newRenewEnv(t, &hits)
+	registerOwner(t, e, "renew-late@test")
+	orgID := subOrgIDForToken(t, e)
+	ctx := context.Background()
+
+	// The cron expired the trial before the checkout payment's webhook landed.
+	sub, err := e.st.GetSubscription(ctx, orgID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	next := *sub
+	next.Status = models.SubExpired
+	if err := e.st.UpsertSubscription(ctx, &next); err != nil {
+		t.Fatal(err)
+	}
+
+	// The first charge still carries the registration add-on in its gross; the
+	// invoice must record the plan base only (structural detection, not status).
+	raw := `{"event":"subscription.charged","payload":{"payment":{"entity":{"id":"pay_late","amount":245982}},` +
+		`"subscription":{"entity":{"id":"sub_fake1","status":"active","notes":{"org_id":"` + orgID + `"}}}}}`
+	if code, body := signedWebhook(t, e, cfg.RazorpayWebhookSecret, raw); code != 200 {
+		t.Fatalf("late first charge failed: %d %v", code, body)
+	}
+	if got := lastInvoiceBase(t, e, orgID); got != 199900 {
+		t.Fatalf("late first-charge base = %d, want 199900 (add-on must not inflate the base)", got)
+	}
+}
+
+func TestWebhookRejectsBadSignature(t *testing.T) {
+	hits := map[string]string{}
+	e, _ := newRenewEnv(t, &hits)
+	req, err := http.NewRequest("POST", e.ts.URL+"/api/v1/webhooks/razorpay",
+		strings.NewReader(`{"event":"payment.captured"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("X-Razorpay-Signature", "deadbeef")
+	res, err := e.client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("bad signature must be 401, got %d", res.StatusCode)
 	}
 }
 

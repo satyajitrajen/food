@@ -16,9 +16,11 @@ add-on (`RAZORPAY_REGISTRATION_AMOUNT_PAISE=10100`).
 - Razorpay plan amounts are created at GROSS (base + 18%) — same convention as
   the existing admin Orders checkout ("charge the gross so the webhook can
   extract the base back").
-- `subscription.charged` → invoice base: first charge (sub was `trial`) uses
-  `plan.PricePaise` (payment also contains the registration add-on, which is
-  NOT part of the subscription invoice); renewals extract base = round(gross/1.18).
+- `subscription.charged` → invoice base: **detected structurally** — gross >
+  planGross (base + 18%) means the registration add-on is present, so invoice
+  records `plan.PricePaise`; otherwise base = round(gross/1.18). (Status-based
+  trial detection was rejected: a first charge can also arrive after the trial
+  has already expired.)
 
 ## Schema (migration 010)
 
@@ -27,6 +29,9 @@ add-on (`RAZORPAY_REGISTRATION_AMOUNT_PAISE=10100`).
 - `org_subscriptions.gateway_status TEXT NOT NULL DEFAULT ''` (razorpay-side:
   created/authenticated/active/pending/halted/cancelled/completed)
 - index on `org_subscriptions(gateway_subscription_id)` (webhook fallback lookup)
+- **unique partial index** `idx_saas_invoices_org_reference` on
+  `saas_invoices(org_id, reference)` where reference is non-empty — DB-backed
+  webhook idempotency; the duplicate guard alone has a delivery race
 
 ## Gateway additions (internal/billing)
 
@@ -48,10 +53,25 @@ config `FOODPOS_RAZORPAY_BASE_URL` defaults to the live API). New methods:
 | subscription.authenticated | persist gateway ids, gateway_status=authenticated |
 | subscription.activated | gateway_status=active |
 | subscription.pending / halted | gateway_status + audit org_event |
-| subscription.cancelled (immediate) | gateway_status=cancelled; if local period still future → cancel_at_period_end, else sub=cancelled + org expired |
-| subscription.completed (cycle-end cancel) | gateway_status=completed; sub=expired + org expired if still active/past_due |
+| subscription.cancelled (immediate) | gateway_status=cancelled; if a paid period is still running → cancel_at_period_end (flag set, access kept until it ends); else sub=cancelled + org expired |
+| subscription.completed (cycle-end cancel) | gateway_status=completed ONLY — never mutates local status; the billing cron lapses the sub when the running period ends |
 
-payment.captured / payment.failed / payment.refunded behavior unchanged.
+**Unresolvable payloads return 200** with an `ignored`/`org_unresolved`/`no_payment_id`
+reason, never 4xx — Razorpay retries non-2xx deliveries and can disable the
+endpoint. Unknown events → 200 ignored.
+
+payment.captured skips payments carrying a `subscription_id`
+(`subscription.charged` owns subscription billing — Razorpay double-fires both
+events for the same payment); manual captures are ignored while
+gateway_status=active ("auto_renew_owns_billing") but still drive
+manual Orders activation otherwise. payment.failed / refunded unchanged: audit
+org_event only.
+
+The ₹101 registration add-on is **intentionally not invoiced** — SaaS invoices
+track the taxable plan base only; the fee is visible in Razorpay and the
+org_event audit (registration_paise). The 409 "already started" guard on the
+start endpoint covers active AND authenticated/pending/halted so a second live
+mandate can't be created while the first is being authenticated.
 
 ## API
 
@@ -78,3 +98,8 @@ Live keys live ONLY in gitignored `.env` — never in tracked files.
 - api integration: start endpoint (trial org → subscription_id + key_id, add-on
   amount, gateway ids persisted) and subscription.charged (expired org
   reactivates, invoice created, duplicate payment id → no second invoice).
+  Webhook lifecycle: cancel-with-running-period keeps access +
+  cancel_at_period_end; completed records only; cron lapse then cancelled →
+  cancelled. Double-fire: payment.captured with subscription_id ignored;
+  manual capture while auto-renew active ignored. Structural first-charge
+  detection after trial expiry. Bad webhook signature → 401.

@@ -33,9 +33,12 @@ func (s *Server) handleOwnerStartSubscription(w http.ResponseWriter, r *http.Req
 		httpx.ErrorJSON(w, r, httpx.NewError(404, "no_plan", "Organization has no plan"))
 		return
 	}
-	// A live gateway subscription means auto-renew is already on; a stale
+	// A live gateway mandate (checked out, retrying, or paused) means
+	// auto-renew is already on — starting again would orphan the old
+	// subscription on Razorpay with a live mandate against this org. A stale
 	// "created" link (dismissed checkout) is fine to recreate.
-	if sub.GatewayStatus == "active" {
+	switch sub.GatewayStatus {
+	case "active", "authenticated", "pending", "halted":
 		httpx.ErrorJSON(w, r, httpx.NewError(409, "already_active",
 			"Auto-renew is already active on this subscription"))
 		return

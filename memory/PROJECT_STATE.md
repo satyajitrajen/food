@@ -28,6 +28,17 @@ day per design DB-saas-product-fixes.md:
   + console "Enable auto-renew" hosted checkout, ₹101 registration fee as
   first-cycle add-on (FOODPOS_RAZORPAY_REGISTRATION_AMOUNT_PAISE). Live keys
   in gitignored .env only; rotate KEY_SECRET (it was pasted in chat).
+  Cross-check 2026-09-13 (independent reviewer + Razorpay docs/SDK sources)
+  hardened: payment.captured skips subscription payments (Razorpay double-fires
+  subscription.charged + payment.captured for the same payment — invoice
+  overstatement/duplicate-guard blockage); DB-backed webhook idempotency via
+  unique partial index on saas_invoices(org_id, reference); unresolvable
+  webhook payloads return 200-ignored (4xx would trigger retries + endpoint
+  disable); completed/cancelled never cut a running paid period (cancelled sets
+  cancel_at_period_end, cron lapses at period end); structural first-charge
+  detection (gross > planGross ⇒ add-on present, invoice = plan base) instead
+  of trial-status check; 409 start guard covers active/authenticated/pending/
+  halted; cancel failure audits razorpay.cancel_failed.
 Gates green: `flutter analyze` 0 issues, `flutter test` 34/34, `go vet` clean,
 `go build ./...` OK, DB-free unit tests pass (clientIP/rate-limit, Razorpay
 subscription flow); backend integration tests (incl. saas_renew_test.go) run
