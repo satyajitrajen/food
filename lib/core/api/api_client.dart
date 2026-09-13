@@ -50,9 +50,9 @@ class ApiClient {
     );
   }
 
-  Map<String, String> _headers() {
+  Map<String, String> _headers([String? tokenOverride]) {
     final h = <String, String>{'Content-Type': 'application/json'};
-    final token = session?.accessToken;
+    final token = tokenOverride ?? session?.accessToken;
     if (token != null && token.isNotEmpty) {
       h['Authorization'] = 'Bearer $token';
     }
@@ -66,9 +66,11 @@ class ApiClient {
     String? idempotencyKey,
     Map<String, String>? query,
     bool auth = true,
+    String? token,
     Duration timeout = const Duration(seconds: 8),
   }) async {
-    return _send(method, path, body, idempotencyKey, query, auth, timeout);
+    return _send(method, path, body, idempotencyKey, query, auth, timeout,
+        token: token);
   }
 
   Future<dynamic> _send(
@@ -80,9 +82,10 @@ class ApiClient {
     bool auth,
     Duration timeout, {
     bool retried = false,
+    String? token,
   }) async {
     final uri = _uri(path, query);
-    final headers = _headers();
+    final headers = _headers(token);
     if (!auth) headers.remove('Authorization');
     if (idempotencyKey != null) headers['Idempotency-Key'] = idempotencyKey;
 
@@ -99,10 +102,11 @@ class ApiClient {
       throw NetworkException('Network unreachable: $path');
     }
 
-    if (res.statusCode == 401 && auth && session != null && !retried) {
+    if (res.statusCode == 401 && auth && token == null && session != null && !retried) {
       final refreshed = await refreshSession();
       if (refreshed) {
-        return _send(method, path, body, idempotencyKey, query, auth, timeout, retried: true);
+        return _send(method, path, body, idempotencyKey, query, auth, timeout,
+            retried: true, token: token);
       }
     }
 

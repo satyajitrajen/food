@@ -9,6 +9,7 @@ import '../../models/report_model.dart';
 import '../../models/settings_model.dart';
 import '../../models/shift_model.dart';
 import '../../models/staff_model.dart';
+import '../../models/subscription_model.dart';
 import '../../models/table_model.dart';
 
 /// Money convention: the Go API speaks INTEGER PAISE; the Flutter models
@@ -590,3 +591,35 @@ Map<String, dynamic>? denominationsToApi(CashDenomination? d) {
     'd10': d.count10,
   };
 }
+
+// ---- Subscription (Settings card; paise converted at this edge only) ----
+
+SubscriptionStatus subscriptionStatusFromApi(Map<String, dynamic> j) =>
+    SubscriptionStatus(
+      planCode: _str(j['plan_code']),
+      planName: _str(j['plan_name']),
+      status: _str(j['status']),
+      gatewayStatus: _str(j['gateway_status']),
+      periodEnd: _dt(j['period_end']),
+      priceRupees: toRupees(_int(j['price_paise'])),
+    );
+
+RazorpaySubscriptionStart razorpayStartFromApi(Map<String, dynamic> j) =>
+    RazorpaySubscriptionStart(
+      subscriptionId: _str(j['subscription_id']),
+      keyId: _str(j['key_id']),
+      planCode: _str(j['plan_code']),
+      planName: _str(j['plan_name']),
+      amountPaise: _int(j['amount_paise']),
+      currency: _str(j['currency']),
+      registrationPaise: _int(j['registration_paise']),
+    );
+
+RazorpayManualOrder razorpayManualOrderFromApi(Map<String, dynamic> j) =>
+    RazorpayManualOrder(
+      orderId: _str(j['order_id']),
+      keyId: _str(j['key_id']),
+      amountPaise: _int(j['amount_paise']),
+      currency: _str(j['currency']),
+      planName: _str(j['plan_name']),
+    );

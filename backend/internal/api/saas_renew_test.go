@@ -51,6 +51,7 @@ func newRenewEnv(t *testing.T, hits *map[string]string) (*env, config.Config) {
 		})
 	}
 	record("/v1/plans", `{"id":"plan_fake1"}`)
+	record("/v1/orders", `{"id":"order_fake1"}`)
 	record("/v1/subscriptions", `{"id":"sub_fake1","status":"created"}`)
 	record("/v1/subscriptions/sub_fake1/addons", `{}`)
 	record("/v1/subscriptions/sub_fake1/cancel", `{"id":"sub_fake1","status":"active"}`)
@@ -420,4 +421,194 @@ func subscriptionPeriodEnd(t *testing.T, e *env, orgID string) time.Time {
 		t.Fatal("no period end set")
 	}
 	return *sub.CurrentPeriodEnd
+}
+
+// The status read must sit outside the entitlement gate: an expired org is
+// exactly when the app needs it. Staff token comes from registering an org
+// (which creates an admin staff + outlet) and doing a staff PIN login.
+func registerAndStaffLogin(t *testing.T, e *env, email string) (orgID string) {
+	t.Helper()
+	code, body := e.do(t, "POST", "/api/v1/auth/register", registerBody(email), false)
+	if code != 201 {
+		t.Fatalf("register failed: %d %v", code, body)
+	}
+	outlet, _ := body["outlet"].(map[string]any)
+	outletID, _ := outlet["id"].(string)
+	adminPin, _ := body["admin_pin"].(string)
+	org, _ := body["org"].(map[string]any)
+	orgID, _ = org["id"].(string)
+	if outletID == "" || adminPin == "" || orgID == "" {
+		t.Fatalf("register response incomplete: %v", body)
+	}
+	staffID := ""
+	if err := e.st.DB.QueryRow(
+		`SELECT id FROM staff WHERE org_id = ? AND role = 'admin'`, orgID).Scan(&staffID); err != nil {
+		t.Fatal(err)
+	}
+	code, body = e.do(t, "POST", "/api/v1/auth/login", map[string]string{
+		"staff_id": staffID, "pin": adminPin, "outlet_id": outletID,
+	}, false)
+	if code != 200 {
+		t.Fatalf("staff login failed: %d %v", code, body)
+	}
+	token, _ := body["token"].(string)
+	if token == "" {
+		t.Fatalf("no staff token: %v", body)
+	}
+	e.token = token
+	return orgID
+}
+
+func (e *env) outletIDForOrg(t *testing.T, orgID string) string {
+	t.Helper()
+	id := ""
+	if err := e.st.DB.QueryRow(
+		`SELECT id FROM outlets WHERE org_id = ? LIMIT 1`, orgID).Scan(&id); err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
+func TestSubscriptionAppStatusForStaff(t *testing.T) {
+	hits := map[string]string{}
+	e, _ := newRenewEnv(t, &hits)
+	orgID := registerAndStaffLogin(t, e, "status-staff@test")
+
+	code, body := e.do(t, "GET", "/api/v1/saas/subscription/status", nil, true)
+	if code != 200 {
+		t.Fatalf("status failed: %d %v", code, body)
+	}
+	if body["plan_code"] != "pro" || body["status"] != "trial" {
+		t.Fatalf("unexpected status payload: %v", body)
+	}
+	if body["gateway_status"] != "" {
+		t.Fatalf("expected empty gateway_status, got %v", body["gateway_status"])
+	}
+	if body["price_paise"] != float64(199900) {
+		t.Fatalf("unexpected price: %v", body["price_paise"])
+	}
+
+	// Below-manager roles are denied the billing read.
+	hash, _ := e.mgr.HashPIN("7777")
+	if _, err := e.st.DB.Exec(
+		`INSERT INTO staff (id, org_id, outlet_id, name, role, pin_hash, is_active)
+		 VALUES ('st-status-cashier', ?, NULL, 'Cash', 'cashier', ?, 1)`, orgID, hash); err != nil {
+		t.Fatal(err)
+	}
+	code, body = e.do(t, "POST", "/api/v1/auth/login", map[string]string{
+		"staff_id": "st-status-cashier", "pin": "7777",
+		"outlet_id": e.outletIDForOrg(t, orgID),
+	}, false)
+	if code != 200 {
+		t.Fatalf("cashier login failed: %d %v", code, body)
+	}
+	cashierToken := body["token"].(string)
+	e.token = cashierToken
+	code, _ = e.do(t, "GET", "/api/v1/saas/subscription/status", nil, true)
+	if code != 403 {
+		t.Fatalf("cashier must be denied, got %d", code)
+	}
+}
+
+// Regression for chi mount shadowing + the gate bypass: the status route lives
+// at the root (static beats the /api/v1/saas owner mount's catch-all) and
+// outside the entitlement gate, so an expired org — the moment the app most
+// needs the card — still gets a 200, not the gate's 402.
+func TestSubscriptionAppStatusReachableWhenOrgExpired(t *testing.T) {
+	hits := map[string]string{}
+	e, _ := newRenewEnv(t, &hits)
+	orgID := registerAndStaffLogin(t, e, "status-expired@test")
+	ctx := context.Background()
+
+	// Cron-style lapse: subscription expired and org flagged expired.
+	sub, err := e.st.GetSubscription(ctx, orgID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	next := *sub
+	next.Status = models.SubExpired
+	if err := e.st.UpsertSubscription(ctx, &next); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.st.SetOrgStatus(ctx, orgID, models.OrgExpired); err != nil {
+		t.Fatal(err)
+	}
+
+	code, body := e.do(t, "GET", "/api/v1/saas/subscription/status", nil, true)
+	if code != 200 {
+		t.Fatalf("expired org must still read its subscription status, got %d %v", code, body)
+	}
+	if body["status"] != models.SubExpired {
+		t.Fatalf("expected expired status payload, got %v", body)
+	}
+}
+
+func TestOwnerManualRenewalOrder(t *testing.T) {
+	hits := map[string]string{}
+	e, cfg := newRenewEnv(t, &hits)
+	registerOwner(t, e, "renew-manual@test")
+	orgID := subOrgIDForToken(t, e)
+	ctx := context.Background()
+
+	// One cycle at gross (pro base 199900 + 18% = 235882).
+	code, body := e.do(t, "POST", "/api/v1/saas/subscription/manual-order", map[string]any{}, true)
+	if code != 200 {
+		t.Fatalf("manual order failed: %d %v", code, body)
+	}
+	if body["order_id"] != "order_fake1" {
+		t.Fatalf("unexpected order id: %v", body)
+	}
+	if body["amount_paise"] != float64(235882) {
+		t.Fatalf("unexpected amount: %v", body["amount_paise"])
+	}
+	if body["key_id"] != cfg.RazorpayKey {
+		t.Fatalf("unexpected key id: %v", body["key_id"])
+	}
+	var orderReq struct {
+		Notes map[string]string `json:"notes"`
+	}
+	if err := json.Unmarshal([]byte(hits["/v1/orders|POST"]), &orderReq); err != nil {
+		t.Fatalf("bad order body: %v (%s)", err, hits["/v1/orders|POST"])
+	}
+	if orderReq.Notes["org_id"] != orgID {
+		t.Fatalf("order notes missing org_id: %v", orderReq.Notes)
+	}
+
+	// A paid period that's still running (manual/bank-activated org, stale UI,
+	// two devices) must also refuse a manual order — the webhook's
+	// already-active guard would otherwise ignore the captured payment.
+	sub, err := e.st.GetSubscription(ctx, orgID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	future := time.Now().AddDate(0, 0, 15)
+	next := *sub
+	next.Status = models.SubActive
+	next.CurrentPeriodEnd = &future
+	if err := e.st.UpsertSubscription(ctx, &next); err != nil {
+		t.Fatal(err)
+	}
+	code, body = e.do(t, "POST", "/api/v1/saas/subscription/manual-order", map[string]any{}, true)
+	if errObj, _ := body["error"].(map[string]any); code != 409 || errObj["code"] != "already_paid" {
+		t.Fatalf("expected 409 already_paid while paid period runs, got %d %v", code, body)
+	}
+
+	// While auto-renew is live the gateway owns billing — manual orders are refused.
+	if err := e.st.SetOrgGatewaySubscription(ctx, orgID, "sub_fake1", "active"); err != nil {
+		t.Fatal(err)
+	}
+	code, body = e.do(t, "POST", "/api/v1/saas/subscription/manual-order", map[string]any{}, true)
+	if errObj, _ := body["error"].(map[string]any); code != 409 || errObj["code"] != "auto_renew_owns_billing" {
+		t.Fatalf("expected 409 auto_renew_owns_billing while auto-renew active, got %d %v", code, body)
+	}
+
+	// Unconfigured keys → 503 (explicitly zeroed so ambient env vars can't leak in).
+	emptyCfg := config.Load()
+	emptyCfg.RazorpayKey, emptyCfg.RazorpaySecret = "", ""
+	e2 := newEnvWithCfg(t, emptyCfg)
+	registerOwner(t, e2, "renew-manual2@test")
+	code, _ = e2.do(t, "POST", "/api/v1/saas/subscription/manual-order", map[string]any{}, true)
+	if code != 503 {
+		t.Fatalf("expected 503 unconfigured, got %d", code)
+	}
 }

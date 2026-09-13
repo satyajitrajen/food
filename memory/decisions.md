@@ -101,3 +101,11 @@ logs. POST /api/v1/ws/ticket (authenticated) issues a one-time ticket
 (SHA-256 at rest, in-memory, 60 s TTL) carrying the caller's claims; GET /ws
 consumes it and rejects reuse. The legacy 	oken= JWT param still works for
 compatibility. Flutter RealtimeChannel requests a ticket before connecting.
+
+## D-019 - 2026-09-13 - Native Razorpay checkout via razorpay_flutter plugin (FR-SUB)
+Auto-renew/one-cycle billing opens Razorpay's native checkout UI; the
+razorpay_flutter plugin (v1.4.6, official) is the only maintained Android/iOS
+bridge — alternatives (WebView checkout, UPI intent URLs) lose subscriptions
+support/DPR compliance. lib/core/payments/razorpay_checkout.dart wraps the
+event emitter into a single Future; its result is UI feedback only — server
+webhooks remain the sole source of truth for subscription state.

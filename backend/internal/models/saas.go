@@ -238,6 +238,27 @@ type RazorpaySubscriptionStart struct {
 	RegistrationPaise int64  `json:"registration_paise"` // one-time fee charged with cycle 1 (0 = none)
 }
 
+// SubscriptionAppStatus is the staff-scoped read behind the POS app's
+// subscription card (GET /api/v1/saas/subscription/status).
+type SubscriptionAppStatus struct {
+	PlanCode      string     `json:"plan_code"`
+	PlanName      string     `json:"plan_name"`
+	Status        string     `json:"status"`
+	GatewayStatus string     `json:"gateway_status"`
+	PeriodEnd     *time.Time `json:"period_end,omitempty"`
+	PricePaise    int64      `json:"price_paise"`
+}
+
+// RazorpayManualOrder is the owner one-cycle checkout payload
+// (POST /api/v1/saas/subscription/manual-order).
+type RazorpayManualOrder struct {
+	OrderID     string `json:"order_id"`
+	KeyID       string `json:"key_id"`
+	AmountPaise int64  `json:"amount_paise"`
+	Currency    string `json:"currency"`
+	PlanName    string `json:"plan_name"`
+}
+
 // ---- Account token ops (email verify / password reset) ----
 
 type ForgotPasswordReq struct {

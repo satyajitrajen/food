@@ -56,3 +56,4 @@ landing/dist/
 .env
 .env.local
 .commandcode/
+.finalrun/

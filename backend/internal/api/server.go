@@ -85,9 +85,20 @@ func (s *Server) Routes() http.Handler {
 		r.Post("/staff", s.handleSaaSCreateStaff)
 		r.Post("/subscription/cancel", s.handleSaaSCancelSubscription)
 		r.Post("/subscription/razorpay", s.handleOwnerStartSubscription)
+		r.Post("/subscription/manual-order", s.handleOwnerManualOrder)
 		r.Post("/org/rotate-code", s.handleRotateOrgCode)
 		r.Get("/invoices/{id}/pdf", s.handleOwnerInvoicePDF)
 	})
+
+	// Staff-scoped subscription status for the POS app's Settings card.
+	// Root-level static route: /api/v1/saas/* is claimed by the owner mount
+	// above, so this cannot be registered inside the staff group. The full
+	// staff chain is replicated explicitly. A pure read — deliberately NOT
+	// behind the entitlement gate so an expired org can still see its status
+	// and renew (the gate blocks by group membership, not HTTP method).
+	r.With(middleware.Auth(s.Auth), middleware.RequireScope(auth.ScopeStaff),
+		middleware.StaffTenant(), middleware.RequireRole("manager")).
+		Get("/api/v1/saas/subscription/status", s.handleSubscriptionAppStatus)
 
 	// Platform superadmin APIs (scope: admin).
 	r.Route("/api/v1/admin", func(r chi.Router) {

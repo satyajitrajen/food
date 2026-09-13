@@ -25,6 +25,7 @@ import '../models/cash_model.dart';
 import '../models/customer_model.dart';
 import '../models/inventory_model.dart';
 import '../models/settings_model.dart';
+import '../models/subscription_model.dart';
 
 /// API base URL; override with --dart-define=FOODPOS_API_URL=...
 const String kDefaultApiBaseUrl =
@@ -466,6 +467,103 @@ class PosProvider extends ChangeNotifier {
   bool get canTakeOrders => licenseActive;
   int get licenseDaysLeft => _entitlement?.daysLeft ?? 0;
   bool get licenseTokenVerified => _entitlement?.tokenVerified ?? false;
+
+  // ---- Subscription card (Settings, admins) ----
+
+  SubscriptionStatus? _subscriptionStatus;
+  String? _subscriptionStatusError;
+  String? _subscriptionActionError;
+
+  SubscriptionStatus? get subscriptionStatus => _subscriptionStatus;
+  String? get subscriptionStatusError => _subscriptionStatusError;
+  String? get subscriptionActionError => _subscriptionActionError;
+
+  /// Staff-scoped read for the Settings subscription card. Registered outside
+  /// the entitlement gate server-side, so an expired org can still load it.
+  Future<void> loadSubscriptionStatus() async {
+    if (!apiEnabled || _api == null) return;
+    try {
+      final data =
+          await _api!.request('GET', '/api/v1/saas/subscription/status');
+      _subscriptionStatus =
+          data is Map<String, dynamic> ? subscriptionStatusFromApi(data) : null;
+      _subscriptionStatusError =
+          _subscriptionStatus == null ? 'No subscription on file' : null;
+    } on ApiException catch (e) {
+      _subscriptionStatusError = e.message;
+    } on NetworkException {
+      _subscriptionStatusError = 'Server unreachable';
+    }
+    notifyListeners();
+  }
+
+  /// One-shot owner login for billing actions. Returns the owner token or
+  /// null; the token is used for a single request and never persisted.
+  /// Bad credentials leave the action error null (the dialog shows a generic
+  /// message); an unreachable server sets 'Server unreachable' so the dialog
+  /// does not blame the credentials.
+  Future<String?> loginOwnerForAction(String email, String password) async {
+    if (_api == null) return null;
+    _subscriptionActionError = null;
+    try {
+      final data = await _api!.request('POST', '/api/v1/auth/account/login',
+          body: {'email': email, 'password': password}, auth: false);
+      if (data is! Map<String, dynamic>) return null;
+      final t = data['token'];
+      final token = (t is String && t.isNotEmpty) ? t : null;
+      return token;
+    } on ApiException {
+      return null;
+    } on NetworkException {
+      _subscriptionActionError = 'Server unreachable';
+      notifyListeners();
+      return null;
+    }
+  }
+
+  Future<RazorpaySubscriptionStart?> startAutoRenew(String ownerToken) async {
+    return _ownerBillingCall(ownerToken, '/api/v1/saas/subscription/razorpay',
+        (j) => razorpayStartFromApi(j));
+  }
+
+  Future<RazorpayManualOrder?> createManualRenewal(String ownerToken) async {
+    return _ownerBillingCall(
+        ownerToken, '/api/v1/saas/subscription/manual-order',
+        (j) => razorpayManualOrderFromApi(j));
+  }
+
+  Future<bool> cancelAutoRenew(String ownerToken) async {
+    return (await _ownerBillingCall<bool>(
+            ownerToken, '/api/v1/saas/subscription/cancel', (_) => true)) ??
+        false;
+  }
+
+  Future<T?> _ownerBillingCall<T>(
+    String ownerToken,
+    String path,
+    T Function(Map<String, dynamic>) parse,
+  ) async {
+    if (_api == null) return null;
+    _subscriptionActionError = null;
+    try {
+      final data = await _api!.request('POST', path, token: ownerToken);
+      if (data is! Map<String, dynamic>) {
+        _subscriptionActionError = 'Unexpected response';
+        notifyListeners();
+        return null;
+      }
+      notifyListeners();
+      return parse(data);
+    } on ApiException catch (e) {
+      _subscriptionActionError = e.message;
+      notifyListeners();
+      return null;
+    } on NetworkException {
+      _subscriptionActionError = 'Server unreachable';
+      notifyListeners();
+      return null;
+    }
+  }
 
   /// Binds the terminal to an org via its code and loads the org-scoped
   /// outlet/staff lists (device bootstrap). Throws ApiException/NetworkException.
