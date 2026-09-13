@@ -90,9 +90,9 @@ func TestApplyBillingDiscountClamps(t *testing.T) {
 
 	// Amount discount capped at subtotal.
 	o2 := &models.Order{
-		Items:        []models.OrderItem{{TotalPaise: 10000}},
+		Items:         []models.OrderItem{{TotalPaise: 10000}},
 		DiscountPaise: 25000,
-		TaxPercent:   5,
+		TaxPercent:    5,
 	}
 	ApplyBilling(o2)
 	if o2.DiscountPaise != 10000 || o2.GrandTotalPaise != 0 {
@@ -101,9 +101,9 @@ func TestApplyBillingDiscountClamps(t *testing.T) {
 
 	// Negative amount treated as zero.
 	o3 := &models.Order{
-		Items:        []models.OrderItem{{TotalPaise: 10000}},
+		Items:         []models.OrderItem{{TotalPaise: 10000}},
 		DiscountPaise: -5000,
-		TaxPercent:   5,
+		TaxPercent:    5,
 	}
 	ApplyBilling(o3)
 	if o3.DiscountPaise != 0 || o3.GrandTotalPaise != 10500 {
@@ -220,8 +220,8 @@ func TestRefundIsCash(t *testing.T) {
 	}{
 		{&cash, "original", true},
 		{&upi, "original", false},
-		{&upi, "cash", true},   // refund issued in cash leaves the drawer
-		{&cash, "upi", false},  // refund issued digitally doesn't
+		{&upi, "cash", true},  // refund issued in cash leaves the drawer
+		{&cash, "upi", false}, // refund issued digitally doesn't
 	}
 	for i, c := range cases {
 		if got := RefundIsCash(c.order, c.mode); got != c.want {

@@ -61,9 +61,9 @@ type pgConn struct{ driver.Conn }
 
 var (
 	_ driver.QueryerContext = pgConn{}
-	_ driver.ExecerContext   = pgConn{}
-	_ driver.Pinger          = pgConn{}
-	_ driver.ConnBeginTx     = pgConn{}
+	_ driver.ExecerContext  = pgConn{}
+	_ driver.Pinger         = pgConn{}
+	_ driver.ConnBeginTx    = pgConn{}
 )
 
 func (c pgConn) QueryContext(ctx context.Context, q string, args []driver.NamedValue) (driver.Rows, error) {

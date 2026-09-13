@@ -45,7 +45,8 @@ day per design DB-saas-product-fixes.md:
   (one cycle at gross, 409 when auto-renew owns billing); Settings subscription
   card (admins) with one-shot owner re-auth and native razorpay_flutter
   checkout (subscription + order); webhooks remain the sole state writer.
-Gates green: `flutter analyze` 0 issues, `flutter test` 34/34, `go vet` clean,
+Gates green: `flutter analyze` 0 issues, `flutter test` 43/43 (incl. the
+subscription dto parsers + 4 subscription-card widget tests), `go vet` clean,
 `go build ./...` OK, DB-free unit tests pass (clientIP/rate-limit, Razorpay
 subscription flow); backend integration tests (incl. saas_renew_test.go) run
 in CI against the compose Postgres (no local Postgres/Docker on this machine).
