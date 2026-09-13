@@ -93,3 +93,33 @@ func (s *Server) handleOwnerStartSubscription(w http.ResponseWriter, r *http.Req
 		RegistrationPaise: regPaise,
 	})
 }
+
+// handleSubscriptionAppStatus backs the POS app's Settings subscription card.
+// It is registered with the READS (outside the entitlement-gate group): the
+// gate blocks by group membership, not HTTP method, and an expired org is
+// exactly when the card is needed.
+func (s *Server) handleSubscriptionAppStatus(w http.ResponseWriter, r *http.Request) {
+	c, ok := claimsFrom(r)
+	if !ok {
+		httpx.ErrorJSON(w, r, httpx.ErrUnauthorized)
+		return
+	}
+	sub, err := s.Store.GetSubscriptionWithPlan(r.Context(), c.OrgID)
+	if err != nil {
+		httpx.ErrorJSON(w, r, err)
+		return
+	}
+	plan := sub.Plan
+	if plan == nil {
+		httpx.ErrorJSON(w, r, httpx.NewError(404, "no_plan", "Organization has no plan"))
+		return
+	}
+	httpx.JSON(w, http.StatusOK, models.SubscriptionAppStatus{
+		PlanCode:      plan.Code,
+		PlanName:      plan.Name,
+		Status:        sub.Status,
+		GatewayStatus: sub.GatewayStatus,
+		PeriodEnd:     sub.CurrentPeriodEnd,
+		PricePaise:    plan.PricePaise,
+	})
+}

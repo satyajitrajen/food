@@ -421,3 +421,92 @@ func subscriptionPeriodEnd(t *testing.T, e *env, orgID string) time.Time {
 	}
 	return *sub.CurrentPeriodEnd
 }
+
+// The status read must sit outside the entitlement gate: an expired org is
+// exactly when the app needs it. Staff token comes from registering an org
+// (which creates an admin staff + outlet) and doing a staff PIN login.
+func registerAndStaffLogin(t *testing.T, e *env, email string) (orgID string) {
+	t.Helper()
+	code, body := e.do(t, "POST", "/api/v1/auth/register", registerBody(email), false)
+	if code != 201 {
+		t.Fatalf("register failed: %d %v", code, body)
+	}
+	outlet, _ := body["outlet"].(map[string]any)
+	outletID, _ := outlet["id"].(string)
+	adminPin, _ := body["admin_pin"].(string)
+	org, _ := body["org"].(map[string]any)
+	orgID, _ = org["id"].(string)
+	if outletID == "" || adminPin == "" || orgID == "" {
+		t.Fatalf("register response incomplete: %v", body)
+	}
+	staffID := ""
+	if err := e.st.DB.QueryRow(
+		`SELECT id FROM staff WHERE org_id = ? AND role = 'admin'`, orgID).Scan(&staffID); err != nil {
+		t.Fatal(err)
+	}
+	code, body = e.do(t, "POST", "/api/v1/auth/login", map[string]string{
+		"staff_id": staffID, "pin": adminPin, "outlet_id": outletID,
+	}, false)
+	if code != 200 {
+		t.Fatalf("staff login failed: %d %v", code, body)
+	}
+	token, _ := body["token"].(string)
+	if token == "" {
+		t.Fatalf("no staff token: %v", body)
+	}
+	e.token = token
+	return orgID
+}
+
+func (e *env) outletIDForOrg(t *testing.T, orgID string) string {
+	t.Helper()
+	id := ""
+	if err := e.st.DB.QueryRow(
+		`SELECT id FROM outlets WHERE org_id = ? LIMIT 1`, orgID).Scan(&id); err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
+func TestSubscriptionAppStatusForStaff(t *testing.T) {
+	hits := map[string]string{}
+	e, _ := newRenewEnv(t, &hits)
+	orgID := registerAndStaffLogin(t, e, "status-staff@test")
+
+	code, body := e.do(t, "GET", "/api/v1/saas/subscription/status", nil, true)
+	if code != 200 {
+		t.Fatalf("status failed: %d %v", code, body)
+	}
+	if body["plan_code"] != "pro" || body["status"] != "trial" {
+		t.Fatalf("unexpected status payload: %v", body)
+	}
+	if body["gateway_status"] != "" {
+		t.Fatalf("expected empty gateway_status, got %v", body["gateway_status"])
+	}
+	if body["price_paise"] != float64(199900) {
+		t.Fatalf("unexpected price: %v", body["price_paise"])
+	}
+
+	// Below-manager roles are denied the billing read.
+	hash, _ := e.mgr.HashPIN("7777")
+	if _, err := e.st.DB.Exec(
+		`INSERT INTO staff (id, org_id, outlet_id, name, role, pin_hash, is_active)
+		 VALUES ('st-status-cashier', ?, NULL, 'Cash', 'cashier', ?, 1)`, orgID, hash); err != nil {
+		t.Fatal(err)
+	}
+	code, body = e.do(t, "POST", "/api/v1/auth/login", map[string]string{
+		"staff_id": "st-status-cashier", "pin": "7777",
+		"outlet_id": e.outletIDForOrg(t, orgID),
+	}, false)
+	if code != 200 {
+		t.Fatalf("cashier login failed: %d %v", code, body)
+	}
+	cashierToken := body["token"].(string)
+	saved := e.token
+	e.token = cashierToken
+	code, _ = e.do(t, "GET", "/api/v1/saas/subscription/status", nil, true)
+	if code != 403 {
+		t.Fatalf("cashier must be denied, got %d", code)
+	}
+	e.token = saved
+}

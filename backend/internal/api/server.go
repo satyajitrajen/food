@@ -138,6 +138,10 @@ func (s *Server) Routes() http.Handler {
 		r.Get("/purchases", s.handleListPurchases)
 		r.Get("/settings", s.handleGetSettings)
 
+		// Subscription card read (admin/manager). Deliberately OUTSIDE the
+		// entitlement-gate group so expired orgs can still see status + renew.
+		r.With(middleware.RequireRole("manager")).Get("/saas/subscription/status", s.handleSubscriptionAppStatus)
+
 		// ---- Writes & back-office — kitchen is denied; paid writes gated ----
 		r.Group(func(r chi.Router) {
 			r.Use(s.entitlementGate())
