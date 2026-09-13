@@ -4,6 +4,7 @@ import 'package:food_pos/core/sync/outbox.dart';
 import 'package:food_pos/models/order_model.dart';
 import 'package:food_pos/models/settings_model.dart';
 import 'package:food_pos/models/staff_model.dart';
+import 'package:food_pos/models/subscription_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -134,6 +135,64 @@ void main() {
     test('newOpId is unique across calls', () {
       final ids = {for (var i = 0; i < 200; i++) newOpId()};
       expect(ids.length, 200);
+    });
+  });
+
+  group('subscription parsing', () {
+    test('subscriptionStatusFromApi maps all fields with paise at the edge', () {
+      final status = subscriptionStatusFromApi({
+        'plan_code': 'pro',
+        'plan_name': 'Pro',
+        'status': 'trial',
+        'gateway_status': '',
+        'period_end': '2026-09-20T00:00:00Z',
+        'price_paise': 199900,
+      });
+      expect(status.planCode, 'pro');
+      expect(status.planName, 'Pro');
+      expect(status.status, 'trial');
+      expect(status.gatewayStatus, '');
+      expect(status.periodEnd, DateTime.utc(2026, 9, 20));
+      expect(status.priceRupees, 1999.0);
+      expect(status.autoRenewLive, isFalse);
+    });
+
+    test('autoRenewLive covers live mandate states', () {
+      SubscriptionStatus withGateway(String gw) => subscriptionStatusFromApi({
+            'plan_code': 'pro', 'plan_name': 'Pro', 'status': 'active',
+            'gateway_status': gw, 'price_paise': 199900,
+          });
+      expect(withGateway('active').autoRenewLive, isTrue);
+      expect(withGateway('authenticated').autoRenewLive, isTrue);
+      expect(withGateway('pending').autoRenewLive, isTrue);
+      expect(withGateway('halted').autoRenewLive, isTrue);
+      expect(withGateway('cancelled').autoRenewLive, isFalse);
+      expect(withGateway('completed').autoRenewLive, isFalse);
+      expect(withGateway('created').autoRenewLive, isFalse);
+    });
+
+    test('razorpayStartFromApi parses the checkout payload', () {
+      final start = razorpayStartFromApi({
+        'subscription_id': 'sub_1', 'key_id': 'rzp_test_1', 'plan_code': 'pro',
+        'plan_name': 'Pro', 'amount_paise': 235882, 'currency': 'INR',
+        'registration_paise': 10100,
+      });
+      expect(start.subscriptionId, 'sub_1');
+      expect(start.keyId, 'rzp_test_1');
+      expect(start.planName, 'Pro');
+      expect(start.amountPaise, 235882);
+      expect(start.currency, 'INR');
+      expect(start.registrationPaise, 10100);
+    });
+
+    test('razorpayManualOrderFromApi parses the order payload', () {
+      final order = razorpayManualOrderFromApi({
+        'order_id': 'order_1', 'key_id': 'rzp_test_1', 'amount_paise': 235882,
+        'currency': 'INR', 'plan_name': 'Pro',
+      });
+      expect(order.orderId, 'order_1');
+      expect(order.amountPaise, 235882);
+      expect(order.currency, 'INR');
     });
   });
 }
