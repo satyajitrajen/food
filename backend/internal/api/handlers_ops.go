@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 
+	"foodpos/backend/internal/auth"
 	"foodpos/backend/internal/httpx"
 	"foodpos/backend/internal/middleware"
 	"foodpos/backend/internal/models"
@@ -177,8 +178,16 @@ func (s *Server) handleCreateExpense(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleDeleteExpense(w http.ResponseWriter, r *http.Request) {
-	exp, err := s.Store.DeleteExpense(r.Context(), pathID(r, "id"))
+	exp, err := s.Store.GetExpense(r.Context(), pathID(r, "id"))
 	if err != nil {
+		httpx.ErrorJSON(w, r, err)
+		return
+	}
+	if c, ok := claimsFrom(r); ok && c.Scope == auth.ScopeStaff && c.OutletID != exp.OutletID {
+		httpx.ErrorJSON(w, r, httpx.ErrNotFound)
+		return
+	}
+	if _, err := s.Store.DeleteExpense(r.Context(), exp.ID); err != nil {
 		httpx.ErrorJSON(w, r, err)
 		return
 	}
@@ -350,7 +359,16 @@ func (s *Server) handlePatchPurchase(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorJSON(w, r, err)
 		return
 	}
-	p, err := s.Store.PatchPurchaseStatus(r.Context(), pathID(r, "id"), body.Status)
+	existing, err := s.Store.GetPurchase(r.Context(), pathID(r, "id"))
+	if err != nil {
+		httpx.ErrorJSON(w, r, err)
+		return
+	}
+	if c, ok := claimsFrom(r); ok && c.Scope == auth.ScopeStaff && c.OutletID != existing.OutletID {
+		httpx.ErrorJSON(w, r, httpx.ErrNotFound)
+		return
+	}
+	p, err := s.Store.PatchPurchaseStatus(r.Context(), existing.ID, body.Status)
 	if err != nil {
 		httpx.ErrorJSON(w, r, err)
 		return
@@ -502,6 +520,10 @@ func (s *Server) handleZReport(w http.ResponseWriter, r *http.Request) {
 	shift, err := s.Store.GetShift(r.Context(), pathID(r, "id"))
 	if err != nil {
 		httpx.ErrorJSON(w, r, err)
+		return
+	}
+	if c, ok := claimsFrom(r); ok && c.Scope == auth.ScopeStaff && c.OutletID != shift.OutletID {
+		httpx.ErrorJSON(w, r, httpx.ErrNotFound)
 		return
 	}
 	z := models.ZReport{

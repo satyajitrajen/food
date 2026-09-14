@@ -39,6 +39,9 @@ func (s *Server) handleCreateTable(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorJSON(w, r, err)
 		return
 	}
+	if c, ok := claimsFrom(r); ok && c.Scope == auth.ScopeStaff {
+		t.OutletID = c.OutletID
+	}
 	if t.OutletID == "" || t.TableNumber == "" || t.Seats <= 0 {
 		httpx.ErrorJSON(w, r, httpx.NewError(400, "invalid_table", "outlet_id, table_number and seats are required"))
 		return
@@ -58,14 +61,22 @@ func (s *Server) handlePatchTable(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorJSON(w, r, err)
 		return
 	}
+	table, err := s.Store.GetTable(r.Context(), pathID(r, "id"))
+	if err != nil {
+		httpx.ErrorJSON(w, r, err)
+		return
+	}
+	if c, ok := claimsFrom(r); ok && c.Scope == auth.ScopeStaff && c.OutletID != table.OutletID {
+		httpx.ErrorJSON(w, r, httpx.ErrNotFound)
+		return
+	}
 	if p.WaiterID != nil && *p.WaiterID != "" {
 		st, err := s.Store.GetStaff(r.Context(), *p.WaiterID)
 		if err != nil {
 			httpx.ErrorJSON(w, r, httpx.NewError(400, "invalid_waiter", "Waiter does not exist"))
 			return
 		}
-		table, err := s.Store.GetTable(r.Context(), pathID(r, "id"))
-		if err == nil && st.OutletID != nil && *st.OutletID != "" && *st.OutletID != table.OutletID {
+		if st.OutletID != nil && *st.OutletID != "" && *st.OutletID != table.OutletID {
 			httpx.ErrorJSON(w, r, httpx.NewError(400, "invalid_outlet", "Waiter belongs to another outlet"))
 			return
 		}
@@ -90,6 +101,10 @@ func (s *Server) handleMoveTable(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorJSON(w, r, err)
 		return
 	}
+	if c, ok := claimsFrom(r); ok && c.Scope == auth.ScopeStaff && c.OutletID != from.OutletID {
+		httpx.ErrorJSON(w, r, httpx.ErrNotFound)
+		return
+	}
 	if from.ActiveOrderID == nil {
 		httpx.ErrorJSON(w, r, httpx.NewError(409, "no_active_order", "Source table has no active order"))
 		return
@@ -97,6 +112,10 @@ func (s *Server) handleMoveTable(w http.ResponseWriter, r *http.Request) {
 	to, err := s.Store.GetTable(r.Context(), req.ToTableID)
 	if err != nil {
 		httpx.ErrorJSON(w, r, err)
+		return
+	}
+	if c, ok := claimsFrom(r); ok && c.Scope == auth.ScopeStaff && c.OutletID != to.OutletID {
+		httpx.ErrorJSON(w, r, httpx.ErrNotFound)
 		return
 	}
 	if busy, _, err := s.Store.TableHasActiveOrder(r.Context(), to.ID); err != nil {
@@ -140,9 +159,17 @@ func (s *Server) handleMergeTable(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorJSON(w, r, err)
 		return
 	}
+	if c, ok := claimsFrom(r); ok && c.Scope == auth.ScopeStaff && c.OutletID != primary.OutletID {
+		httpx.ErrorJSON(w, r, httpx.ErrNotFound)
+		return
+	}
 	secondary, err := s.Store.GetTable(r.Context(), req.SecondaryTableID)
 	if err != nil {
 		httpx.ErrorJSON(w, r, err)
+		return
+	}
+	if c, ok := claimsFrom(r); ok && c.Scope == auth.ScopeStaff && c.OutletID != secondary.OutletID {
+		httpx.ErrorJSON(w, r, httpx.ErrNotFound)
 		return
 	}
 	if primary.ID == secondary.ID {
@@ -168,7 +195,16 @@ func (s *Server) handleMergeTable(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleUnmergeTable(w http.ResponseWriter, r *http.Request) {
-	t, err := s.Store.PatchTable(r.Context(), pathID(r, "id"), models.TablePatch{})
+	existing, err := s.Store.GetTable(r.Context(), pathID(r, "id"))
+	if err != nil {
+		httpx.ErrorJSON(w, r, err)
+		return
+	}
+	if c, ok := claimsFrom(r); ok && c.Scope == auth.ScopeStaff && c.OutletID != existing.OutletID {
+		httpx.ErrorJSON(w, r, httpx.ErrNotFound)
+		return
+	}
+	t, err := s.Store.PatchTable(r.Context(), existing.ID, models.TablePatch{})
 	if err != nil {
 		httpx.ErrorJSON(w, r, err)
 		return
@@ -281,10 +317,17 @@ func (s *Server) handleCreateMenuItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	outletID := r.URL.Query().Get("outlet_id")
+	if c, ok := claimsFrom(r); ok && c.Scope == auth.ScopeStaff {
+		outletID = c.OutletID
+	}
 	if outletID == "" {
 		if c, ok := middleware.ClaimsFrom(r.Context()); ok && c.OutletID != "" {
 			outletID = c.OutletID
 		}
+	}
+	if outletID == "" {
+		httpx.ErrorJSON(w, r, httpx.NewError(400, "missing_outlet", "outlet_id is required"))
+		return
 	}
 	// Admin clients send the category *name*; resolve to the real id.
 	if req.CategoryID != nil {
@@ -309,12 +352,16 @@ func (s *Server) handlePatchMenuItem(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorJSON(w, r, err)
 		return
 	}
+	item, err := s.Store.GetMenuItem(r.Context(), pathID(r, "id"))
+	if err != nil {
+		httpx.ErrorJSON(w, r, err)
+		return
+	}
+	if c, ok := claimsFrom(r); ok && c.Scope == auth.ScopeStaff && c.OutletID != item.OutletID {
+		httpx.ErrorJSON(w, r, httpx.ErrNotFound)
+		return
+	}
 	if req.CategoryID != nil {
-		item, err := s.Store.GetMenuItem(r.Context(), pathID(r, "id"))
-		if err != nil {
-			httpx.ErrorJSON(w, r, err)
-			return
-		}
 		id, err := s.Store.CategoryID(r.Context(), item.OutletID, *req.CategoryID)
 		if err != nil {
 			httpx.ErrorJSON(w, r, err)
@@ -322,7 +369,7 @@ func (s *Server) handlePatchMenuItem(w http.ResponseWriter, r *http.Request) {
 		}
 		req.CategoryID = &id
 	}
-	m, err := s.Store.PatchMenuItem(r.Context(), pathID(r, "id"), req)
+	m, err := s.Store.PatchMenuItem(r.Context(), item.ID, req)
 	if err != nil {
 		httpx.ErrorJSON(w, r, err)
 		return
@@ -331,7 +378,16 @@ func (s *Server) handlePatchMenuItem(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleDeleteMenuItem(w http.ResponseWriter, r *http.Request) {
-	if err := s.Store.DeleteMenuItem(r.Context(), pathID(r, "id")); err != nil {
+	item, err := s.Store.GetMenuItem(r.Context(), pathID(r, "id"))
+	if err != nil {
+		httpx.ErrorJSON(w, r, err)
+		return
+	}
+	if c, ok := claimsFrom(r); ok && c.Scope == auth.ScopeStaff && c.OutletID != item.OutletID {
+		httpx.ErrorJSON(w, r, httpx.ErrNotFound)
+		return
+	}
+	if err := s.Store.DeleteMenuItem(r.Context(), item.ID); err != nil {
 		httpx.ErrorJSON(w, r, err)
 		return
 	}

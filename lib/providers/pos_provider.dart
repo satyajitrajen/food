@@ -766,6 +766,7 @@ class PosProvider extends ChangeNotifier {
 
   void _rebuildCategories() {
     final cats = _menuItems
+        .where((m) => m.outletId == null || m.outletId == _currentOutlet.id)
         .map((m) => m.category)
         .where((c) => c.isNotEmpty)
         .toSet()
@@ -2010,10 +2011,11 @@ class PosProvider extends ChangeNotifier {
       description: 'Warm golden milk dumplings soaked in fragrant cardamom rose syrup.',
     ),
   ];
-  List<MenuItem> get menuItems => List.unmodifiable(_menuItems);
+  List<MenuItem> get menuItems => List.unmodifiable(
+      _menuItems.where((m) => m.outletId == null || m.outletId == _currentOutlet.id));
 
   List<MenuItem> get filteredMenuItems {
-    return _menuItems.where((item) {
+    return menuItems.where((item) {
       if (_selectedCategory != 'All' && item.category != _selectedCategory) {
         return false;
       }
@@ -2845,21 +2847,25 @@ class PosProvider extends ChangeNotifier {
   // ---- Back-office actions (W2/W3/W4/W5/W11) ----
 
   void addMenuItem(MenuItem item) {
-    _menuItems.add(item);
+    final scopedItem = item.outletId == null
+        ? item.copyWith(outletId: _currentOutlet.id)
+        : item;
+    _menuItems.add(scopedItem);
     _rebuildCategories();
     notifyListeners();
     _sync?.push('menu.create', {
-      'local_id': item.id,
-      'category_id': item.category,
-      'name': item.name,
-      if (item.description.isNotEmpty) 'description': item.description,
-      'price_paise': toPaise(item.price),
-      'is_veg': item.isVeg,
-      'image_url': item.imageUrl,
-      'is_bestseller': item.isBestseller,
-      if (item.variants.isNotEmpty) 'variants': menuVariantsToApi(item.variants),
-      if (item.modifierGroups.isNotEmpty)
-        'modifier_groups': menuModifierGroupsToApi(item.modifierGroups),
+      'local_id': scopedItem.id,
+      'outlet_id': scopedItem.outletId ?? _currentOutlet.id,
+      'category_id': scopedItem.category,
+      'name': scopedItem.name,
+      if (scopedItem.description.isNotEmpty) 'description': scopedItem.description,
+      'price_paise': toPaise(scopedItem.price),
+      'is_veg': scopedItem.isVeg,
+      'image_url': scopedItem.imageUrl,
+      'is_bestseller': scopedItem.isBestseller,
+      if (scopedItem.variants.isNotEmpty) 'variants': menuVariantsToApi(scopedItem.variants),
+      if (scopedItem.modifierGroups.isNotEmpty)
+        'modifier_groups': menuModifierGroupsToApi(scopedItem.modifierGroups),
     });
   }
 
@@ -3145,10 +3151,13 @@ class PosProvider extends ChangeNotifier {
 
   void _switchOutlet(Outlet outlet) {
     _currentOutlet = outlet;
+    _rebuildCategories();
     unawaited(PushNotificationService.instance.subscribeToTopic('outlet_${outlet.id}'));
     notifyListeners();
     if (apiEnabled && _currentStaff != null) {
       unawaited(_postLoginSync());
+    } else if (apiEnabled) {
+      unawaited(hydrateOutlet());
     }
   }
 

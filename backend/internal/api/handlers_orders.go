@@ -34,6 +34,9 @@ func (s *Server) handleListOrders(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	waiterID := r.URL.Query().Get("waiter_id")
+	if c, ok := claimsFrom(r); ok && c.Role == "waiter" {
+		waiterID = c.Subject
+	}
 	orders, err := s.Store.ListOrders(r.Context(), outletID, r.URL.Query().Get("status"), waiterID, queryInt(r, "limit", 100))
 	if err != nil {
 		httpx.ErrorJSON(w, r, err)
@@ -240,6 +243,10 @@ func (s *Server) handlePatchOrder(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorJSON(w, r, err)
 		return
 	}
+	if c, ok := claimsFrom(r); ok && c.Scope == auth.ScopeStaff && c.OutletID != o.OutletID {
+		httpx.ErrorJSON(w, r, httpx.ErrNotFound)
+		return
+	}
 	// Discount/charge validation: negatives rejected; percent is clamped
 	// downstream by ApplyBilling (single source of truth).
 	for _, v := range []*int64{p.ServicePaise, p.PackagingPaise, p.DiscountPaise} {
@@ -306,6 +313,10 @@ func (s *Server) handleAddOrderItem(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorJSON(w, r, err)
 		return
 	}
+	if c, ok := claimsFrom(r); ok && c.Scope == auth.ScopeStaff && c.OutletID != o.OutletID {
+		httpx.ErrorJSON(w, r, httpx.ErrNotFound)
+		return
+	}
 	if o.Status == "completed" || o.Status == "cancelled" {
 		httpx.ErrorJSON(w, r, httpx.NewError(409, "invalid_state", "Cannot add items to a closed order"))
 		return
@@ -313,6 +324,10 @@ func (s *Server) handleAddOrderItem(w http.ResponseWriter, r *http.Request) {
 	menu, err := s.Store.GetMenuItem(r.Context(), req.MenuItemID)
 	if err != nil {
 		httpx.ErrorJSON(w, r, err)
+		return
+	}
+	if c, ok := claimsFrom(r); ok && c.Scope == auth.ScopeStaff && c.OutletID != menu.OutletID {
+		httpx.ErrorJSON(w, r, httpx.ErrNotFound)
 		return
 	}
 	// Resolve variant price.
@@ -390,6 +405,15 @@ func (s *Server) handleCancelOrderItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	orderID, itemID := pathID(r, "id"), pathID(r, "itemId")
+	existingOrder, err := s.Store.GetOrder(r.Context(), orderID)
+	if err != nil {
+		httpx.ErrorJSON(w, r, err)
+		return
+	}
+	if c, ok := claimsFrom(r); ok && c.Scope == auth.ScopeStaff && c.OutletID != existingOrder.OutletID {
+		httpx.ErrorJSON(w, r, httpx.ErrNotFound)
+		return
+	}
 	// FR-A3: cancelling an item whose KOT already reached the kitchen needs a
 	// manager PIN (food is being wasted/voided after the kitchen saw it).
 	if target, err := s.Store.GetOrderItem(r.Context(), orderID, itemID); err == nil && target.IsKOTSent {
@@ -429,6 +453,10 @@ func (s *Server) handlePatchOrderItem(w http.ResponseWriter, r *http.Request) {
 	o, err := s.Store.GetOrder(r.Context(), orderID)
 	if err != nil {
 		httpx.ErrorJSON(w, r, err)
+		return
+	}
+	if c, ok := claimsFrom(r); ok && c.Scope == auth.ScopeStaff && c.OutletID != o.OutletID {
+		httpx.ErrorJSON(w, r, httpx.ErrNotFound)
 		return
 	}
 	if o.Status == "completed" || o.Status == "cancelled" {
@@ -474,6 +502,9 @@ func (s *Server) handleFireKOT(w http.ResponseWriter, r *http.Request) {
 		o, err := s.Store.GetOrder(r.Context(), pathID(r, "id"))
 		if err != nil {
 			return 0, nil, err
+		}
+		if c, ok := claimsFrom(r); ok && c.Scope == auth.ScopeStaff && c.OutletID != o.OutletID {
+			return 0, nil, httpx.ErrNotFound
 		}
 		unsent := []models.OrderItem{}
 		for _, it := range o.Items {
@@ -584,6 +615,9 @@ func (s *Server) handlePay(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return 0, nil, err
 		}
+		if c, ok := claimsFrom(r); ok && c.Scope == auth.ScopeStaff && c.OutletID != o.OutletID {
+			return 0, nil, httpx.ErrNotFound
+		}
 		if err := service.ValidatePayment(o, req); err != nil {
 			return 0, nil, err
 		}
@@ -636,6 +670,10 @@ func (s *Server) handleRefund(w http.ResponseWriter, r *http.Request) {
 	o, err := s.Store.GetOrder(r.Context(), pathID(r, "id"))
 	if err != nil {
 		httpx.ErrorJSON(w, r, err)
+		return
+	}
+	if c, ok := claimsFrom(r); ok && c.Scope == auth.ScopeStaff && c.OutletID != o.OutletID {
+		httpx.ErrorJSON(w, r, httpx.ErrNotFound)
 		return
 	}
 	// FR-A3: refunds are a manager/admin action — enforced here, not only in UI.

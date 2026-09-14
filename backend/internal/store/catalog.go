@@ -66,6 +66,12 @@ func (s *Store) CreateOutlet(ctx context.Context, orgID string, o models.Outlet)
 	if err != nil {
 		return nil, err
 	}
+	defaultCats := []string{"Starters", "Soups", "Main Course", "Biryani", "Chinese", "Pizza", "Drinks", "Desserts"}
+	for i, c := range defaultCats {
+		_, _ = s.DB.ExecContext(ctx,
+			`INSERT INTO menu_categories (id, outlet_id, name, sort) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING`,
+			NewID("cat"), id, c, i)
+	}
 	return s.GetOutlet(ctx, id)
 }
 
@@ -400,10 +406,22 @@ func (s *Store) CategoryID(ctx context.Context, outletID, nameOrID string) (stri
 	err := s.DB.QueryRowContext(ctx,
 		`SELECT id FROM menu_categories WHERE outlet_id = ? AND (id = ? OR name = ?) LIMIT 1`,
 		outletID, nameOrID, nameOrID).Scan(&id)
+	if err == nil {
+		return id, nil
+	}
 	if err == sql.ErrNoRows {
+		trimmed := strings.TrimSpace(nameOrID)
+		if trimmed != "" {
+			newID := NewID("cat")
+			if _, insErr := s.DB.ExecContext(ctx,
+				`INSERT INTO menu_categories (id, outlet_id, name, sort) VALUES (?, ?, ?, 0)`,
+				newID, outletID, trimmed); insErr == nil {
+				return newID, nil
+			}
+		}
 		return "", httpx.NewError(400, "invalid_category", "Unknown category")
 	}
-	return id, err
+	return "", err
 }
 
 func (s *Store) CreateMenuItem(ctx context.Context, outletID string, req models.MenuItemUpsert) (*models.MenuItem, error) {

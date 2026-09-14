@@ -272,6 +272,7 @@ RestaurantTable tableFromApi(Map<String, dynamic> j) {
 
 MenuItem menuItemFromApi(Map<String, dynamic> j) => MenuItem(
       id: _str(j['id']),
+      outletId: _optStr(j['outlet_id']),
       name: _str(j['name']),
       category: _str(j['category']),
       price: toRupees(_int(j['price_paise'])),
