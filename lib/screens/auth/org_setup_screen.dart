@@ -78,18 +78,14 @@ class _OrgSetupScreenState extends State<OrgSetupScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(18),
-                    decoration: BoxDecoration(
-                      color: AppColors.primaryOrange,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: const Icon(Icons.restaurant_menu_rounded,
-                        color: Colors.white, size: 40),
+                  Image.asset(
+                    'assets/logo.png',
+                    width: 220,
+                    fit: BoxFit.contain,
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 16),
                   const Text(
-                    'Welcome to Hishobkr',
+                    'Terminal Setup',
                     style: TextStyle(fontWeight: FontWeight.w900, fontSize: 22),
                   ),
                   const SizedBox(height: 6),
