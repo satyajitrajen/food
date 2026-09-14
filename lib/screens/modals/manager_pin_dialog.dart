@@ -164,11 +164,6 @@ class _ManagerPinDialogState extends State<ManagerPinDialog> {
                   });
                 },
               ),
-              const SizedBox(height: 8),
-              const Text(
-                'Demo Manager PIN: 9999 or Admin PIN: 0000',
-                style: TextStyle(color: AppColors.textLight, fontSize: 11),
-              ),
             ],
           ),
         ),

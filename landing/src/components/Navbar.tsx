@@ -36,7 +36,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenDemo }) => {
           <span className="t-brand-mark">
             <UtensilsCrossed size={18} />
           </span>
-          <span>FoodPOS</span>
+          <span>Hishobkr</span>
         </a>
 
         {/* Center links */}
@@ -52,7 +52,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenDemo }) => {
 
         {/* CTA */}
         <button onClick={onOpenDemo} className="t-nav-cta">
-          <span>Get FoodPOS</span>
+          <span>Get Hishobkr</span>
           <ArrowRight size={16} className="t-arrow" aria-hidden="true" />
         </button>
       </nav>

@@ -237,7 +237,7 @@ class _MainAdaptiveShellState extends State<MainAdaptiveShell> {
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text('RESTO POS', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 1.0)),
+                                const Text('HISHOBKR', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 1.0)),
                                 Text(outlet.terminal, style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
                               ],
                             ),

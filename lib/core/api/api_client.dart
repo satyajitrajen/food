@@ -141,6 +141,27 @@ class ApiClient {
     }
   }
 
+  Future<void> registerDeviceToken(String token, {String platform = 'android'}) async {
+    try {
+      await request('POST', '/api/v1/devices/token', body: {
+        'token': token,
+        'platform': platform,
+      });
+    } catch (_) {
+      // Best-effort device token registration
+    }
+  }
+
+  Future<void> unregisterDeviceToken(String token) async {
+    try {
+      await request('DELETE', '/api/v1/devices/token', body: {
+        'token': token,
+      });
+    } catch (_) {
+      // Best-effort
+    }
+  }
+
   /// Logs in and stores the session. Returns the token response (including
   /// the `staff` object) so callers can cache server-verified identities.
   Future<Map<String, dynamic>> login(String staffId, String pin, String outletId) async {

@@ -1,4 +1,4 @@
-package com.restopos.food_pos
+package com.hishobkr.foodpos
 
 import io.flutter.embedding.android.FlutterActivity
 

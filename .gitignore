@@ -57,3 +57,4 @@ landing/dist/
 .env.local
 .commandcode/
 .finalrun/
+*.zip

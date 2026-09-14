@@ -30,7 +30,7 @@ export const Footer: React.FC = () => {
               <div className="nav-logo-icon">
                 <UtensilsCrossed size={20} />
               </div>
-              <span>Food<span style={{ color: 'var(--terracotta)' }}>POS</span></span>
+              <span>Hishob<span style={{ color: 'var(--terracotta)' }}>kr</span></span>
             </div>
             <p>
               The offline-first restaurant POS engineered for Indian dining, cafés, and QSRs. Fast billing, instant KOTs, and zero downtime.
@@ -42,7 +42,7 @@ export const Footer: React.FC = () => {
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Mail size={14} style={{ color: 'var(--terracotta)' }} />
-                <span>support@foodpos.app</span>
+                <span>support@hishobkr.com</span>
               </div>
             </div>
           </div>
@@ -122,7 +122,7 @@ export const Footer: React.FC = () => {
         {/* Footer Bottom */}
         <div className="footer-bottom">
           <div>
-            &copy; {new Date().getFullYear()} FoodPOS Technologies India. All rights reserved.
+            &copy; {new Date().getFullYear()} Hishobkr Technologies India. All rights reserved.
           </div>
           <div style={{ display: 'flex', gap: '20px' }}>
             <a href="/privacy-policy" onClick={(e) => handleLink(e, '/privacy-policy')} style={{ color: 'var(--text-dim)' }}>

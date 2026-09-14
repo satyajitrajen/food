@@ -13,6 +13,7 @@ import (
 	"foodpos/backend/internal/config"
 	"foodpos/backend/internal/httpx"
 	"foodpos/backend/internal/middleware"
+	"foodpos/backend/internal/notify"
 	"foodpos/backend/internal/store"
 	"foodpos/backend/internal/web"
 	"foodpos/backend/internal/ws"
@@ -25,6 +26,7 @@ type Server struct {
 	Tickets   *auth.TicketStore
 	Cfg       config.Config
 	UploadDir string // where menu photos are stored; served at /media/*
+	Notifier  *notify.FCMNotifier
 }
 
 func (s *Server) Routes() http.Handler {
@@ -129,6 +131,8 @@ func (s *Server) Routes() http.Handler {
 		// its JWT for an SSE ticket and read the KOT board + hydrate its
 		// terminal; every write below is denied to it via DenyRoles.
 		r.Post("/ws/ticket", s.handleWsTicket)
+		r.Post("/devices/token", s.handleRegisterDeviceToken)
+		r.Delete("/devices/token", s.handleUnregisterDeviceToken)
 		r.Get("/outlets/{id}", s.handleGetOutlet)
 		r.Get("/tables", s.handleListTables)
 		r.Get("/menu", s.handleListMenu)

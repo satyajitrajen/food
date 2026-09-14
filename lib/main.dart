@@ -1,14 +1,25 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'core/notifications/push_notification_service.dart';
 import 'core/theme/app_theme.dart';
+import 'firebase_options.dart';
 import 'providers/pos_provider.dart';
 import 'screens/auth/splash_screen.dart';
 import 'widgets/license_banner.dart';
 import 'widgets/ready_kot_alerter.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    await PushNotificationService.instance.initialize();
+  } catch (e) {
+    debugPrint('Firebase init note: $e');
+  }
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -32,7 +43,7 @@ class RestoPosApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => PosProvider(apiEnabled: true)),
       ],
       child: MaterialApp(
-        title: 'Resto POS',
+        title: 'Hishobkr',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
         navigatorKey: appNavigatorKey,
