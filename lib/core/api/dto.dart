@@ -374,6 +374,7 @@ RestaurantOrder orderFromApi(
       customerName: _optStr(j['customer_name']),
       customerPhone: _optStr(j['customer_phone']),
       deliveryAddress: _optStr(j['delivery_address']),
+      waiterId: _optStr(j['waiter_id']),
       waiterName: _optStr(j['waiter_name']),
       guestCount: _int(j['guest_count']) <= 0 ? 1 : _int(j['guest_count']),
       orderNote: _optStr(j['order_note']),

@@ -1633,6 +1633,11 @@ class PosProvider extends ChangeNotifier {
 
   RestaurantOrder _createNewOrderForTable(RestaurantTable table) {
     _orderCounter++;
+    final waiterId = _currentStaff?.role == StaffRole.waiter ? _currentStaff?.id : null;
+    final waiterName = table.assignedWaiter ?? (_currentStaff?.role == StaffRole.waiter ? _currentStaff?.name : 'Staff');
+    if (table.assignedWaiter == null && _currentStaff?.role == StaffRole.waiter) {
+      table.assignedWaiter = _currentStaff?.name;
+    }
     final order = RestaurantOrder(
       id: 'ord-${DateTime.now().millisecondsSinceEpoch}',
       orderNumber: 'ORD-$_orderCounter',
@@ -1640,7 +1645,8 @@ class PosProvider extends ChangeNotifier {
       tableId: table.id,
       tableNumber: table.tableNumber,
       createdAt: DateTime.now(),
-      waiterName: table.assignedWaiter ?? _currentStaff?.name ?? 'Staff',
+      waiterId: waiterId,
+      waiterName: waiterName,
       guestCount: table.guestCount > 0 ? table.guestCount : 2,
       items: [],
       taxPercent: _settings.gstPercentage,
@@ -1661,6 +1667,10 @@ class PosProvider extends ChangeNotifier {
         'customer_phone': order.customerPhone,
       if (order.deliveryAddress != null && order.deliveryAddress!.isNotEmpty)
         'delivery_address': order.deliveryAddress,
+      if (order.waiterId != null && order.waiterId!.isNotEmpty)
+        'waiter_id': order.waiterId,
+      if (order.waiterName != null && order.waiterName!.isNotEmpty)
+        'waiter_name': order.waiterName,
       'guest_count': order.guestCount > 0 ? order.guestCount : 1,
       if (order.orderNote != null && order.orderNote!.isNotEmpty)
         'order_note': order.orderNote,
@@ -2020,6 +2030,8 @@ class PosProvider extends ChangeNotifier {
       customerName: customerName,
       customerPhone: customerPhone,
       deliveryAddress: address,
+      waiterId: _currentStaff?.role == StaffRole.waiter ? _currentStaff?.id : null,
+      waiterName: _currentStaff?.role == StaffRole.waiter ? _currentStaff?.name : null,
       items: [],
       taxPercent: _settings.gstPercentage,
       isTaxInclusive: _settings.isGstInclusive,
@@ -2270,8 +2282,38 @@ class PosProvider extends ChangeNotifier {
   final List<RestaurantOrder> _orders = [];
   List<RestaurantOrder> get orders => List.unmodifiable(_orders);
 
-  List<RestaurantOrder> get runningOrders =>
-      _orders.where((o) => o.status != OrderStatus.completed && o.status != OrderStatus.cancelled).toList();
+  /// Returns active running orders. For staff logged in as [StaffRole.waiter],
+  /// this is scoped strictly to orders assigned to them or their tables.
+  List<RestaurantOrder> get runningOrders {
+    final active = _orders.where((o) => o.status != OrderStatus.completed && o.status != OrderStatus.cancelled);
+    final me = _currentStaff;
+    if (me != null && me.role == StaffRole.waiter) {
+      return active.where((o) => isOrderForWaiter(o, me)).toList();
+    }
+    return active.toList();
+  }
+
+  bool isOrderForWaiter(RestaurantOrder o, Staff waiter) {
+    final waiterId = waiter.id.toLowerCase().trim();
+    final waiterName = waiter.name.toLowerCase().trim();
+
+    if (o.waiterId != null && o.waiterId!.toLowerCase().trim() == waiterId) {
+      return true;
+    }
+    if (o.waiterName != null && o.waiterName!.toLowerCase().trim() == waiterName) {
+      return true;
+    }
+    if (o.tableId != null) {
+      final table = _tables.where((t) => t.id == o.tableId).firstOrNull;
+      if (table?.assignedWaiter != null) {
+        final assigned = table!.assignedWaiter!.toLowerCase().trim();
+        if (assigned == waiterName || assigned == waiterId) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
 
   List<RestaurantOrder> get completedTransactions =>
       _orders.where((o) => o.status == OrderStatus.completed).toList();

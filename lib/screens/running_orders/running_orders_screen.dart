@@ -4,6 +4,7 @@ import '../../core/theme/app_theme.dart';
 import '../../providers/pos_provider.dart';
 import '../../models/app_nav.dart';
 import '../../models/order_model.dart';
+import '../../models/staff_model.dart';
 import 'running_order_detail_screen.dart';
 import '../pos_menu/pos_menu_screen.dart';
 
@@ -32,6 +33,7 @@ class _RunningOrdersScreenState extends State<RunningOrdersScreen> with SingleTi
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<PosProvider>();
+    final isWaiter = provider.currentStaff?.role == StaffRole.waiter;
     final runningOrders = provider.runningOrders;
 
     final dineInOrders = runningOrders.where((o) => o.orderType == OrderType.dineIn).toList();
@@ -41,7 +43,20 @@ class _RunningOrdersScreenState extends State<RunningOrdersScreen> with SingleTi
     return Scaffold(
       backgroundColor: AppColors.creamBg,
       appBar: AppBar(
-        title: const Text('Running Orders', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              isWaiter ? 'My Orders' : 'Running Orders',
+              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+            ),
+            if (isWaiter && provider.currentStaff != null)
+              Text(
+                'Waiter: ${provider.currentStaff!.name}',
+                style: const TextStyle(color: AppColors.textMuted, fontWeight: FontWeight.w600, fontSize: 12),
+              ),
+          ],
+        ),
         backgroundColor: Colors.white,
         elevation: 0,
         bottom: TabBar(
@@ -75,6 +90,7 @@ class _RunningOrdersScreenState extends State<RunningOrdersScreen> with SingleTi
   }
 
   Widget _buildOrdersList(BuildContext context, List<RestaurantOrder> orders, PosProvider provider) {
+    final isWaiter = provider.currentStaff?.role == StaffRole.waiter;
     if (orders.isEmpty) {
       return Center(
         child: Column(
@@ -82,11 +98,16 @@ class _RunningOrdersScreenState extends State<RunningOrdersScreen> with SingleTi
           children: [
             const Icon(Icons.receipt_long_outlined, size: 52, color: AppColors.textLight),
             const SizedBox(height: 12),
-            const Text('No running orders in this queue', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+            Text(
+              isWaiter
+                  ? 'No active orders assigned to you'
+                  : 'No running orders in this queue',
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+            ),
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: () {
-                provider.goToDest(AppDest.pos); // Go to POS
+                provider.goToDest(isWaiter ? AppDest.tables : AppDest.pos);
               },
               child: const Text('Start New Order'),
             ),
