@@ -72,6 +72,13 @@ func (s *Store) UpdateStaff(ctx context.Context, id string, p models.StaffPatch,
 	if p.AvatarURL != nil {
 		add("avatar_url", *p.AvatarURL)
 	}
+	if p.OutletID != nil {
+		if *p.OutletID == "" {
+			add("outlet_id", nil)
+		} else {
+			add("outlet_id", *p.OutletID)
+		}
+	}
 	if p.IsActive != nil {
 		add("is_active", b2i(*p.IsActive))
 	}

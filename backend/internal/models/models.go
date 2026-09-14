@@ -47,6 +47,7 @@ type StaffPatch struct {
 	Role      *string `json:"role,omitempty"`
 	Mobile    *string `json:"mobile,omitempty"`
 	AvatarURL *string `json:"avatar_url,omitempty"`
+	OutletID  *string `json:"outlet_id,omitempty"`
 	IsActive  *bool   `json:"is_active,omitempty"`
 	PIN       *string `json:"pin,omitempty"`
 }

@@ -82,7 +82,7 @@ func (s *Store) ListStaff(ctx context.Context, orgID, outletID string) ([]models
 	q := `SELECT id, org_id, outlet_id, name, role, avatar_url, mobile, is_active FROM staff WHERE org_id = ? AND is_active = 1`
 	args := []any{orgID}
 	if outletID != "" {
-		q += ` AND (outlet_id = ? OR outlet_id IS NULL)`
+		q += ` AND (outlet_id = ? OR (outlet_id IS NULL AND role != 'waiter'))`
 		args = append(args, outletID)
 	}
 	q += ` ORDER BY name`

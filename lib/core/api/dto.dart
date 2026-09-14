@@ -240,6 +240,7 @@ Staff staffFromApi(Map<String, dynamic> j) {
   final role = staffRoleFromApi(_str(j['role']));
   return Staff(
     id: _str(j['id']),
+    outletId: _optStr(j['outlet_id']),
     name: _str(j['name']),
     role: StaffRole.values.firstWhere(
       (r) => r.name == role,

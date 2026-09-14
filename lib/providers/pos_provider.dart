@@ -1308,6 +1308,7 @@ class PosProvider extends ChangeNotifier {
     ),
     Staff(
       id: 'st-04',
+      outletId: 'out-01',
       name: 'Amit Deshmukh',
       role: StaffRole.waiter,
       pin: '1111',
@@ -1316,6 +1317,7 @@ class PosProvider extends ChangeNotifier {
     ),
     Staff(
       id: 'st-05',
+      outletId: 'out-01',
       name: 'Rohan Patil',
       role: StaffRole.waiter,
       pin: '2222',
@@ -1332,6 +1334,19 @@ class PosProvider extends ChangeNotifier {
     ),
   ];
   List<Staff> get staffList => List.unmodifiable(_staffList);
+
+  /// Returns staff eligible for the currently selected outlet.
+  /// Waiters can only belong to their single assigned outlet;
+  /// other staff roles may be org-wide floaters.
+  List<Staff> get currentOutletStaff =>
+      List.unmodifiable(_staffList.where((s) => s.canAccessOutlet(_currentOutlet.id)));
+
+  /// Active waiters/cashiers eligible to be assigned to tables in the current outlet.
+  List<Staff> get currentOutletWaiters =>
+      List.unmodifiable(_staffList.where((s) =>
+          (s.role == StaffRole.waiter || s.role == StaffRole.cashier) &&
+          s.isActive &&
+          s.canAccessOutlet(_currentOutlet.id)));
 
   /// Server-first login. On success the PIN is cached as a salted hash
   /// (PinVault) so THIS terminal can authenticate that staff offline. When
@@ -2927,26 +2942,45 @@ class PosProvider extends ChangeNotifier {
   }
 
   void addStaff(Staff staff) {
-    _staffList.add(staff);
+    final assignedOutlet = staff.role == StaffRole.waiter
+        ? (staff.outletId ?? _currentOutlet.id)
+        : staff.outletId;
+    final s = Staff(
+      id: staff.id,
+      outletId: assignedOutlet,
+      name: staff.name,
+      role: staff.role,
+      pin: staff.pin,
+      avatarUrl: staff.avatarUrl,
+      mobile: staff.mobile,
+      isActive: staff.isActive,
+    );
+    _staffList.add(s);
     notifyListeners();
     _sync?.push('staff.create', {
-      'local_id': staff.id,
-      'name': staff.name,
-      'role': staff.role.name,
-      'pin': staff.pin,
-      if (staff.avatarUrl.isNotEmpty) 'avatar_url': staff.avatarUrl,
-      if (staff.mobile.isNotEmpty) 'mobile': staff.mobile,
+      'local_id': s.id,
+      'name': s.name,
+      'role': s.role.name,
+      'pin': s.pin,
+      if (s.outletId != null) 'outlet_id': s.outletId,
+      if (s.avatarUrl.isNotEmpty) 'avatar_url': s.avatarUrl,
+      if (s.mobile.isNotEmpty) 'mobile': s.mobile,
     });
   }
 
-  void updateStaff(String id, {String? name, StaffRole? role, bool? isActive, String? pin}) {
+  void updateStaff(String id, {String? name, StaffRole? role, String? outletId, bool? isActive, String? pin}) {
     final idx = _staffList.indexWhere((s) => s.id == id);
     if (idx == -1) return;
     final s = _staffList[idx];
+    final effectiveRole = role ?? s.role;
+    final effectiveOutlet = effectiveRole == StaffRole.waiter
+        ? (outletId ?? s.outletId ?? _currentOutlet.id)
+        : (outletId ?? s.outletId);
     _staffList[idx] = Staff(
       id: s.id,
+      outletId: effectiveOutlet,
       name: name ?? s.name,
-      role: role ?? s.role,
+      role: effectiveRole,
       pin: (pin != null && pin.isNotEmpty) ? pin : s.pin,
       avatarUrl: s.avatarUrl,
       mobile: s.mobile,
@@ -2957,6 +2991,7 @@ class PosProvider extends ChangeNotifier {
       'staff_id': id,
       'name': ?name,
       if (role != null) 'role': role.name,
+      'outlet_id': ?effectiveOutlet,
       'is_active': ?isActive,
       'pin': ?((pin != null && pin.isNotEmpty) ? pin : null),
     });

@@ -58,6 +58,18 @@ func (s *Server) handlePatchTable(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorJSON(w, r, err)
 		return
 	}
+	if p.WaiterID != nil && *p.WaiterID != "" {
+		st, err := s.Store.GetStaff(r.Context(), *p.WaiterID)
+		if err != nil {
+			httpx.ErrorJSON(w, r, httpx.NewError(400, "invalid_waiter", "Waiter does not exist"))
+			return
+		}
+		table, err := s.Store.GetTable(r.Context(), pathID(r, "id"))
+		if err == nil && st.OutletID != nil && *st.OutletID != "" && *st.OutletID != table.OutletID {
+			httpx.ErrorJSON(w, r, httpx.NewError(400, "invalid_outlet", "Waiter belongs to another outlet"))
+			return
+		}
+	}
 	t, err := s.Store.PatchTable(r.Context(), pathID(r, "id"), p)
 	if err != nil {
 		httpx.ErrorJSON(w, r, err)

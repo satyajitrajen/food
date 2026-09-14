@@ -26,7 +26,7 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
   void initState() {
     super.initState();
     final provider = context.read<PosProvider>();
-    _selectedStaff = provider.staffList.isEmpty ? null : provider.staffList.first;
+    _selectedStaff = provider.currentOutletStaff.isEmpty ? null : provider.currentOutletStaff.first;
   }
 
   bool _verifying = false;
@@ -100,9 +100,10 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<PosProvider>();
-    // Keep the selected profile valid across server hydration.
-    if (!provider.staffList.any((s) => s.id == _selectedStaff?.id)) {
-      _selectedStaff = provider.staffList.isEmpty ? null : provider.staffList.first;
+    final outletStaff = provider.currentOutletStaff;
+    // Keep the selected profile valid across server hydration and outlet switches.
+    if (!outletStaff.any((s) => s.id == _selectedStaff?.id)) {
+      _selectedStaff = outletStaff.isEmpty ? null : outletStaff.first;
     }
 
     return Scaffold(
@@ -226,7 +227,7 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
                     scrollDirection: Axis.horizontal,
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
-                      children: provider.staffList.map((s) {
+                      children: outletStaff.map((s) {
                         final isSelected = _selectedStaff?.id == s.id;
                         return Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 6),

@@ -49,6 +49,10 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorJSON(w, r, httpx.NewError(403, "forbidden_outlet", "Staff is not part of this outlet's organization"))
 		return
 	}
+	if row.Role == "waiter" && (row.OutletID == nil || *row.OutletID == "") {
+		httpx.ErrorJSON(w, r, httpx.NewError(403, "forbidden_outlet", "Waiter is not assigned to any outlet"))
+		return
+	}
 	if row.OutletID != nil && *row.OutletID != req.OutletID {
 		httpx.ErrorJSON(w, r, httpx.NewError(403, "forbidden_outlet", "Staff is not assigned to this outlet"))
 		return
@@ -231,7 +235,8 @@ func (s *Server) handleListStaff(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorJSON(w, r, err)
 		return
 	}
-	list, err := s.Store.ListStaff(r.Context(), orgID, "")
+	outletID := r.URL.Query().Get("outlet_id")
+	list, err := s.Store.ListStaff(r.Context(), orgID, outletID)
 	if err != nil {
 		httpx.ErrorJSON(w, r, err)
 		return
@@ -253,6 +258,23 @@ func (s *Server) handleCreateStaff(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		httpx.ErrorJSON(w, r, httpx.ErrUnauthorized)
 		return
+	}
+	if req.Role == "waiter" {
+		if req.OutletID == nil || *req.OutletID == "" {
+			if outID := outletScope(r); outID != "" {
+				req.OutletID = &outID
+			} else {
+				httpx.ErrorJSON(w, r, httpx.NewError(400, "outlet_required", "A waiter must be assigned to a specific outlet"))
+				return
+			}
+		}
+	}
+	if req.OutletID != nil && *req.OutletID != "" {
+		out, err := s.Store.GetOutlet(r.Context(), *req.OutletID)
+		if err != nil || out.OrgID != claims.OrgID {
+			httpx.ErrorJSON(w, r, httpx.NewError(400, "invalid_outlet", "Outlet does not belong to this organization"))
+			return
+		}
 	}
 	if err := s.enforceStaffLimit(r, claims.OrgID); err != nil {
 		httpx.ErrorJSON(w, r, err)
@@ -295,6 +317,32 @@ func (s *Server) handlePatchStaff(w http.ResponseWriter, r *http.Request) {
 	if err != nil || existing.OrgID != claims.OrgID {
 		httpx.ErrorJSON(w, r, httpx.ErrNotFound)
 		return
+	}
+	effectiveRole := existing.Role
+	if p.Role != nil {
+		effectiveRole = *p.Role
+	}
+	effectiveOutlet := existing.OutletID
+	if p.OutletID != nil {
+		effectiveOutlet = p.OutletID
+	}
+	if effectiveRole == "waiter" {
+		if effectiveOutlet == nil || *effectiveOutlet == "" {
+			if outID := outletScope(r); outID != "" {
+				effectiveOutlet = &outID
+				p.OutletID = &outID
+			} else {
+				httpx.ErrorJSON(w, r, httpx.NewError(400, "outlet_required", "A waiter must be assigned to a specific outlet"))
+				return
+			}
+		}
+	}
+	if p.OutletID != nil && *p.OutletID != "" {
+		out, err := s.Store.GetOutlet(r.Context(), *p.OutletID)
+		if err != nil || out.OrgID != claims.OrgID {
+			httpx.ErrorJSON(w, r, httpx.NewError(400, "invalid_outlet", "Outlet does not belong to this organization"))
+			return
+		}
 	}
 	var pinHash *string
 	if p.PIN != nil && *p.PIN != "" {

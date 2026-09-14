@@ -143,9 +143,12 @@ func (s *Server) handleCreateOrder(w http.ResponseWriter, r *http.Request) {
 		waiterID := req.WaiterID
 		waiterName := req.WaiterName
 		if waiterID != nil && *waiterID != "" {
-			if waiterName == nil || *waiterName == "" {
-				if st, err := s.Store.GetStaff(r.Context(), *waiterID); err == nil {
+			if st, err := s.Store.GetStaff(r.Context(), *waiterID); err == nil {
+				if waiterName == nil || *waiterName == "" {
 					waiterName = &st.Name
+				}
+				if st.OutletID != nil && *st.OutletID != "" && *st.OutletID != outletID {
+					return 0, nil, httpx.NewError(400, "invalid_outlet", "Waiter belongs to another outlet")
 				}
 			}
 		} else if claims != nil && claims.Role == "waiter" {

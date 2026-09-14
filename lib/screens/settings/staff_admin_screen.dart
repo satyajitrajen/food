@@ -33,102 +33,105 @@ class StaffAdminScreen extends StatelessWidget {
       body: SafeArea(
         top: false,
         child: Column(
-        children: [
-          if (!canManage)
-            Container(
-              width: double.infinity,
-              color: AppColors.saffronAmberBg,
-              padding: const EdgeInsets.all(10),
-              child: const Text(
-                'Manager/Admin login required to manage staff (view only).',
-                style: TextStyle(color: AppColors.saffronAmber, fontWeight: FontWeight.w600, fontSize: 12),
-                textAlign: TextAlign.center,
+          children: [
+            if (!canManage)
+              Container(
+                width: double.infinity,
+                color: AppColors.saffronAmberBg,
+                padding: const EdgeInsets.all(10),
+                child: const Text(
+                  'Manager/Admin login required to manage staff (view only).',
+                  style: TextStyle(color: AppColors.saffronAmber, fontWeight: FontWeight.w600, fontSize: 12),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.all(12),
+                itemCount: staff.length,
+                itemBuilder: (context, i) {
+                  final s = staff[i];
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.borderLight),
+                    ),
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 18,
+                          backgroundColor: AppColors.primaryOrangeLight,
+                          child: Text(
+                            s.name.isNotEmpty ? s.name[0].toUpperCase() : '?',
+                            style: const TextStyle(color: AppColors.primaryOrange, fontWeight: FontWeight.w800),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(s.name, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+                              const SizedBox(height: 2),
+                              Text(
+                                s.role == StaffRole.waiter && s.outletId != null
+                                    ? 'Waiter · ${provider.outlets.where((o) => o.id == s.outletId).firstOrNull?.name ?? s.outletId}${s.isActive ? '' : ' · Inactive'}'
+                                    : '${s.roleTitle}${s.isActive ? '' : ' · Inactive'}',
+                                style: TextStyle(
+                                  color: s.isActive ? AppColors.textMuted : AppColors.nonVegRed,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (canManage) ...[
+                          DropdownButton<StaffRole>(
+                            value: s.role,
+                            underline: const SizedBox.shrink(),
+                            items: StaffRole.values
+                                .map((r) => DropdownMenuItem(value: r, child: Text(r.name, style: const TextStyle(fontSize: 12))))
+                                .toList(),
+                            onChanged: (r) {
+                              if (r != null && r != s.role) provider.updateStaff(s.id, role: r);
+                            },
+                          ),
+                          IconButton(
+                            tooltip: s.isActive ? 'Deactivate' : 'Activate',
+                            icon: Icon(
+                              s.isActive ? Icons.block_outlined : Icons.check_circle_outline,
+                              size: 18,
+                              color: s.isActive ? AppColors.nonVegRed : AppColors.vegGreen,
+                            ),
+                            onPressed: () => provider.updateStaff(s.id, isActive: !s.isActive),
+                          ),
+                          IconButton(
+                            tooltip: 'Reset PIN',
+                            icon: const Icon(Icons.password, size: 18, color: AppColors.primaryOrange),
+                            onPressed: () => _showPinResetDialog(context, provider, s),
+                          ),
+                        ],
+                      ],
+                    ),
+                  );
+                },
               ),
             ),
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.all(12),
-              itemCount: staff.length,
-              itemBuilder: (context, i) {
-                final s = staff[i];
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.borderLight),
-                  ),
-                  child: Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 18,
-                        backgroundColor: AppColors.primaryOrangeLight,
-                        child: Text(
-                          s.name.isNotEmpty ? s.name[0].toUpperCase() : '?',
-                          style: const TextStyle(color: AppColors.primaryOrange, fontWeight: FontWeight.w800),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(s.name, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
-                            const SizedBox(height: 2),
-                            Text(
-                              '${s.roleTitle}${s.isActive ? '' : ' · Inactive'}',
-                              style: TextStyle(
-                                color: s.isActive ? AppColors.textMuted : AppColors.nonVegRed,
-                                fontSize: 11,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (canManage) ...[
-                        DropdownButton<StaffRole>(
-                          value: s.role,
-                          underline: const SizedBox.shrink(),
-                          items: StaffRole.values
-                              .map((r) => DropdownMenuItem(value: r, child: Text(r.name, style: const TextStyle(fontSize: 12))))
-                              .toList(),
-                          onChanged: (r) {
-                            if (r != null && r != s.role) provider.updateStaff(s.id, role: r);
-                          },
-                        ),
-                        IconButton(
-                          tooltip: s.isActive ? 'Deactivate' : 'Activate',
-                          icon: Icon(
-                            s.isActive ? Icons.block_outlined : Icons.check_circle_outline,
-                            size: 18,
-                            color: s.isActive ? AppColors.nonVegRed : AppColors.vegGreen,
-                          ),
-                          onPressed: () => provider.updateStaff(s.id, isActive: !s.isActive),
-                        ),
-                        IconButton(
-                          tooltip: 'Reset PIN',
-                          icon: const Icon(Icons.pin_outlined, size: 18),
-                          onPressed: () => _showPinResetDialog(context, provider, s),
-                        ),
-                      ],
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   void _showAddDialog(BuildContext context, PosProvider provider) {
     final nameC = TextEditingController();
     final pinC = TextEditingController();
     final mobileC = TextEditingController();
     var role = StaffRole.cashier;
+    var selectedOutletId = provider.currentOutlet.id;
 
     showDialog(
       context: context,
@@ -160,6 +163,20 @@ class StaffAdminScreen extends StatelessWidget {
                         .toList(),
                     onChanged: (v) => setDialogState(() => role = v ?? role),
                   ),
+                  if (role == StaffRole.waiter) ...[
+                    const SizedBox(height: 10),
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedOutletId,
+                      decoration: const InputDecoration(
+                        labelText: 'Assigned Outlet',
+                        helperText: 'A waiter is assigned to one specific outlet',
+                      ),
+                      items: provider.outlets
+                          .map((o) => DropdownMenuItem(value: o.id, child: Text(o.name)))
+                          .toList(),
+                      onChanged: (v) => setDialogState(() => selectedOutletId = v ?? selectedOutletId),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -173,6 +190,7 @@ class StaffAdminScreen extends StatelessWidget {
                 if (name.isEmpty || pin.length < 4 || pin.length > 6 || !RegExp(r'^\d+$').hasMatch(pin)) return;
                 provider.addStaff(Staff(
                   id: 'st-${DateTime.now().millisecondsSinceEpoch}',
+                  outletId: role == StaffRole.waiter ? selectedOutletId : null,
                   name: name,
                   role: role,
                   pin: pin,
