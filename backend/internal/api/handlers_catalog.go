@@ -1,7 +1,9 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -177,14 +179,55 @@ func derefStr(s *string) string {
 }
 
 func (s *Server) publish(_ *http.Request, evtType, outletID string, payload any) {
-	if s.Hub == nil {
-		return
+	if s.Hub != nil {
+		body, err := json.Marshal(payload)
+		if err == nil {
+			s.Hub.Publish(ws.Event{Type: evtType, OutletID: outletID, Payload: body, Timestamp: time.Now().UTC()})
+		}
 	}
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return
+
+	if s.Notifier != nil && outletID != "" {
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			title := "Hishobkr Alert"
+			bodyText := fmt.Sprintf("Event: %s", evtType)
+
+			switch evtType {
+			case "order.updated":
+				title = "Order Update"
+				bodyText = "An order has been updated."
+			case "kot.created":
+				title = "New Kitchen Order (KOT)"
+				bodyText = "A new KOT has been received for preparation."
+			case "kot.updated":
+				title = "KOT Status Changed"
+				bodyText = "Kitchen order ticket status updated."
+			case "table.updated":
+				title = "Table Updated"
+				bodyText = "Table status or occupancy changed."
+			case "shift.updated":
+				title = "Shift / Cash Drawer Update"
+				bodyText = "A shift event has occurred."
+			}
+
+			data := map[string]any{
+				"type":      evtType,
+				"outlet_id": outletID,
+				"ts":        time.Now().UTC().Format(time.RFC3339),
+			}
+
+			// Send to outlet and global order topics
+			_ = s.Notifier.SendToTopic(ctx, "outlet_"+outletID, title, bodyText, data)
+			_ = s.Notifier.SendToTopic(ctx, "hishobkr_orders", title, bodyText, data)
+
+			// Send to registered outlet devices
+			if tokens, err := s.Store.ListDeviceTokensByOutlet(ctx, outletID); err == nil && len(tokens) > 0 {
+				_ = s.Notifier.SendToTokens(ctx, tokens, title, bodyText, data)
+			}
+		}()
 	}
-	s.Hub.Publish(ws.Event{Type: evtType, OutletID: outletID, Payload: body, Timestamp: time.Now().UTC()})
 }
 
 func (s *Server) handleListMenu(w http.ResponseWriter, r *http.Request) {

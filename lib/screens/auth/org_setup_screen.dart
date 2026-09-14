@@ -89,7 +89,7 @@ class _OrgSetupScreenState extends State<OrgSetupScreen> {
                   ),
                   const SizedBox(height: 20),
                   const Text(
-                    'Welcome to FoodPOS',
+                    'Welcome to Hishobkr',
                     style: TextStyle(fontWeight: FontWeight.w900, fontSize: 22),
                   ),
                   const SizedBox(height: 6),

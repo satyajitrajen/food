@@ -17,6 +17,7 @@ import (
 	"foodpos/backend/internal/config"
 	"foodpos/backend/internal/db"
 	"foodpos/backend/internal/models"
+	"foodpos/backend/internal/notify"
 	"foodpos/backend/internal/store"
 	"foodpos/backend/internal/ws"
 )
@@ -71,7 +72,15 @@ func main() {
 		slog.Info("seed data loaded")
 	}
 
-	srv := &api.Server{Store: st, Auth: authMgr, Hub: hub, Tickets: tickets, Cfg: cfg, UploadDir: cfg.UploadDir}
+	srv := &api.Server{
+		Store:     st,
+		Auth:      authMgr,
+		Hub:       hub,
+		Tickets:   tickets,
+		Cfg:       cfg,
+		UploadDir: cfg.UploadDir,
+		Notifier:  notify.NewFCMNotifier(cfg.FCMProjectID, cfg.FCMServerKey),
+	}
 
 	httpSrv := &http.Server{
 		Addr:              ":" + cfg.Port,

@@ -46,6 +46,10 @@ type Config struct {
 	// API); a comma-separated list restricts to specific origins; empty disables
 	// CORS (use a same-origin reverse proxy).
 	CORSOrigins string
+
+	// Firebase Cloud Messaging (FCM)
+	FCMProjectID string
+	FCMServerKey string
 }
 
 func Load() Config {
@@ -85,9 +89,12 @@ func Load() Config {
 		SMTPPort:    envInt("FOODPOS_SMTP_PORT", 587),
 		SMTPUser:    env("FOODPOS_SMTP_USER", ""),
 		SMTPPass:    env("FOODPOS_SMTP_PASS", ""),
-		SMTPFrom:    env("FOODPOS_SMTP_FROM", "FoodPOS <no-reply@foodpos.app>"),
-		AppBaseURL:  env("FOODPOS_APP_BASE_URL", "https://app.foodpos.example"),
+		SMTPFrom:    env("FOODPOS_SMTP_FROM", "Hishobkr <no-reply@hishobkr.com>"),
+		AppBaseURL:  env("FOODPOS_APP_BASE_URL", "https://food.nexorytechnologies.com"),
 		CORSOrigins: cors,
+
+		FCMProjectID: env("FOODPOS_FCM_PROJECT_ID", "hishobkr-pos"),
+		FCMServerKey: env("FOODPOS_FCM_SERVER_KEY", ""),
 	}
 }
 

@@ -14,11 +14,21 @@ class LicenseBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<PosProvider>();
-    final show = provider.apiEnabled && !provider.licenseActive;
+    // The subscription banner should ONLY be shown when:
+    // 1. API mode is enabled.
+    // 2. An organization is bound and initial terminal setup is complete.
+    // 3. A staff member is authenticated/working in the POS.
+    // 4. An entitlement has actually been loaded and is inactive/expired/suspended.
+    final show = provider.apiEnabled &&
+        provider.orgCode != null &&
+        !provider.needsOrgSetup &&
+        provider.currentStaff != null &&
+        provider.entitlement != null &&
+        !provider.licenseActive;
     if (!show) return child;
 
-    final entitle = provider.entitlement;
-    final status = entitle?.status ?? 'expired';
+    final entitle = provider.entitlement!;
+    final status = entitle.status;
     final message = status == 'suspended'
         ? 'Subscription suspended by the platform.'
         : 'Subscription $status. Renew to keep taking orders.';

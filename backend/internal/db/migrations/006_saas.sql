@@ -125,17 +125,17 @@ ALTER TABLE counters DROP CONSTRAINT IF EXISTS counters_kind_check;
 ALTER TABLE counters ADD CONSTRAINT counters_kind_check
     CHECK (kind IN ('order','kot','invoice','saas_invoice'));
 
--- ---- Demo organization for existing (pre-SaaS) data ----
+-- ---- Default organization for existing (pre-SaaS) data ----
 INSERT INTO organizations (id, name, email, gstin, status, created_at, updated_at)
-VALUES ('org-01', 'Spice Haven', 'demo@spicehaven.test', '27AAAAA0000A1Z5', 'active',
+VALUES ('org-01', 'Hishobkr Restaurant', 'contact@hishobkr.com', '27AAAAA0000A1Z5', 'active',
         to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
         to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
 ON CONFLICT (id) DO NOTHING;
 
--- Existing outlets/staff belong to the demo org; staff keep org-wide access
+-- Existing outlets/staff belong to the default org; staff keep org-wide access
 -- (outlet_id NULL) so legacy terminals can still reach every outlet they could.
 INSERT INTO org_codes (org_id, code, active, created_at)
-VALUES ('org-01', 'SPICE-HAVEN', 1,
+VALUES ('org-01', 'HISHOBKR', 1,
         to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
 ON CONFLICT (code) DO NOTHING;
 

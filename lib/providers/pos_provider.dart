@@ -6,6 +6,7 @@ import '../core/api/api_client.dart';
 import '../core/api/dto.dart';
 import '../core/auth/pin_vault.dart';
 import '../core/auth/tenant.dart';
+import '../core/notifications/push_notification_service.dart';
 import '../core/printing/printing.dart';
 import '../core/printing/receipt_builder.dart';
 import '../core/sync/outbox.dart';
@@ -101,6 +102,12 @@ class PosProvider extends ChangeNotifier {
     if (_currentStaff != null) {
       unawaited(_postLoginSync());
     }
+    PushNotificationService.instance.onMessage.listen((msg) {
+      final type = msg.data['type'] as String?;
+      if (type != null) {
+        _applyRealtimeEvent(type, Map<String, dynamic>.from(msg.data));
+      }
+    });
   }
 
   Future<void> _postLoginSync() async {
@@ -108,6 +115,10 @@ class PosProvider extends ChangeNotifier {
     await _sync!.probe();
     if (_sync!.online) {
       await hydrateOutlet();
+      final token = PushNotificationService.instance.fcmToken;
+      if (token != null && token.isNotEmpty && _api != null) {
+        unawaited(_api!.registerDeviceToken(token));
+      }
     }
     _connectRealtime();
   }
@@ -120,6 +131,7 @@ class PosProvider extends ChangeNotifier {
       onConnectionChanged: (_) => notifyListeners(),
     );
     unawaited(_realtime!.connect(_currentOutlet.id));
+    unawaited(PushNotificationService.instance.subscribeToTopic('outlet_${_currentOutlet.id}'));
   }
 
   void _applyRealtimeEvent(String type, Map<String, dynamic> payload) {
@@ -3054,6 +3066,7 @@ class PosProvider extends ChangeNotifier {
 
   void _switchOutlet(Outlet outlet) {
     _currentOutlet = outlet;
+    unawaited(PushNotificationService.instance.subscribeToTopic('outlet_${outlet.id}'));
     notifyListeners();
     if (apiEnabled && _currentStaff != null) {
       unawaited(_postLoginSync());
@@ -3144,136 +3157,9 @@ class PosProvider extends ChangeNotifier {
     }());
   }
 
-  // Seed sample initial transactions if empty
+  // Seed sample initial transactions - completely empty so there is no demo or dummy data.
   void _seedData() {
-    if (!kDebugMode) {
-      return; // no demo orders/shifts in release builds
-    }
-    if (apiEnabled) {
-      // No plaintext PINs on real terminals: the server bcrypt-verifies and
-      // offline reuse is handled by PinVault (salted hashes cached per
-      // terminal). Demo mode (apiEnabled=false) keeps the seed PINs.
-      final blanked = _staffList
-          .map((s) => Staff(
-                id: s.id,
-                name: s.name,
-                role: s.role,
-                pin: '',
-                avatarUrl: s.avatarUrl,
-                mobile: s.mobile,
-                isActive: s.isActive,
-              ))
-          .toList();
-      _staffList
-        ..clear()
-        ..addAll(blanked);
-    }
-    // Start an active shift so the app is instantly usable
-    _currentStaff = _staffList.first; // Rahul (Cashier)
-    _currentShift = Shift(
-      id: 'SH-101',
-      staffId: 'st-01',
-      staffName: 'Rahul Sharma',
-      startedAt: DateTime.now().subtract(const Duration(hours: 4)),
-      openingCash: 5000.0,
-      cashSales: 4200.0,
-      upiSales: 7800.0,
-      cardSales: 3400.0,
-      expenses: 4800.0,
-      cashIn: 1000.0,
-      cashOut: 500.0,
-    );
-
-    // Seed completed past invoices
-    _orders.add(
-      RestaurantOrder(
-        id: 'ord-seed-1',
-        orderNumber: 'ORD-1040',
-        orderType: OrderType.dineIn,
-        tableId: 't-04',
-        tableNumber: 'T04',
-        createdAt: DateTime.now().subtract(const Duration(hours: 2)),
-        status: OrderStatus.completed,
-        customerName: 'Rohit Sharma',
-        customerPhone: '+91 99881 22334',
-        items: [
-          OrderItem(
-            id: 'i-s1',
-            menuItem: _menuItems[0], // Paneer Tikka
-            quantity: 2,
-            isKOTSent: true,
-          ),
-          OrderItem(
-            id: 'i-s2',
-            menuItem: _menuItems[5], // Butter Naan
-            quantity: 4,
-            isKOTSent: true,
-          ),
-        ],
-        invoiceNumber: 'INV-1040',
-        paidAt: DateTime.now().subtract(const Duration(hours: 2)),
-        paymentMethod: 'Cash',
-        totalPaid: 798.0,
-      ),
-    );
-
-    _orders.add(
-      RestaurantOrder(
-        id: 'ord-seed-2',
-        orderNumber: 'ORD-1041',
-        orderType: OrderType.takeaway,
-        createdAt: DateTime.now().subtract(const Duration(hours: 1)),
-        status: OrderStatus.completed,
-        customerName: 'Pooja Hegde',
-        customerPhone: '+91 99881 33445',
-        items: [
-          OrderItem(
-            id: 'i-s3',
-            menuItem: _menuItems[7], // Chicken Biryani
-            quantity: 2,
-            isKOTSent: true,
-          ),
-        ],
-        invoiceNumber: 'INV-1041',
-        paidAt: DateTime.now().subtract(const Duration(hours: 1)),
-        paymentMethod: 'UPI',
-        totalPaid: 693.0,
-      ),
-    );
-
-    // Seed active KOT
-    _kots.add(
-      KitchenOrderTicket(
-        id: 'kot-seed-1',
-        kotNumber: 'KOT #1201',
-        orderId: 'ord-seed-3',
-        tableNumber: 'T02',
-        orderType: OrderType.dineIn,
-        waiterName: 'Rahul',
-        createdAt: DateTime.now().subtract(const Duration(minutes: 24)),
-        status: KOTStatus.preparing,
-        items: [
-          OrderItem(id: 'i-k1', menuItem: _menuItems[0], quantity: 1, isKOTSent: true),
-          OrderItem(id: 'i-k2', menuItem: _menuItems[4], quantity: 1, isKOTSent: true),
-        ],
-      ),
-    );
-
-    _kots.add(
-      KitchenOrderTicket(
-        id: 'kot-seed-2',
-        kotNumber: 'KOT #1202',
-        orderId: 'ord-seed-4',
-        tableNumber: 'T08',
-        orderType: OrderType.dineIn,
-        waiterName: 'Rohan',
-        createdAt: DateTime.now().subtract(const Duration(minutes: 15)),
-        status: KOTStatus.newTicket,
-        items: [
-          OrderItem(id: 'i-k3', menuItem: _menuItems[8], quantity: 2, isKOTSent: true),
-          OrderItem(id: 'i-k4', menuItem: _menuItems[10], quantity: 3, isKOTSent: true),
-        ],
-      ),
-    );
+    // Pure production state: no demo orders, dummy shifts, or fake KOTs.
+    // All transactions, shifts, and orders are created by real users or hydrated from the server.
   }
 }

@@ -89,7 +89,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
               ),
               const SizedBox(height: 24),
               const Text(
-                'RESTO POS',
+                'HISHOBKR',
                 style: TextStyle(
                   color: AppColors.textDark,
                   fontSize: 28,

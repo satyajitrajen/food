@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "329235285394",
+    "project_id": "hishobkr-pos",
+    "storage_bucket": "hishobkr-pos.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:329235285394:android:b47f065f12c1c904336d4b",
+        "android_client_info": {
+          "package_name": "com.hishobkr.foodpos"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAOmTxS2VDxys1cd3V3vE0faKdowH-191c"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
