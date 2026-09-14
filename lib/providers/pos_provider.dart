@@ -1313,14 +1313,6 @@ class PosProvider extends ChangeNotifier {
       mobile: '+91 98220 44556',
     ),
     Staff(
-      id: 'st-05',
-      name: 'Rohan Patil',
-      role: StaffRole.waiter,
-      pin: '2222',
-      avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100',
-      mobile: '+91 98220 55667',
-    ),
-    Staff(
       id: 'st-06',
       name: 'Chef Sharma',
       role: StaffRole.kitchen,
@@ -1578,7 +1570,7 @@ class PosProvider extends ChangeNotifier {
     RestaurantTable(id: 't-05', tableNumber: 'T05', seats: 4, floor: 'Ground Floor', status: TableStatus.available),
     RestaurantTable(id: 't-06', tableNumber: 'T06', seats: 4, floor: 'Ground Floor', status: TableStatus.available),
     RestaurantTable(id: 't-07', tableNumber: 'T07', seats: 2, floor: 'First Floor', status: TableStatus.available),
-    RestaurantTable(id: 't-08', tableNumber: 'T08', seats: 6, floor: 'First Floor', status: TableStatus.occupied, currentOrderAmount: 1650.0, runningMinutes: 18, guestCount: 4, assignedWaiter: 'Rohan'),
+    RestaurantTable(id: 't-08', tableNumber: 'T08', seats: 6, floor: 'First Floor', status: TableStatus.occupied, currentOrderAmount: 1650.0, runningMinutes: 18, guestCount: 4, assignedWaiter: 'Amit'),
     RestaurantTable(id: 't-09', tableNumber: 'T09', seats: 8, floor: 'First Floor', status: TableStatus.available),
     RestaurantTable(id: 't-10', tableNumber: 'T10', seats: 4, floor: 'Outdoor', status: TableStatus.cleaning),
     RestaurantTable(id: 't-11', tableNumber: 'T11', seats: 2, floor: 'Outdoor', status: TableStatus.available),

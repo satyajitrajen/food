@@ -122,13 +122,12 @@ func seed(st *store.Store, mgr *auth.Manager) error {
 		return err
 	}
 
-	// Staff (PINs: admin 0000, manager 9999, cashier 1234, waiters 1111/2222, kitchen 5555)
+	// Staff (PINs: admin 0000, manager 9999, cashier 1234, waiter 1111, kitchen 5555) — one per unique role
 	staff := []struct{ id, name, role, pin, avatar, mobile string }{
 		{"st-01", "Rahul Sharma", "cashier", "1234", "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100", "+91 98220 11223"},
 		{"st-02", "Priya Joshi", "manager", "9999", "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100", "+91 98220 22334"},
 		{"st-03", "Vikram Singh", "admin", "0000", "https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=100", "+91 98220 33445"},
 		{"st-04", "Amit Deshmukh", "waiter", "1111", "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100", "+91 98220 44556"},
-		{"st-05", "Rohan Patil", "waiter", "2222", "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100", "+91 98220 55667"},
 		{"st-06", "Chef Sharma", "kitchen", "5555", "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100", "+91 98220 66778"},
 	}
 	for _, s := range staff {
