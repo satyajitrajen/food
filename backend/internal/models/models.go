@@ -209,6 +209,8 @@ type OrderCreate struct {
 	CustomerName    *string  `json:"customer_name,omitempty"`
 	CustomerPhone   *string  `json:"customer_phone,omitempty"`
 	DeliveryAddress *string  `json:"delivery_address,omitempty"`
+	WaiterID        *string  `json:"waiter_id,omitempty"`
+	WaiterName      *string  `json:"waiter_name,omitempty"`
 	GuestCount      int      `json:"guest_count,omitempty"`
 	OrderNote       *string  `json:"order_note,omitempty"`
 	TaxPercent      *float64 `json:"tax_percent,omitempty"`
@@ -230,6 +232,8 @@ type OrderItemPatch struct {
 
 type OrderPatch struct {
 	Status          *string  `json:"status,omitempty"`
+	WaiterID        *string  `json:"waiter_id,omitempty"`
+	WaiterName      *string  `json:"waiter_name,omitempty"`
 	OrderNote       *string  `json:"order_note,omitempty"`
 	GuestCount      *int     `json:"guest_count,omitempty"`
 	CustomerName    *string  `json:"customer_name,omitempty"`

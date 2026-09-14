@@ -805,6 +805,8 @@ class PosProvider extends ChangeNotifier {
           if (p['customer_name'] != null) 'customer_name': p['customer_name'],
           if (p['customer_phone'] != null) 'customer_phone': p['customer_phone'],
           if (p['delivery_address'] != null) 'delivery_address': p['delivery_address'],
+          if (p['waiter_id'] != null) 'waiter_id': p['waiter_id'],
+          if (p['waiter_name'] != null) 'waiter_name': p['waiter_name'],
           if (p['guest_count'] != null) 'guest_count': p['guest_count'],
           if (p['order_note'] != null) 'order_note': p['order_note'],
         },

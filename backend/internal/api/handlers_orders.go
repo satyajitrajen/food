@@ -33,7 +33,8 @@ func (s *Server) handleListOrders(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorJSON(w, r, httpx.NewError(400, "missing_outlet", "outlet_id is required"))
 		return
 	}
-	orders, err := s.Store.ListOrders(r.Context(), outletID, r.URL.Query().Get("status"), queryInt(r, "limit", 100))
+	waiterID := r.URL.Query().Get("waiter_id")
+	orders, err := s.Store.ListOrders(r.Context(), outletID, r.URL.Query().Get("status"), waiterID, queryInt(r, "limit", 100))
 	if err != nil {
 		httpx.ErrorJSON(w, r, err)
 		return
@@ -139,6 +140,41 @@ func (s *Server) handleCreateOrder(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		waiterID := req.WaiterID
+		waiterName := req.WaiterName
+		if waiterID != nil && *waiterID != "" {
+			if waiterName == nil || *waiterName == "" {
+				if st, err := s.Store.GetStaff(r.Context(), *waiterID); err == nil {
+					waiterName = &st.Name
+				}
+			}
+		} else if claims != nil && claims.Role == "waiter" {
+			waiterID = strPtr(claims.ActorID)
+			waiterName = strPtr(claims.Name)
+		}
+
+		var tableNumber *string
+		if req.TableID != nil {
+			t, err := s.Store.GetTable(r.Context(), *req.TableID)
+			if err != nil {
+				return 0, nil, err
+			}
+			tableNumber = strPtr(t.TableNumber)
+			if t.GuestCount > guests {
+				guests = t.GuestCount
+			}
+			if (waiterID == nil || *waiterID == "") && t.AssignedWaiterID != nil && *t.AssignedWaiterID != "" {
+				waiterID = t.AssignedWaiterID
+				if st, err := s.Store.GetStaff(r.Context(), *t.AssignedWaiterID); err == nil {
+					waiterName = &st.Name
+				}
+			}
+		}
+		if (waiterID == nil || *waiterID == "") && claims != nil {
+			waiterID = strPtr(claims.ActorID)
+			waiterName = strPtr(claims.Name)
+		}
+
 		o := &models.Order{
 			ID:              store.NewID("ord"),
 			ClientID:        req.ClientID,
@@ -147,11 +183,12 @@ func (s *Server) handleCreateOrder(w http.ResponseWriter, r *http.Request) {
 			Type:            req.Type,
 			Status:          "received",
 			TableID:         req.TableID,
+			TableNumber:     tableNumber,
 			CustomerName:    req.CustomerName,
 			CustomerPhone:   req.CustomerPhone,
 			DeliveryAddress: req.DeliveryAddress,
-			WaiterID:        strPtr(claims.ActorID),
-			WaiterName:      strPtr(claims.Name),
+			WaiterID:        waiterID,
+			WaiterName:      waiterName,
 			GuestCount:      guests,
 			OrderNote:       req.OrderNote,
 			TaxPercent:      taxPercent,
@@ -161,16 +198,6 @@ func (s *Server) handleCreateOrder(w http.ResponseWriter, r *http.Request) {
 			CreatedAt:       now,
 			UpdatedAt:       now,
 			Items:           []models.OrderItem{},
-		}
-		if req.TableID != nil {
-			t, err := s.Store.GetTable(r.Context(), *req.TableID)
-			if err != nil {
-				return 0, nil, err
-			}
-			o.TableNumber = strPtr(t.TableNumber)
-			if t.GuestCount > guests {
-				o.GuestCount = t.GuestCount
-			}
 		}
 		if err := s.Store.InsertOrder(r.Context(), o); err != nil {
 			return 0, nil, err
@@ -232,6 +259,11 @@ func (s *Server) handlePatchOrder(w http.ResponseWriter, r *http.Request) {
 		default:
 			httpx.ErrorJSON(w, r, httpx.NewError(400, "invalid_status", "Use /pay or /refund to close an order"))
 			return
+		}
+	}
+	if p.WaiterID != nil && (p.WaiterName == nil || *p.WaiterName == "") {
+		if st, err := s.Store.GetStaff(r.Context(), *p.WaiterID); err == nil {
+			p.WaiterName = &st.Name
 		}
 	}
 	if err := s.Store.PatchOrder(r.Context(), o.ID, p); err != nil {

@@ -424,7 +424,7 @@ func (s *Server) handleDashboardReport(w http.ResponseWriter, r *http.Request) {
 		rep.SalesPaise = shift.TotalSales()
 		rep.CashDrawerPaise = shift.ExpectedCash()
 	}
-	completed, err := s.Store.ListOrders(r.Context(), outletID, "completed", 500)
+	completed, err := s.Store.ListOrders(r.Context(), outletID, "completed", "", 500)
 	if err != nil {
 		httpx.ErrorJSON(w, r, err)
 		return
