@@ -117,7 +117,7 @@ class _GuestDetailsDialogState extends State<GuestDetailsDialog> {
   Widget build(BuildContext context) {
     final provider = context.watch<PosProvider>();
     final me = provider.currentStaff;
-    final allWaiters = provider.staffList.where((s) => s.role.name == 'waiter' || s.role.name == 'cashier').toList();
+    final allWaiters = provider.currentOutletWaiters;
     final waiters = me != null && me.role == StaffRole.waiter
         ? allWaiters.where((s) => s.id == me.id).toList()
         : allWaiters;

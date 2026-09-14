@@ -59,6 +59,7 @@ class ModifierGroup {
 
 class MenuItem {
   final String id;
+  final String? outletId;
   final String name;
   final String category;
   final double price;
@@ -72,6 +73,7 @@ class MenuItem {
 
   MenuItem({
     required this.id,
+    this.outletId,
     required this.name,
     required this.category,
     required this.price,
@@ -89,6 +91,7 @@ class MenuItem {
 
   MenuItem copy() => MenuItem(
         id: id,
+        outletId: outletId,
         name: name,
         category: category,
         price: price,
@@ -102,6 +105,7 @@ class MenuItem {
       );
 
   MenuItem copyWith({
+    String? outletId,
     String? name,
     String? category,
     double? price,
@@ -115,6 +119,7 @@ class MenuItem {
   }) =>
       MenuItem(
         id: id,
+        outletId: outletId ?? this.outletId,
         name: name ?? this.name,
         category: category ?? this.category,
         price: price ?? this.price,

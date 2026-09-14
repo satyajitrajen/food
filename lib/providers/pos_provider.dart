@@ -766,6 +766,7 @@ class PosProvider extends ChangeNotifier {
 
   void _rebuildCategories() {
     final cats = _menuItems
+        .where((m) => m.outletId == null || m.outletId == _currentOutlet.id)
         .map((m) => m.category)
         .where((c) => c.isNotEmpty)
         .toSet()
@@ -805,6 +806,8 @@ class PosProvider extends ChangeNotifier {
           if (p['customer_name'] != null) 'customer_name': p['customer_name'],
           if (p['customer_phone'] != null) 'customer_phone': p['customer_phone'],
           if (p['delivery_address'] != null) 'delivery_address': p['delivery_address'],
+          if (p['waiter_id'] != null) 'waiter_id': p['waiter_id'],
+          if (p['waiter_name'] != null) 'waiter_name': p['waiter_name'],
           if (p['guest_count'] != null) 'guest_count': p['guest_count'],
           if (p['order_note'] != null) 'order_note': p['order_note'],
         },
@@ -1306,6 +1309,7 @@ class PosProvider extends ChangeNotifier {
     ),
     Staff(
       id: 'st-04',
+      outletId: 'out-01',
       name: 'Amit Deshmukh',
       role: StaffRole.waiter,
       pin: '1111',
@@ -1322,6 +1326,19 @@ class PosProvider extends ChangeNotifier {
     ),
   ];
   List<Staff> get staffList => List.unmodifiable(_staffList);
+
+  /// Returns staff eligible for the currently selected outlet.
+  /// Waiters can only belong to their single assigned outlet;
+  /// other staff roles may be org-wide floaters.
+  List<Staff> get currentOutletStaff =>
+      List.unmodifiable(_staffList.where((s) => s.canAccessOutlet(_currentOutlet.id)));
+
+  /// Active waiters/cashiers eligible to be assigned to tables in the current outlet.
+  List<Staff> get currentOutletWaiters =>
+      List.unmodifiable(_staffList.where((s) =>
+          (s.role == StaffRole.waiter || s.role == StaffRole.cashier) &&
+          s.isActive &&
+          s.canAccessOutlet(_currentOutlet.id)));
 
   /// Server-first login. On success the PIN is cached as a salted hash
   /// (PinVault) so THIS terminal can authenticate that staff offline. When
@@ -1625,6 +1642,11 @@ class PosProvider extends ChangeNotifier {
 
   RestaurantOrder _createNewOrderForTable(RestaurantTable table) {
     _orderCounter++;
+    final waiterId = _currentStaff?.role == StaffRole.waiter ? _currentStaff?.id : null;
+    final waiterName = table.assignedWaiter ?? (_currentStaff?.role == StaffRole.waiter ? _currentStaff?.name : 'Staff');
+    if (table.assignedWaiter == null && _currentStaff?.role == StaffRole.waiter) {
+      table.assignedWaiter = _currentStaff?.name;
+    }
     final order = RestaurantOrder(
       id: 'ord-${DateTime.now().millisecondsSinceEpoch}',
       orderNumber: 'ORD-$_orderCounter',
@@ -1632,7 +1654,8 @@ class PosProvider extends ChangeNotifier {
       tableId: table.id,
       tableNumber: table.tableNumber,
       createdAt: DateTime.now(),
-      waiterName: table.assignedWaiter ?? _currentStaff?.name ?? 'Staff',
+      waiterId: waiterId,
+      waiterName: waiterName,
       guestCount: table.guestCount > 0 ? table.guestCount : 2,
       items: [],
       taxPercent: _settings.gstPercentage,
@@ -1653,6 +1676,10 @@ class PosProvider extends ChangeNotifier {
         'customer_phone': order.customerPhone,
       if (order.deliveryAddress != null && order.deliveryAddress!.isNotEmpty)
         'delivery_address': order.deliveryAddress,
+      if (order.waiterId != null && order.waiterId!.isNotEmpty)
+        'waiter_id': order.waiterId,
+      if (order.waiterName != null && order.waiterName!.isNotEmpty)
+        'waiter_name': order.waiterName,
       'guest_count': order.guestCount > 0 ? order.guestCount : 1,
       if (order.orderNote != null && order.orderNote!.isNotEmpty)
         'order_note': order.orderNote,
@@ -1975,10 +2002,11 @@ class PosProvider extends ChangeNotifier {
       description: 'Warm golden milk dumplings soaked in fragrant cardamom rose syrup.',
     ),
   ];
-  List<MenuItem> get menuItems => List.unmodifiable(_menuItems);
+  List<MenuItem> get menuItems => List.unmodifiable(
+      _menuItems.where((m) => m.outletId == null || m.outletId == _currentOutlet.id));
 
   List<MenuItem> get filteredMenuItems {
-    return _menuItems.where((item) {
+    return menuItems.where((item) {
       if (_selectedCategory != 'All' && item.category != _selectedCategory) {
         return false;
       }
@@ -2012,6 +2040,8 @@ class PosProvider extends ChangeNotifier {
       customerName: customerName,
       customerPhone: customerPhone,
       deliveryAddress: address,
+      waiterId: _currentStaff?.role == StaffRole.waiter ? _currentStaff?.id : null,
+      waiterName: _currentStaff?.role == StaffRole.waiter ? _currentStaff?.name : null,
       items: [],
       taxPercent: _settings.gstPercentage,
       isTaxInclusive: _settings.isGstInclusive,
@@ -2262,8 +2292,38 @@ class PosProvider extends ChangeNotifier {
   final List<RestaurantOrder> _orders = [];
   List<RestaurantOrder> get orders => List.unmodifiable(_orders);
 
-  List<RestaurantOrder> get runningOrders =>
-      _orders.where((o) => o.status != OrderStatus.completed && o.status != OrderStatus.cancelled).toList();
+  /// Returns active running orders. For staff logged in as [StaffRole.waiter],
+  /// this is scoped strictly to orders assigned to them or their tables.
+  List<RestaurantOrder> get runningOrders {
+    final active = _orders.where((o) => o.status != OrderStatus.completed && o.status != OrderStatus.cancelled);
+    final me = _currentStaff;
+    if (me != null && me.role == StaffRole.waiter) {
+      return active.where((o) => isOrderForWaiter(o, me)).toList();
+    }
+    return active.toList();
+  }
+
+  bool isOrderForWaiter(RestaurantOrder o, Staff waiter) {
+    final waiterId = waiter.id.toLowerCase().trim();
+    final waiterName = waiter.name.toLowerCase().trim();
+
+    if (o.waiterId != null && o.waiterId!.toLowerCase().trim() == waiterId) {
+      return true;
+    }
+    if (o.waiterName != null && o.waiterName!.toLowerCase().trim() == waiterName) {
+      return true;
+    }
+    if (o.tableId != null) {
+      final table = _tables.where((t) => t.id == o.tableId).firstOrNull;
+      if (table?.assignedWaiter != null) {
+        final assigned = table!.assignedWaiter!.toLowerCase().trim();
+        if (assigned == waiterName || assigned == waiterId) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
 
   List<RestaurantOrder> get completedTransactions =>
       _orders.where((o) => o.status == OrderStatus.completed).toList();
@@ -2778,21 +2838,25 @@ class PosProvider extends ChangeNotifier {
   // ---- Back-office actions (W2/W3/W4/W5/W11) ----
 
   void addMenuItem(MenuItem item) {
-    _menuItems.add(item);
+    final scopedItem = item.outletId == null
+        ? item.copyWith(outletId: _currentOutlet.id)
+        : item;
+    _menuItems.add(scopedItem);
     _rebuildCategories();
     notifyListeners();
     _sync?.push('menu.create', {
-      'local_id': item.id,
-      'category_id': item.category,
-      'name': item.name,
-      if (item.description.isNotEmpty) 'description': item.description,
-      'price_paise': toPaise(item.price),
-      'is_veg': item.isVeg,
-      'image_url': item.imageUrl,
-      'is_bestseller': item.isBestseller,
-      if (item.variants.isNotEmpty) 'variants': menuVariantsToApi(item.variants),
-      if (item.modifierGroups.isNotEmpty)
-        'modifier_groups': menuModifierGroupsToApi(item.modifierGroups),
+      'local_id': scopedItem.id,
+      'outlet_id': scopedItem.outletId ?? _currentOutlet.id,
+      'category_id': scopedItem.category,
+      'name': scopedItem.name,
+      if (scopedItem.description.isNotEmpty) 'description': scopedItem.description,
+      'price_paise': toPaise(scopedItem.price),
+      'is_veg': scopedItem.isVeg,
+      'image_url': scopedItem.imageUrl,
+      'is_bestseller': scopedItem.isBestseller,
+      if (scopedItem.variants.isNotEmpty) 'variants': menuVariantsToApi(scopedItem.variants),
+      if (scopedItem.modifierGroups.isNotEmpty)
+        'modifier_groups': menuModifierGroupsToApi(scopedItem.modifierGroups),
     });
   }
 
@@ -2875,26 +2939,45 @@ class PosProvider extends ChangeNotifier {
   }
 
   void addStaff(Staff staff) {
-    _staffList.add(staff);
+    final assignedOutlet = staff.role == StaffRole.waiter
+        ? (staff.outletId ?? _currentOutlet.id)
+        : staff.outletId;
+    final s = Staff(
+      id: staff.id,
+      outletId: assignedOutlet,
+      name: staff.name,
+      role: staff.role,
+      pin: staff.pin,
+      avatarUrl: staff.avatarUrl,
+      mobile: staff.mobile,
+      isActive: staff.isActive,
+    );
+    _staffList.add(s);
     notifyListeners();
     _sync?.push('staff.create', {
-      'local_id': staff.id,
-      'name': staff.name,
-      'role': staff.role.name,
-      'pin': staff.pin,
-      if (staff.avatarUrl.isNotEmpty) 'avatar_url': staff.avatarUrl,
-      if (staff.mobile.isNotEmpty) 'mobile': staff.mobile,
+      'local_id': s.id,
+      'name': s.name,
+      'role': s.role.name,
+      'pin': s.pin,
+      if (s.outletId != null) 'outlet_id': s.outletId,
+      if (s.avatarUrl.isNotEmpty) 'avatar_url': s.avatarUrl,
+      if (s.mobile.isNotEmpty) 'mobile': s.mobile,
     });
   }
 
-  void updateStaff(String id, {String? name, StaffRole? role, bool? isActive, String? pin}) {
+  void updateStaff(String id, {String? name, StaffRole? role, String? outletId, bool? isActive, String? pin}) {
     final idx = _staffList.indexWhere((s) => s.id == id);
     if (idx == -1) return;
     final s = _staffList[idx];
+    final effectiveRole = role ?? s.role;
+    final effectiveOutlet = effectiveRole == StaffRole.waiter
+        ? (outletId ?? s.outletId ?? _currentOutlet.id)
+        : (outletId ?? s.outletId);
     _staffList[idx] = Staff(
       id: s.id,
+      outletId: effectiveOutlet,
       name: name ?? s.name,
-      role: role ?? s.role,
+      role: effectiveRole,
       pin: (pin != null && pin.isNotEmpty) ? pin : s.pin,
       avatarUrl: s.avatarUrl,
       mobile: s.mobile,
@@ -2905,6 +2988,7 @@ class PosProvider extends ChangeNotifier {
       'staff_id': id,
       'name': ?name,
       if (role != null) 'role': role.name,
+      'outlet_id': ?effectiveOutlet,
       'is_active': ?isActive,
       'pin': ?((pin != null && pin.isNotEmpty) ? pin : null),
     });
@@ -3058,10 +3142,13 @@ class PosProvider extends ChangeNotifier {
 
   void _switchOutlet(Outlet outlet) {
     _currentOutlet = outlet;
+    _rebuildCategories();
     unawaited(PushNotificationService.instance.subscribeToTopic('outlet_${outlet.id}'));
     notifyListeners();
     if (apiEnabled && _currentStaff != null) {
       unawaited(_postLoginSync());
+    } else if (apiEnabled) {
+      unawaited(hydrateOutlet());
     }
   }
 

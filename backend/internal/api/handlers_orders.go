@@ -33,7 +33,11 @@ func (s *Server) handleListOrders(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorJSON(w, r, httpx.NewError(400, "missing_outlet", "outlet_id is required"))
 		return
 	}
-	orders, err := s.Store.ListOrders(r.Context(), outletID, r.URL.Query().Get("status"), queryInt(r, "limit", 100))
+	waiterID := r.URL.Query().Get("waiter_id")
+	if c, ok := claimsFrom(r); ok && c.Role == "waiter" {
+		waiterID = c.Subject
+	}
+	orders, err := s.Store.ListOrders(r.Context(), outletID, r.URL.Query().Get("status"), waiterID, queryInt(r, "limit", 100))
 	if err != nil {
 		httpx.ErrorJSON(w, r, err)
 		return
@@ -139,6 +143,44 @@ func (s *Server) handleCreateOrder(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		waiterID := req.WaiterID
+		waiterName := req.WaiterName
+		if waiterID != nil && *waiterID != "" {
+			if st, err := s.Store.GetStaff(r.Context(), *waiterID); err == nil {
+				if waiterName == nil || *waiterName == "" {
+					waiterName = &st.Name
+				}
+				if st.OutletID != nil && *st.OutletID != "" && *st.OutletID != outletID {
+					return 0, nil, httpx.NewError(400, "invalid_outlet", "Waiter belongs to another outlet")
+				}
+			}
+		} else if claims != nil && claims.Role == "waiter" {
+			waiterID = strPtr(claims.ActorID)
+			waiterName = strPtr(claims.Name)
+		}
+
+		var tableNumber *string
+		if req.TableID != nil {
+			t, err := s.Store.GetTable(r.Context(), *req.TableID)
+			if err != nil {
+				return 0, nil, err
+			}
+			tableNumber = strPtr(t.TableNumber)
+			if t.GuestCount > guests {
+				guests = t.GuestCount
+			}
+			if (waiterID == nil || *waiterID == "") && t.AssignedWaiterID != nil && *t.AssignedWaiterID != "" {
+				waiterID = t.AssignedWaiterID
+				if st, err := s.Store.GetStaff(r.Context(), *t.AssignedWaiterID); err == nil {
+					waiterName = &st.Name
+				}
+			}
+		}
+		if (waiterID == nil || *waiterID == "") && claims != nil {
+			waiterID = strPtr(claims.ActorID)
+			waiterName = strPtr(claims.Name)
+		}
+
 		o := &models.Order{
 			ID:              store.NewID("ord"),
 			ClientID:        req.ClientID,
@@ -147,11 +189,12 @@ func (s *Server) handleCreateOrder(w http.ResponseWriter, r *http.Request) {
 			Type:            req.Type,
 			Status:          "received",
 			TableID:         req.TableID,
+			TableNumber:     tableNumber,
 			CustomerName:    req.CustomerName,
 			CustomerPhone:   req.CustomerPhone,
 			DeliveryAddress: req.DeliveryAddress,
-			WaiterID:        strPtr(claims.ActorID),
-			WaiterName:      strPtr(claims.Name),
+			WaiterID:        waiterID,
+			WaiterName:      waiterName,
 			GuestCount:      guests,
 			OrderNote:       req.OrderNote,
 			TaxPercent:      taxPercent,
@@ -161,16 +204,6 @@ func (s *Server) handleCreateOrder(w http.ResponseWriter, r *http.Request) {
 			CreatedAt:       now,
 			UpdatedAt:       now,
 			Items:           []models.OrderItem{},
-		}
-		if req.TableID != nil {
-			t, err := s.Store.GetTable(r.Context(), *req.TableID)
-			if err != nil {
-				return 0, nil, err
-			}
-			o.TableNumber = strPtr(t.TableNumber)
-			if t.GuestCount > guests {
-				o.GuestCount = t.GuestCount
-			}
 		}
 		if err := s.Store.InsertOrder(r.Context(), o); err != nil {
 			return 0, nil, err
@@ -210,6 +243,10 @@ func (s *Server) handlePatchOrder(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorJSON(w, r, err)
 		return
 	}
+	if c, ok := claimsFrom(r); ok && c.Scope == auth.ScopeStaff && c.OutletID != o.OutletID {
+		httpx.ErrorJSON(w, r, httpx.ErrNotFound)
+		return
+	}
 	// Discount/charge validation: negatives rejected; percent is clamped
 	// downstream by ApplyBilling (single source of truth).
 	for _, v := range []*int64{p.ServicePaise, p.PackagingPaise, p.DiscountPaise} {
@@ -232,6 +269,11 @@ func (s *Server) handlePatchOrder(w http.ResponseWriter, r *http.Request) {
 		default:
 			httpx.ErrorJSON(w, r, httpx.NewError(400, "invalid_status", "Use /pay or /refund to close an order"))
 			return
+		}
+	}
+	if p.WaiterID != nil && (p.WaiterName == nil || *p.WaiterName == "") {
+		if st, err := s.Store.GetStaff(r.Context(), *p.WaiterID); err == nil {
+			p.WaiterName = &st.Name
 		}
 	}
 	if err := s.Store.PatchOrder(r.Context(), o.ID, p); err != nil {
@@ -271,6 +313,10 @@ func (s *Server) handleAddOrderItem(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorJSON(w, r, err)
 		return
 	}
+	if c, ok := claimsFrom(r); ok && c.Scope == auth.ScopeStaff && c.OutletID != o.OutletID {
+		httpx.ErrorJSON(w, r, httpx.ErrNotFound)
+		return
+	}
 	if o.Status == "completed" || o.Status == "cancelled" {
 		httpx.ErrorJSON(w, r, httpx.NewError(409, "invalid_state", "Cannot add items to a closed order"))
 		return
@@ -278,6 +324,10 @@ func (s *Server) handleAddOrderItem(w http.ResponseWriter, r *http.Request) {
 	menu, err := s.Store.GetMenuItem(r.Context(), req.MenuItemID)
 	if err != nil {
 		httpx.ErrorJSON(w, r, err)
+		return
+	}
+	if c, ok := claimsFrom(r); ok && c.Scope == auth.ScopeStaff && c.OutletID != menu.OutletID {
+		httpx.ErrorJSON(w, r, httpx.ErrNotFound)
 		return
 	}
 	// Resolve variant price.
@@ -355,6 +405,15 @@ func (s *Server) handleCancelOrderItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	orderID, itemID := pathID(r, "id"), pathID(r, "itemId")
+	existingOrder, err := s.Store.GetOrder(r.Context(), orderID)
+	if err != nil {
+		httpx.ErrorJSON(w, r, err)
+		return
+	}
+	if c, ok := claimsFrom(r); ok && c.Scope == auth.ScopeStaff && c.OutletID != existingOrder.OutletID {
+		httpx.ErrorJSON(w, r, httpx.ErrNotFound)
+		return
+	}
 	// FR-A3: cancelling an item whose KOT already reached the kitchen needs a
 	// manager PIN (food is being wasted/voided after the kitchen saw it).
 	if target, err := s.Store.GetOrderItem(r.Context(), orderID, itemID); err == nil && target.IsKOTSent {
@@ -394,6 +453,10 @@ func (s *Server) handlePatchOrderItem(w http.ResponseWriter, r *http.Request) {
 	o, err := s.Store.GetOrder(r.Context(), orderID)
 	if err != nil {
 		httpx.ErrorJSON(w, r, err)
+		return
+	}
+	if c, ok := claimsFrom(r); ok && c.Scope == auth.ScopeStaff && c.OutletID != o.OutletID {
+		httpx.ErrorJSON(w, r, httpx.ErrNotFound)
 		return
 	}
 	if o.Status == "completed" || o.Status == "cancelled" {
@@ -439,6 +502,9 @@ func (s *Server) handleFireKOT(w http.ResponseWriter, r *http.Request) {
 		o, err := s.Store.GetOrder(r.Context(), pathID(r, "id"))
 		if err != nil {
 			return 0, nil, err
+		}
+		if c, ok := claimsFrom(r); ok && c.Scope == auth.ScopeStaff && c.OutletID != o.OutletID {
+			return 0, nil, httpx.ErrNotFound
 		}
 		unsent := []models.OrderItem{}
 		for _, it := range o.Items {
@@ -549,6 +615,9 @@ func (s *Server) handlePay(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return 0, nil, err
 		}
+		if c, ok := claimsFrom(r); ok && c.Scope == auth.ScopeStaff && c.OutletID != o.OutletID {
+			return 0, nil, httpx.ErrNotFound
+		}
 		if err := service.ValidatePayment(o, req); err != nil {
 			return 0, nil, err
 		}
@@ -601,6 +670,10 @@ func (s *Server) handleRefund(w http.ResponseWriter, r *http.Request) {
 	o, err := s.Store.GetOrder(r.Context(), pathID(r, "id"))
 	if err != nil {
 		httpx.ErrorJSON(w, r, err)
+		return
+	}
+	if c, ok := claimsFrom(r); ok && c.Scope == auth.ScopeStaff && c.OutletID != o.OutletID {
+		httpx.ErrorJSON(w, r, httpx.ErrNotFound)
 		return
 	}
 	// FR-A3: refunds are a manager/admin action — enforced here, not only in UI.

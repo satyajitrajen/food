@@ -208,7 +208,7 @@ func (s *Store) CreateExpense(ctx context.Context, outletID string, req models.E
 		Note: req.Note, Ts: Now(), CreatedBy: createdBy}, nil
 }
 
-func (s *Store) DeleteExpense(ctx context.Context, id string) (*models.Expense, error) {
+func (s *Store) GetExpense(ctx context.Context, id string) (*models.Expense, error) {
 	e := &models.Expense{}
 	var vendor, reference, note, createdBy sql.NullString
 	var ts string
@@ -218,6 +218,27 @@ func (s *Store) DeleteExpense(ctx context.Context, id string) (*models.Expense, 
 	if err == sql.ErrNoRows {
 		return nil, httpx.ErrNotFound
 	}
+	if err != nil {
+		return nil, err
+	}
+	if vendor.Valid {
+		e.Vendor = &vendor.String
+	}
+	if reference.Valid {
+		e.Reference = &reference.String
+	}
+	if note.Valid {
+		e.Note = &note.String
+	}
+	if createdBy.Valid {
+		e.CreatedBy = &createdBy.String
+	}
+	e.Ts = ParseTime(ts)
+	return e, nil
+}
+
+func (s *Store) DeleteExpense(ctx context.Context, id string) (*models.Expense, error) {
+	e, err := s.GetExpense(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -546,6 +567,10 @@ func (s *Store) PatchPurchaseStatus(ctx context.Context, purchaseID, newStatus s
 	}
 	p.Status = newStatus
 	return p, nil
+}
+
+func (s *Store) GetPurchase(ctx context.Context, id string) (*models.Purchase, error) {
+	return s.getPurchaseRow(ctx, id)
 }
 
 func (s *Store) getPurchaseRow(ctx context.Context, id string) (*models.Purchase, error) {

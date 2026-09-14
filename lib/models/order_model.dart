@@ -99,6 +99,7 @@ class RestaurantOrder {
   String? customerPhone;
   String? deliveryAddress;
   String? deliveryNotes;
+  String? waiterId;
   String? waiterName;
   int guestCount;
   String? orderNote;
@@ -132,6 +133,7 @@ class RestaurantOrder {
     this.customerPhone,
     this.deliveryAddress,
     this.deliveryNotes,
+    this.waiterId,
     this.waiterName,
     this.guestCount = 1,
     this.orderNote,
@@ -238,6 +240,7 @@ class RestaurantOrder {
         customerPhone: customerPhone,
         deliveryAddress: deliveryAddress,
         deliveryNotes: deliveryNotes,
+        waiterId: waiterId,
         waiterName: waiterName,
         guestCount: guestCount,
         orderNote: orderNote,

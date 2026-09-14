@@ -148,7 +148,7 @@ func nullIfEmpty(n sql.NullString) *string {
 	return nil
 }
 
-func (s *Store) ListOrders(ctx context.Context, outletID, status string, limit int) ([]models.Order, error) {
+func (s *Store) ListOrders(ctx context.Context, outletID, status, waiterID string, limit int) ([]models.Order, error) {
 	q := `SELECT id FROM orders WHERE outlet_id = ?`
 	args := []any{outletID}
 	if status == "running" {
@@ -156,6 +156,10 @@ func (s *Store) ListOrders(ctx context.Context, outletID, status string, limit i
 	} else if status != "" {
 		q += ` AND status = ?`
 		args = append(args, status)
+	}
+	if waiterID != "" {
+		q += ` AND waiter_id = ?`
+		args = append(args, waiterID)
 	}
 	q += ` ORDER BY created_at DESC LIMIT ?`
 	args = append(args, limit)
@@ -283,6 +287,12 @@ func (s *Store) PatchOrder(ctx context.Context, id string, p models.OrderPatch) 
 	}
 	if p.Status != nil {
 		add("status", *p.Status)
+	}
+	if p.WaiterID != nil {
+		add("waiter_id", *p.WaiterID)
+	}
+	if p.WaiterName != nil {
+		add("waiter_name", *p.WaiterName)
 	}
 	if p.OrderNote != nil {
 		add("order_note", *p.OrderNote)
