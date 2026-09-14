@@ -39,11 +39,11 @@ class Staff {
   }
 
   /// Whether this staff member is allowed to operate in [targetOutletId].
-  /// Waiters are strictly single-outlet; other roles can be org-wide floaters
-  /// when [outletId] is null.
+  /// Waiters and kitchen staff are strictly single-outlet; other roles may be
+  /// org-wide floaters when [outletId] is null.
   bool canAccessOutlet(String? targetOutletId) {
     if (outletId == null) {
-      return role != StaffRole.waiter;
+      return role != StaffRole.waiter && role != StaffRole.kitchen;
     }
     return outletId == targetOutletId;
   }

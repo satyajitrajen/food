@@ -47,7 +47,8 @@ class _KitchenBoardScreenState extends State<KitchenBoardScreen> with SingleTick
     return Scaffold(
       backgroundColor: AppColors.creamBg,
       appBar: AppBar(
-        title: const Text('Kitchen Display (KDS)', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+        title: Text('Kitchen Display · ${provider.currentOutlet.name}',
+            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
         backgroundColor: Colors.white,
         elevation: 0,
         actions: [

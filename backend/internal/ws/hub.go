@@ -138,6 +138,13 @@ func (h *Hub) Handler() http.HandlerFunc {
 		if outletID == "" {
 			outletID = claims.OutletID
 		}
+		// Tenant enforcement: a staff ticket is bound to its login outlet and
+		// must not subscribe to another outlet's stream (e.g. a kitchen
+		// terminal must only receive its own outlet's KDS events).
+		if claims.Scope == auth.ScopeStaff && claims.OutletID != "" && outletID != claims.OutletID {
+			httpx.ErrorJSON(w, r, httpx.NewError(403, "tenant_mismatch", "Outlet does not belong to this session"))
+			return
+		}
 
 		fl, ok := w.(http.Flusher)
 		if !ok {

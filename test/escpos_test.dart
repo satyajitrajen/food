@@ -74,6 +74,7 @@ void main() {
   test('KOT bytes mark quantity lines and notes', () {
     final kot = KitchenOrderTicket(
       id: 'kot-1',
+      outletId: 'out-01',
       kotNumber: 'KOT #1300',
       orderId: 'ord-1',
       tableNumber: 'T05',

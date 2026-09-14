@@ -401,6 +401,7 @@ RestaurantOrder orderFromApi(
 
 KitchenOrderTicket kotFromApi(Map<String, dynamic> j) => KitchenOrderTicket(
       id: _str(j['id']),
+      outletId: _str(j['outlet_id']),
       kotNumber: _str(j['kot_number']),
       orderId: _str(j['order_id']),
       tableNumber: _optStr(j['table_number']),

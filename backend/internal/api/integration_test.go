@@ -81,7 +81,7 @@ func seedServer(st *store.Store, mgr *auth.Manager) {
 	hash3, _ := mgr.HashPIN("0000")
 	st.DB.Exec(`INSERT INTO staff (id, name, role, pin_hash, is_active, is_protected) VALUES ('st-03', 'Vikram', 'admin', ?, 1, 1)`, hash3)
 	hash4, _ := mgr.HashPIN("5555")
-	st.DB.Exec(`INSERT INTO staff (id, name, role, pin_hash, is_active, is_protected) VALUES ('st-06', 'Chef', 'kitchen', ?, 1, 0)`, hash4)
+	st.DB.Exec(`INSERT INTO staff (id, name, role, pin_hash, is_active, is_protected, outlet_id) VALUES ('st-06', 'Chef', 'kitchen', ?, 1, 0, 'out-01')`, hash4)
 	st.DB.Exec(`INSERT INTO tables (id, outlet_id, table_number, seats, floor, status) VALUES ('t-01', 'out-01', 'T01', 4, 'Ground', 'available')`)
 	st.DB.Exec(`INSERT INTO tables (id, outlet_id, table_number, seats, floor, status) VALUES ('t-02', 'out-01', 'T02', 2, 'Ground', 'available')`)
 	st.DB.Exec(`INSERT INTO menu_categories (id, outlet_id, name) VALUES ('cat-1', 'out-01', 'Starters')`)

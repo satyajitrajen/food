@@ -148,6 +148,10 @@ func seed(st *store.Store, mgr *auth.Manager) error {
 		if prot == 1 {
 			_, _ = st.DB.ExecContext(ctx, `UPDATE staff SET is_protected = 1 WHERE id = ?`, s.id)
 		}
+		// Kitchen is single-outlet bound (008): pin the demo kitchen to out-01.
+		if s.id == "st-06" {
+			_, _ = st.DB.ExecContext(ctx, `UPDATE staff SET outlet_id = 'out-01' WHERE id = ? AND outlet_id IS NULL`, s.id)
+		}
 	}
 
 	// Tables

@@ -168,8 +168,8 @@ class StaffAdminScreen extends StatelessWidget {
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                s.role == StaffRole.waiter && s.outletId != null
-                                    ? 'Waiter · ${provider.outlets.where((o) => o.id == s.outletId).firstOrNull?.name ?? s.outletId}${s.isActive ? '' : ' · Inactive'}'
+                                (s.role == StaffRole.waiter || s.role == StaffRole.kitchen) && s.outletId != null
+                                    ? '${s.roleTitle} · ${provider.outlets.where((o) => o.id == s.outletId).firstOrNull?.name ?? s.outletId}${s.isActive ? '' : ' · Inactive'}'
                                     : '${s.roleTitle}${s.isActive ? '' : ' · Inactive'}',
                                 style: TextStyle(
                                   color: s.isActive ? AppColors.textMuted : AppColors.nonVegRed,
@@ -331,13 +331,13 @@ class StaffAdminScreen extends StatelessWidget {
                         .toList(),
                     onChanged: (v) => setDialogState(() => role = v ?? role),
                   ),
-                  if (role == StaffRole.waiter) ...[
+                  if (role == StaffRole.waiter || role == StaffRole.kitchen) ...[
                     const SizedBox(height: 10),
                     DropdownButtonFormField<String>(
                       initialValue: selectedOutletId,
                       decoration: const InputDecoration(
                         labelText: 'Assigned Outlet',
-                        helperText: 'A waiter is assigned to one specific outlet',
+                        helperText: 'A waiter or kitchen staff is assigned to one specific outlet',
                       ),
                       items: provider.outlets
                           .map((o) => DropdownMenuItem(value: o.id, child: Text(o.name)))
@@ -369,7 +369,9 @@ class StaffAdminScreen extends StatelessWidget {
                 }
                 provider.addStaff(Staff(
                   id: 'st-${DateTime.now().millisecondsSinceEpoch}',
-                  outletId: role == StaffRole.waiter ? selectedOutletId : null,
+                  outletId: role == StaffRole.waiter || role == StaffRole.kitchen
+                      ? selectedOutletId
+                      : null,
                   name: name,
                   role: role,
                   pin: pin,

@@ -135,6 +135,10 @@ class PosProvider extends ChangeNotifier {
   }
 
   void _applyRealtimeEvent(String type, Map<String, dynamic> payload) {
+    // Strict outlet isolation: ignore realtime events for other outlets
+    // (a mis-scoped SSE subscription must never pollute this terminal).
+    final eventOutlet = payload['outlet_id']?.toString() ?? '';
+    if (eventOutlet.isNotEmpty && eventOutlet != _currentOutlet.id) return;
     switch (type) {
       case 'order.updated':
         _upsertServerOrder(payload);
@@ -221,6 +225,11 @@ class PosProvider extends ChangeNotifier {
 
   void _upsertServerKot(Map<String, dynamic> j) {
     final incoming = kotFromApi(j);
+    // Strict outlet isolation: never persist another outlet's ticket, even if
+    // a realtime event or ack leaks across outlets.
+    if (incoming.outletId.isNotEmpty && incoming.outletId != _currentOutlet.id) {
+      return;
+    }
     final idx = _kots.indexWhere((k) => k.id == incoming.id);
     final prevStatus = idx >= 0 ? _kots[idx].status : null;
     if (idx >= 0) {
@@ -1328,6 +1337,7 @@ class PosProvider extends ChangeNotifier {
     ),
     Staff(
       id: 'st-06',
+      outletId: 'out-01',
       name: 'Chef Sharma',
       role: StaffRole.kitchen,
       pin: '5555',
@@ -2196,7 +2206,10 @@ class PosProvider extends ChangeNotifier {
   // KOT System
   int _kotCounter = 1203;
   final List<KitchenOrderTicket> _kots = [];
-  List<KitchenOrderTicket> get kots => List.unmodifiable(_kots);
+  // Strict outlet isolation: the KDS only ever shows this terminal's outlet.
+  // Tickets without an outlet (legacy) are hidden, never shown cross-outlet.
+  List<KitchenOrderTicket> get kots => List.unmodifiable(
+      _kots.where((k) => k.outletId == _currentOutlet.id));
 
   KitchenOrderTicket? sendKOT() {
     if (_activeOrder == null || _activeOrder!.items.isEmpty) return null;
@@ -2207,6 +2220,7 @@ class PosProvider extends ChangeNotifier {
     _kotCounter++;
     final kot = KitchenOrderTicket(
       id: 'kot-${DateTime.now().millisecondsSinceEpoch}',
+      outletId: _currentOutlet.id,
       kotNumber: 'KOT #$_kotCounter',
       orderId: _activeOrder!.id,
       tableNumber: _activeOrder!.tableNumber ?? _selectedTable?.tableNumber,
@@ -2250,6 +2264,9 @@ class PosProvider extends ChangeNotifier {
   void updateKOTStatus(String kotId, KOTStatus newStatus) {
     final kot = _kots.where((k) => k.id == kotId).firstOrNull;
     if (kot == null) return;
+    // Strict outlet isolation: never mutate another outlet's ticket, even if
+    // one leaked into the local list before the guards ran.
+    if (kot.outletId.isNotEmpty && kot.outletId != _currentOutlet.id) return;
     final prevStatus = kot.status;
     kot.status = newStatus;
     notifyListeners();
@@ -2949,7 +2966,7 @@ class PosProvider extends ChangeNotifier {
   }
 
   void addStaff(Staff staff) {
-    final assignedOutlet = staff.role == StaffRole.waiter
+    final assignedOutlet = staff.role == StaffRole.waiter || staff.role == StaffRole.kitchen
         ? (staff.outletId ?? _currentOutlet.id)
         : staff.outletId;
     final s = Staff(
@@ -2998,7 +3015,7 @@ class PosProvider extends ChangeNotifier {
       }
     }
     final effectiveRole = role ?? s.role;
-    final effectiveOutlet = effectiveRole == StaffRole.waiter
+    final effectiveOutlet = effectiveRole == StaffRole.waiter || effectiveRole == StaffRole.kitchen
         ? (outletId ?? s.outletId ?? _currentOutlet.id)
         : (outletId ?? s.outletId);
     _staffList[idx] = Staff(
@@ -3171,9 +3188,20 @@ class PosProvider extends ChangeNotifier {
   }
 
   void _switchOutlet(Outlet outlet) {
+    // Kitchen terminals are locked to their assigned outlet (single-outlet
+    // binding, like waiters): switching is disabled at the UI layer and
+    // rejected here as a backstop.
+    if (_currentStaff?.role == StaffRole.kitchen) return;
+    final previousOutletId = _currentOutlet.id;
     _currentOutlet = outlet;
     _rebuildCategories();
+    // Strict outlet isolation: drop the previous outlet's board immediately so
+    // no stale cross-outlet ticket is ever visible, then rehydrate.
+    _kots.clear();
+    unawaited(PushNotificationService.instance
+        .unsubscribeFromTopic('outlet_$previousOutletId'));
     unawaited(PushNotificationService.instance.subscribeToTopic('outlet_${outlet.id}'));
+    unawaited(_realtime?.disconnect());
     notifyListeners();
     if (apiEnabled && _currentStaff != null) {
       unawaited(_postLoginSync());
