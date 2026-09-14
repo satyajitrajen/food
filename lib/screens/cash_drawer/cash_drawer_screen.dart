@@ -62,7 +62,7 @@ class CashDrawerScreen extends StatelessWidget {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.primaryOrange.withValues(alpha: 0.3), width: 1.5),
+                border: Border.all(color: AppColors.primaryGreen.withValues(alpha: 0.3), width: 1.5),
                 boxShadow: [
                   BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 12, offset: const Offset(0, 4)),
                 ],
@@ -78,7 +78,7 @@ class CashDrawerScreen extends StatelessWidget {
                   Text(
                     '₹${expectedCash.toStringAsFixed(0)}',
                     style: const TextStyle(
-                      color: AppColors.primaryOrange,
+                      color: AppColors.primaryGreen,
                       fontWeight: FontWeight.w900,
                       fontSize: 38,
                       letterSpacing: -1.0,

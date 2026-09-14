@@ -99,7 +99,7 @@ class RunningOrderDetailScreen extends StatelessWidget {
                   children: [
                     Text(
                       '₹${currentOrder.grandTotal.toStringAsFixed(0)}',
-                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 22, color: AppColors.primaryOrange),
+                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 22, color: AppColors.primaryGreen),
                     ),
                     Text(
                       '${currentOrder.totalItemCount} Items',
@@ -164,7 +164,7 @@ class RunningOrderDetailScreen extends StatelessWidget {
                             if (item.selectedModifiers.isNotEmpty)
                               Text(
                                 '+ ${item.selectedModifiers.map((m) => m.name).join(", ")}',
-                                style: const TextStyle(color: AppColors.primaryOrange, fontSize: 11),
+                                style: const TextStyle(color: AppColors.primaryGreen, fontSize: 11),
                               ),
                             if (item.isCancelled)
                               Text(

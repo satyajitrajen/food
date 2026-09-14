@@ -153,7 +153,7 @@ class CartViewScreen extends StatelessWidget {
                               const SizedBox(height: 4),
                               Text(
                                 '+ ${item.selectedModifiers.map((m) => m.name).join(", ")}',
-                                style: const TextStyle(color: AppColors.primaryOrange, fontSize: 11, fontWeight: FontWeight.w600),
+                                style: const TextStyle(color: AppColors.primaryGreen, fontSize: 11, fontWeight: FontWeight.w600),
                               ),
                             ],
                             if (item.itemNote != null) ...[
@@ -235,7 +235,7 @@ class CartViewScreen extends StatelessWidget {
                                       style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
                                     ),
                                     IconButton(
-                                      icon: const Icon(Icons.add_circle_outline, size: 20, color: AppColors.primaryOrange),
+                                      icon: const Icon(Icons.add_circle_outline, size: 20, color: AppColors.primaryGreen),
                                       onPressed: () => provider.incrementItem(item),
                                     ),
                                     IconButton(
@@ -318,7 +318,7 @@ class CartViewScreen extends StatelessWidget {
                       if (hasUnsentItems)
                         Expanded(
                           child: ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryOrange),
+                            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryGreen),
                             onPressed: () {
                               KOTPreviewDialog.show(
                                 context,

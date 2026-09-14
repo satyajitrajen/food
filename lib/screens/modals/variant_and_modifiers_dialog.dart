@@ -132,10 +132,10 @@ class _VariantAndModifiersDialogState extends State<VariantAndModifiersDialog> {
                           return Container(
                             margin: const EdgeInsets.only(bottom: 8),
                             decoration: BoxDecoration(
-                              color: isSelected ? AppColors.primaryOrangeLight : Colors.white,
+                              color: isSelected ? AppColors.primaryGreenLight : Colors.white,
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                color: isSelected ? AppColors.primaryOrange : AppColors.borderLight,
+                                color: isSelected ? AppColors.primaryGreen : AppColors.borderLight,
                                 width: isSelected ? 1.5 : 1.0,
                               ),
                             ),
@@ -148,7 +148,7 @@ class _VariantAndModifiersDialogState extends State<VariantAndModifiersDialog> {
                                   children: [
                                     Icon(
                                       isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
-                                      color: isSelected ? AppColors.primaryOrange : AppColors.textLight,
+                                      color: isSelected ? AppColors.primaryGreen : AppColors.textLight,
                                       size: 20,
                                     ),
                                     const SizedBox(width: 12),
@@ -199,16 +199,16 @@ class _VariantAndModifiersDialogState extends State<VariantAndModifiersDialog> {
                           return Container(
                             margin: const EdgeInsets.only(bottom: 8),
                             decoration: BoxDecoration(
-                              color: mod.isSelected ? AppColors.primaryOrangeLight : Colors.white,
+                              color: mod.isSelected ? AppColors.primaryGreenLight : Colors.white,
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                color: mod.isSelected ? AppColors.primaryOrange : AppColors.borderLight,
+                                color: mod.isSelected ? AppColors.primaryGreen : AppColors.borderLight,
                                 width: mod.isSelected ? 1.5 : 1.0,
                               ),
                             ),
                             child: CheckboxListTile(
                               value: mod.isSelected,
-                              activeColor: AppColors.primaryOrange,
+                              activeColor: AppColors.primaryGreen,
                               title: Text(
                                 mod.name,
                                 style: TextStyle(
@@ -219,7 +219,7 @@ class _VariantAndModifiersDialogState extends State<VariantAndModifiersDialog> {
                                   ? Text(
                                       '+₹${mod.price.toStringAsFixed(0)}',
                                       style: const TextStyle(
-                                        color: AppColors.primaryOrange,
+                                        color: AppColors.primaryGreen,
                                         fontWeight: FontWeight.w700,
                                       ),
                                     )

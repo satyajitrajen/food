@@ -142,7 +142,7 @@ class PaymentSuccessScreen extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     '₹${order.grandTotal.toStringAsFixed(0)} received via ${order.paymentMethod ?? "Cash"}',
-                    style: const TextStyle(color: AppColors.primaryOrange, fontWeight: FontWeight.w800, fontSize: 16),
+                    style: const TextStyle(color: AppColors.primaryGreen, fontWeight: FontWeight.w800, fontSize: 16),
                   ),
                   const SizedBox(height: 24),
 
@@ -278,7 +278,7 @@ class PaymentSuccessScreen extends StatelessWidget {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             const Text('TOTAL PAID', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
-                            Text('₹${order.grandTotal.toStringAsFixed(0)}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: AppColors.primaryOrange)),
+                            Text('₹${order.grandTotal.toStringAsFixed(0)}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: AppColors.primaryGreen)),
                           ],
                         ),
                         const SizedBox(height: 4),
@@ -335,7 +335,7 @@ class PaymentSuccessScreen extends StatelessWidget {
                     width: double.infinity,
                     height: 50,
                     child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryOrange),
+                      style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryGreen),
                       onPressed: () {
                         Navigator.of(context).pushAndRemoveUntil(
                           MaterialPageRoute(builder: (_) => const MainAdaptiveShell()),

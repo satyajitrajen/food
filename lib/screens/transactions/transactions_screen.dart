@@ -90,7 +90,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                         child: ChoiceChip(
                           label: Text(mode),
                           selected: isSelected,
-                          selectedColor: AppColors.primaryOrange,
+                          selectedColor: AppColors.primaryGreen,
                           labelStyle: TextStyle(
                             color: isSelected ? Colors.white : AppColors.textDark,
                             fontWeight: FontWeight.w700,
@@ -143,7 +143,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                               ),
                               Text(
                                 '₹${tx.grandTotal.toStringAsFixed(0)}',
-                                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: AppColors.primaryOrange),
+                                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: AppColors.primaryGreen),
                               ),
                             ],
                           ),
@@ -211,7 +211,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                   ElevatedButton.icon(
                                     style: ElevatedButton.styleFrom(
                                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                                      backgroundColor: AppColors.primaryOrange,
+                                      backgroundColor: AppColors.primaryGreen,
                                     ),
                                     onPressed: () {
                                       Navigator.of(context).push(

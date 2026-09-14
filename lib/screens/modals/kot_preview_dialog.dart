@@ -46,10 +46,10 @@ class KOTPreviewDialog extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: AppColors.primaryOrangeLight,
+                          color: AppColors.primaryGreenLight,
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: const Icon(Icons.receipt_outlined, color: AppColors.primaryOrange, size: 20),
+                        child: const Icon(Icons.receipt_outlined, color: AppColors.primaryGreen, size: 20),
                       ),
                       const SizedBox(width: 10),
                       Column(
@@ -100,7 +100,7 @@ class KOTPreviewDialog extends StatelessWidget {
                               style: const TextStyle(
                                 fontWeight: FontWeight.w800,
                                 fontSize: 14,
-                                color: AppColors.primaryOrange,
+                                color: AppColors.primaryGreen,
                               ),
                             ),
                             VegMark(isVeg: item.menuItem.isVeg, size: 12),
@@ -121,7 +121,7 @@ class KOTPreviewDialog extends StatelessWidget {
                                   if (item.itemNote != null)
                                     Text(
                                       'Note: "${item.itemNote}"',
-                                      style: const TextStyle(color: AppColors.primaryOrange, fontSize: 11, fontStyle: FontStyle.italic),
+                                      style: const TextStyle(color: AppColors.primaryGreen, fontSize: 11, fontStyle: FontStyle.italic),
                                     ),
                                 ],
                               ),

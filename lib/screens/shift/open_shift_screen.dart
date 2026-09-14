@@ -70,7 +70,7 @@ class _OpenShiftScreenState extends State<OpenShiftScreen> {
                 ),
               ),
               IconButton(
-                icon: const Icon(Icons.add_circle_outline, size: 20, color: AppColors.primaryOrange),
+                icon: const Icon(Icons.add_circle_outline, size: 20, color: AppColors.primaryGreen),
                 onPressed: () => onChanged(count + 1),
               ),
               SizedBox(
@@ -121,7 +121,7 @@ class _OpenShiftScreenState extends State<OpenShiftScreen> {
                     children: [
                       CircleAvatar(
                         radius: 24,
-                        backgroundColor: AppColors.primaryOrangeLight,
+                        backgroundColor: AppColors.primaryGreenLight,
                         backgroundImage: NetworkImage(provider.currentStaff?.avatarUrl ?? ''),
                         onBackgroundImageError: (_, _) {},
                       ),
@@ -148,9 +148,9 @@ class _OpenShiftScreenState extends State<OpenShiftScreen> {
                 TextField(
                   controller: _cashController,
                   keyboardType: TextInputType.number,
-                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: AppColors.primaryOrange),
+                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: AppColors.primaryGreen),
                   decoration: const InputDecoration(
-                    prefixIcon: Icon(Icons.currency_rupee, color: AppColors.primaryOrange),
+                    prefixIcon: Icon(Icons.currency_rupee, color: AppColors.primaryGreen),
                     labelText: 'Opening Cash (₹)',
                   ),
                 ),
@@ -172,7 +172,7 @@ class _OpenShiftScreenState extends State<OpenShiftScreen> {
                           const Text('Cash Denominations', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
                           Text(
                             'Total: ₹${_computedTotal.toStringAsFixed(0)}',
-                            style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.primaryOrange),
+                            style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.primaryGreen),
                           ),
                         ],
                       ),

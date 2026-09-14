@@ -40,8 +40,8 @@ class MoreHubScreen extends StatelessWidget {
           title: 'Shift Dashboard & Cash',
           subtitle: 'Live float balance, Cash In/Out & Shift Closing',
           icon: Icons.alarm_on,
-          color: AppColors.primaryOrange,
-          bgColor: AppColors.primaryOrangeLight,
+          color: AppColors.primaryGreen,
+          bgColor: AppColors.primaryGreenLight,
           screen: const ShiftDashboardScreen(),
         ),
       if (isOps)
@@ -90,8 +90,8 @@ class MoreHubScreen extends StatelessWidget {
           title: 'Customer Directory',
           subtitle: 'Customer contact book, visits, spend & credit ledger',
           icon: Icons.people_outline,
-          color: AppColors.primaryOrange,
-          bgColor: AppColors.primaryOrangeLight,
+          color: AppColors.primaryGreen,
+          bgColor: AppColors.primaryGreenLight,
           screen: const CustomerScreen(),
         ),
       if (isOps)
@@ -122,8 +122,8 @@ class MoreHubScreen extends StatelessWidget {
           title: 'Menu Management',
           subtitle: 'Add/edit items, categories, prices & availability',
           icon: Icons.restaurant_menu,
-          color: AppColors.primaryOrange,
-          bgColor: AppColors.primaryOrangeLight,
+          color: AppColors.primaryGreen,
+          bgColor: AppColors.primaryGreenLight,
           screen: const MenuAdminScreen(),
         ),
       if (canManage)
@@ -183,7 +183,7 @@ class MoreHubScreen extends StatelessWidget {
                 children: [
                   CircleAvatar(
                     radius: 26,
-                    backgroundColor: AppColors.primaryOrangeLight,
+                    backgroundColor: AppColors.primaryGreenLight,
                     backgroundImage: NetworkImage(provider.currentStaff?.avatarUrl ?? ''),
                     onBackgroundImageError: (_, _) {},
                   ),

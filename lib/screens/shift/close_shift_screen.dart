@@ -68,7 +68,7 @@ class _CloseShiftScreenState extends State<CloseShiftScreen> {
                 child: Text('$count', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w800)),
               ),
               IconButton(
-                icon: const Icon(Icons.add_circle_outline, size: 20, color: AppColors.primaryOrange),
+                icon: const Icon(Icons.add_circle_outline, size: 20, color: AppColors.primaryGreen),
                 onPressed: () => onChanged(count + 1),
               ),
               SizedBox(
@@ -182,7 +182,7 @@ class _CloseShiftScreenState extends State<CloseShiftScreen> {
                             style: const TextStyle(
                               fontWeight: FontWeight.w900,
                               fontSize: 22,
-                              color: AppColors.primaryOrange,
+                              color: AppColors.primaryGreen,
                             ),
                           ),
                         ],
@@ -242,7 +242,7 @@ class _CloseShiftScreenState extends State<CloseShiftScreen> {
                           const Text('Count Cash Denominations', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
                           Text(
                             'Total: ₹${_computedPhysicalCash.toStringAsFixed(0)}',
-                            style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.primaryOrange),
+                            style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.primaryGreen),
                           ),
                         ],
                       ),
@@ -279,7 +279,7 @@ class _CloseShiftScreenState extends State<CloseShiftScreen> {
                   width: double.infinity,
                   height: 52,
                   child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryOrange),
+                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryGreen),
                     onPressed: () async {
                       final ok = await showConfirmDialog(
                         context,
@@ -306,7 +306,7 @@ class _CloseShiftScreenState extends State<CloseShiftScreen> {
                         builder: (ctx) => AlertDialog(
                           title: const Row(
                             children: [
-                              Icon(Icons.print, color: AppColors.primaryOrange),
+                              Icon(Icons.print, color: AppColors.primaryGreen),
                               SizedBox(width: 8),
                               Text('Shift Closed & Z-Report', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
                             ],

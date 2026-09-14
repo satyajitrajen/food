@@ -52,7 +52,7 @@ Future<bool> showConfirmDialog(
         ElevatedButton(
           style: ElevatedButton.styleFrom(
             backgroundColor:
-                isDanger ? AppColors.nonVegRed : AppColors.primaryOrange,
+                isDanger ? AppColors.nonVegRed : AppColors.primaryGreen,
             foregroundColor: Colors.white,
           ),
           onPressed: () => Navigator.of(ctx).pop(true),

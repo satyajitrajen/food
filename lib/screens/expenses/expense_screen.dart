@@ -135,7 +135,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
         elevation: 0,
         actions: [
           ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryOrange),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryGreen),
             onPressed: () => _showAddExpenseDialog(context, provider),
             icon: const Icon(Icons.add, size: 16),
             label: const Text('Add Expense'),
@@ -158,8 +158,8 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                     title: "Today's Expenses",
                     value: '₹${provider.todayExpenses.toStringAsFixed(0)}',
                     icon: Icons.calendar_today_outlined,
-                    iconColor: AppColors.primaryOrange,
-                    iconBgColor: AppColors.primaryOrangeLight,
+                    iconColor: AppColors.primaryGreen,
+                    iconBgColor: AppColors.primaryGreenLight,
                   ),
                 ),
                 const SizedBox(width: 14),
@@ -205,7 +205,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                           color: AppColors.creamSubtle,
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: const Icon(Icons.receipt_long, color: AppColors.primaryOrange, size: 22),
+                        child: const Icon(Icons.receipt_long, color: AppColors.primaryGreen, size: 22),
                       ),
                       title: Text(exp.title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
                       subtitle: Text(

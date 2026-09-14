@@ -90,7 +90,7 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text('Table / Counter', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
-                        Text('Table $tableName', style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.primaryOrange, fontSize: 14)),
+                        Text('Table $tableName', style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.primaryGreen, fontSize: 14)),
                       ],
                     ),
                   ],
@@ -153,7 +153,7 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
                                 const SizedBox(width: 8),
                                 Text(
                                   '${item.quantity} × ',
-                                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AppColors.primaryOrange),
+                                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AppColors.primaryGreen),
                                 ),
                                 Expanded(
                                   child: Column(
@@ -271,7 +271,7 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
                           style: const TextStyle(
                             fontWeight: FontWeight.w900,
                             fontSize: 26,
-                            color: AppColors.primaryOrange,
+                            color: AppColors.primaryGreen,
                             letterSpacing: -0.5,
                           ),
                         ),
@@ -287,7 +287,7 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
                 width: double.infinity,
                 height: 54,
                 child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryOrange),
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryGreen),
                   onPressed: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(builder: (_) => const PaymentScreen()),

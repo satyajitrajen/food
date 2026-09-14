@@ -107,10 +107,10 @@ class StaffAdminScreen extends StatelessWidget {
                       children: [
                         CircleAvatar(
                           radius: 18,
-                          backgroundColor: AppColors.primaryOrangeLight,
+                          backgroundColor: AppColors.primaryGreenLight,
                           child: Text(
                             s.name.isNotEmpty ? s.name[0].toUpperCase() : '?',
-                            style: const TextStyle(color: AppColors.primaryOrange, fontWeight: FontWeight.w800),
+                            style: const TextStyle(color: AppColors.primaryGreen, fontWeight: FontWeight.w800),
                           ),
                         ),
                         const SizedBox(width: 10),
@@ -226,7 +226,7 @@ class StaffAdminScreen extends StatelessWidget {
                             icon: Icon(Icons.password,
                                 size: 18,
                                 color: pinEnabled
-                                    ? AppColors.primaryOrange
+                                    ? AppColors.primaryGreen
                                     : AppColors.textLight),
                             onPressed: pinEnabled
                                 ? () =>

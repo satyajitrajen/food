@@ -248,7 +248,7 @@ class _CustomerScreenState extends State<CustomerScreen> {
         elevation: 0,
         actions: [
           ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryOrange),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryGreen),
             onPressed: () => _showAddCustomerDialog(context, provider),
             icon: const Icon(Icons.person_add, size: 16),
             label: const Text('Add Customer'),
@@ -292,10 +292,10 @@ class _CustomerScreenState extends State<CustomerScreen> {
                   child: ListTile(
                     contentPadding: const EdgeInsets.all(16),
                     leading: CircleAvatar(
-                      backgroundColor: AppColors.primaryOrangeLight,
+                      backgroundColor: AppColors.primaryGreenLight,
                       child: Text(
                         cust.name.isNotEmpty ? cust.name.substring(0, 1).toUpperCase() : '?',
-                        style: const TextStyle(color: AppColors.primaryOrange, fontWeight: FontWeight.w800),
+                        style: const TextStyle(color: AppColors.primaryGreen, fontWeight: FontWeight.w800),
                       ),
                     ),
                     title: Text(cust.name, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
@@ -318,7 +318,7 @@ class _CustomerScreenState extends State<CustomerScreen> {
                         const Text('Lifetime Spend', style: TextStyle(color: AppColors.textLight, fontSize: 11)),
                         Text(
                           '₹${cust.lifetimeSpend.toStringAsFixed(0)}',
-                          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: AppColors.primaryOrange),
+                          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: AppColors.primaryGreen),
                         ),
                       ],
                     ),
@@ -330,7 +330,7 @@ class _CustomerScreenState extends State<CustomerScreen> {
                           children: [
                             const SizedBox(height: 8),
                             ListTile(
-                              leading: const Icon(Icons.add_card, color: AppColors.primaryOrange),
+                              leading: const Icon(Icons.add_card, color: AppColors.primaryGreen),
                               title: const Text('Book credit sale (house tab)'),
                               onTap: () {
                                 Navigator.of(bctx).pop();

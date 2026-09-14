@@ -73,7 +73,7 @@ class _MergeTablesDialogState extends State<MergeTablesDialog> {
                       for (var t in tables) ...[
                         CheckboxListTile(
                           value: _selectedSecondaryIds.contains(t.id) || t.mergedWithTableId == widget.primaryTable.id,
-                          activeColor: AppColors.primaryOrange,
+                          activeColor: AppColors.primaryGreen,
                           title: Text('${t.tableNumber} (${t.seats} Seats) — ${t.floor}'),
                           subtitle: Text('Status: ${t.statusLabel}'),
                           onChanged: (checked) async {

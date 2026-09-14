@@ -143,10 +143,10 @@ class _GuestDetailsDialogState extends State<GuestDetailsDialog> {
                           Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: AppColors.primaryOrangeLight,
+                              color: AppColors.primaryGreenLight,
                               borderRadius: BorderRadius.circular(10),
                             ),
-                            child: const Icon(Icons.table_restaurant, color: AppColors.primaryOrange, size: 20),
+                            child: const Icon(Icons.table_restaurant, color: AppColors.primaryGreen, size: 20),
                           ),
                           const SizedBox(width: 10),
                           Expanded(
@@ -179,7 +179,7 @@ class _GuestDetailsDialogState extends State<GuestDetailsDialog> {
                           child: ChoiceChip(
                             label: Text('$i'),
                             selected: _guestCount == i,
-                            selectedColor: AppColors.primaryOrange,
+                            selectedColor: AppColors.primaryGreen,
                             labelStyle: TextStyle(
                               color: _guestCount == i ? Colors.white : AppColors.textDark,
                               fontWeight: FontWeight.w700,
@@ -237,14 +237,14 @@ class _GuestDetailsDialogState extends State<GuestDetailsDialog> {
                   final isSelected = _selectedWaiter == w.name;
                   return ChoiceChip(
                     avatar: CircleAvatar(
-                      backgroundColor: AppColors.primaryOrangeLight,
+                      backgroundColor: AppColors.primaryGreenLight,
                       backgroundImage: NetworkImage(w.avatarUrl),
                       onBackgroundImageError: (_, _) {},
                       radius: 10,
                     ),
                     label: Text(w.name),
                     selected: isSelected,
-                    selectedColor: AppColors.primaryOrange,
+                    selectedColor: AppColors.primaryGreen,
                     labelStyle: TextStyle(
                       color: isSelected ? Colors.white : AppColors.textDark,
                       fontWeight: FontWeight.w600,

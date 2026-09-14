@@ -140,7 +140,7 @@ class NumericKeypad extends StatelessWidget {
             child: ElevatedButton(
               onPressed: onSubmit,
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primaryOrange,
+                backgroundColor: AppColors.primaryGreen,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
               child: Text(

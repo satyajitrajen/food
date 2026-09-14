@@ -162,7 +162,7 @@ class _PosMenuScreenState extends State<PosMenuScreen> {
                     child: ChoiceChip(
                       label: Text(cat),
                       selected: isSelected,
-                      selectedColor: AppColors.primaryOrange,
+                      selectedColor: AppColors.primaryGreen,
                       labelStyle: TextStyle(
                         color: isSelected ? Colors.white : AppColors.textDark,
                         fontWeight: FontWeight.w700,
@@ -244,13 +244,13 @@ class _PosMenuScreenState extends State<PosMenuScreen> {
                         ),
                         Text(
                           'Table $tableName',
-                          style: const TextStyle(color: AppColors.primaryOrange, fontWeight: FontWeight.w600, fontSize: 12),
+                          style: const TextStyle(color: AppColors.primaryGreen, fontWeight: FontWeight.w600, fontSize: 12),
                         ),
                       ],
                     ),
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primaryOrange,
+                        backgroundColor: AppColors.primaryGreen,
                         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                       ),
@@ -294,7 +294,7 @@ class _PosMenuScreenState extends State<PosMenuScreen> {
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: cartQty > 0 ? AppColors.primaryOrange.withValues(alpha: 0.5) : AppColors.borderLight,
+              color: cartQty > 0 ? AppColors.primaryGreen.withValues(alpha: 0.5) : AppColors.borderLight,
               width: 1.2,
             ),
             boxShadow: [
@@ -396,7 +396,7 @@ class _PosMenuScreenState extends State<PosMenuScreen> {
                       if (item.hasVariants || item.hasModifiers)
                         const Text(
                           'Customizable',
-                          style: TextStyle(color: AppColors.primaryOrange, fontSize: 10, fontWeight: FontWeight.w600),
+                          style: TextStyle(color: AppColors.primaryGreen, fontSize: 10, fontWeight: FontWeight.w600),
                         ),
                     ],
                   ),
@@ -414,14 +414,14 @@ class _PosMenuScreenState extends State<PosMenuScreen> {
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                             decoration: BoxDecoration(
-                              color: AppColors.primaryOrangeLight,
+                              color: AppColors.primaryGreenLight,
                               borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: AppColors.primaryOrange.withValues(alpha: 0.3)),
+                              border: Border.all(color: AppColors.primaryGreen.withValues(alpha: 0.3)),
                             ),
                             child: const Text(
                               'ADD',
                               style: TextStyle(
-                                color: AppColors.primaryOrange,
+                                color: AppColors.primaryGreen,
                                 fontWeight: FontWeight.w800,
                                 fontSize: 12,
                               ),
@@ -432,7 +432,7 @@ class _PosMenuScreenState extends State<PosMenuScreen> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                           decoration: BoxDecoration(
-                            color: AppColors.primaryOrange,
+                            color: AppColors.primaryGreen,
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Row(

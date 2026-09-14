@@ -38,7 +38,7 @@ class TableSelectionScreen extends StatelessWidget {
             ),
             child: Row(
               children: [
-                const Icon(Icons.table_bar_outlined, size: 16, color: AppColors.primaryOrange),
+                const Icon(Icons.table_bar_outlined, size: 16, color: AppColors.primaryGreen),
                 const SizedBox(width: 6),
                 Text(
                   '${provider.tables.where((t) => t.status == TableStatus.available).length} Free / ${provider.tables.length} Total',
@@ -67,7 +67,7 @@ class TableSelectionScreen extends StatelessWidget {
                       child: ChoiceChip(
                         label: Text(f),
                         selected: isSelected,
-                        selectedColor: AppColors.primaryOrange,
+                        selectedColor: AppColors.primaryGreen,
                         labelStyle: TextStyle(
                           color: isSelected ? Colors.white : AppColors.textDark,
                           fontWeight: FontWeight.w700,
@@ -120,7 +120,7 @@ class TableSelectionScreen extends StatelessWidget {
 
   Widget _buildTableCard(BuildContext context, RestaurantTable table, PosProvider provider) {
     Color borderColor = AppColors.borderLight;
-    if (table.status == TableStatus.occupied) borderColor = AppColors.primaryOrange.withValues(alpha: 0.5);
+    if (table.status == TableStatus.occupied) borderColor = AppColors.primaryGreen.withValues(alpha: 0.5);
     if (table.status == TableStatus.billing) borderColor = AppColors.saffronAmber;
 
     return InkWell(
@@ -231,7 +231,7 @@ class TableSelectionScreen extends StatelessWidget {
                   child: table.currentOrderAmount > 0
                       ? Text(
                           '₹${table.currentOrderAmount.toStringAsFixed(0)}',
-                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: AppColors.primaryOrange),
+                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: AppColors.primaryGreen),
                           overflow: TextOverflow.ellipsis,
                         )
                       : const Text(

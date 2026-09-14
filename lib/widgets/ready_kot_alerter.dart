@@ -122,7 +122,7 @@ class _ReadyBanner extends StatelessWidget {
               ),
               if (alerts.length > 1)
                 Text('+${alerts.length - 1}',
-                    style: const TextStyle(color: AppColors.primaryOrange, fontWeight: FontWeight.w900)),
+                    style: const TextStyle(color: AppColors.primaryGreen, fontWeight: FontWeight.w900)),
             ],
           ),
           const SizedBox(height: 8),

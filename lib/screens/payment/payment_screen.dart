@@ -194,16 +194,16 @@ class _PaymentScreenState extends State<PaymentScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.primaryOrangeLight : Colors.white,
+          color: isSelected ? AppColors.primaryGreenLight : Colors.white,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: isSelected ? AppColors.primaryOrange : AppColors.borderLight,
+            color: isSelected ? AppColors.primaryGreen : AppColors.borderLight,
             width: isSelected ? 1.8 : 1.2,
           ),
         ),
         child: Row(
           children: [
-            Icon(icon, color: isSelected ? AppColors.primaryOrange : color, size: 24),
+            Icon(icon, color: isSelected ? AppColors.primaryGreen : color, size: 24),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
@@ -211,12 +211,12 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 style: TextStyle(
                   fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
                   fontSize: 15,
-                  color: isSelected ? AppColors.primaryOrange : AppColors.textDark,
+                  color: isSelected ? AppColors.primaryGreen : AppColors.textDark,
                 ),
               ),
             ),
             if (isSelected)
-              const Icon(Icons.check_circle, color: AppColors.primaryOrange, size: 20),
+              const Icon(Icons.check_circle, color: AppColors.primaryGreen, size: 20),
           ],
         ),
       ),
@@ -281,7 +281,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                       Text(
                         '₹${grandTotal.toStringAsFixed(0)}',
                         style: const TextStyle(
-                          color: AppColors.primaryOrange,
+                          color: AppColors.primaryGreen,
                           fontWeight: FontWeight.w900,
                           fontSize: 38,
                           letterSpacing: -1.0,
@@ -301,13 +301,13 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                   decoration: BoxDecoration(
-                    color: _splitMode ? AppColors.primaryOrangeLight : Colors.white,
+                    color: _splitMode ? AppColors.primaryGreenLight : Colors.white,
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(color: AppColors.borderLight),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.call_split, size: 20, color: AppColors.primaryOrange),
+                      const Icon(Icons.call_split, size: 20, color: AppColors.primaryGreen),
                       const SizedBox(width: 10),
                       const Expanded(
                         child: Text('Split across Cash + UPI + Card',
@@ -315,7 +315,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                       ),
                       Switch(
                         value: _splitMode,
-                        activeThumbColor: AppColors.primaryOrange,
+                        activeThumbColor: AppColors.primaryGreen,
                         onChanged: (v) => setState(() {
                           _splitMode = v;
                           if (v) {
@@ -443,7 +443,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                     ),
                     child: const Column(
                       children: [
-                        Icon(Icons.assignment_ind, size: 36, color: AppColors.primaryOrange),
+                        Icon(Icons.assignment_ind, size: 36, color: AppColors.primaryGreen),
                         SizedBox(height: 8),
                         Text('Customer Credit / Pay Later ledger requires manager authorization.', textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: AppColors.textMuted)),
                       ],

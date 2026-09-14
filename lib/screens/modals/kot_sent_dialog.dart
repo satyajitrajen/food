@@ -64,7 +64,7 @@ class KOTSentDialog extends StatelessWidget {
               const SizedBox(height: 6),
               Text(
                 '${kot.kotNumber} · Table ${kot.tableNumber ?? "Counter"}',
-                style: const TextStyle(color: AppColors.primaryOrange, fontWeight: FontWeight.w700, fontSize: 14),
+                style: const TextStyle(color: AppColors.primaryGreen, fontWeight: FontWeight.w700, fontSize: 14),
               ),
               const SizedBox(height: 4),
               Text(
