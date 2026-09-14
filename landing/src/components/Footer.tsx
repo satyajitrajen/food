@@ -1,7 +1,7 @@
 import React from 'react';
 import { useRouter } from '../router';
 import { WHATSAPP_NUMBER } from '../console/api';
-import { UtensilsCrossed, MessageCircle, Mail, MapPin } from 'lucide-react';
+import { MessageCircle, Mail, MapPin } from 'lucide-react';
 
 export const Footer: React.FC = () => {
   const { navigate } = useRouter();
@@ -26,11 +26,8 @@ export const Footer: React.FC = () => {
         <div className="footer-grid">
           {/* Brand Col */}
           <div className="footer-brand">
-            <div className="nav-logo" style={{ marginBottom: '12px' }}>
-              <div className="nav-logo-icon">
-                <UtensilsCrossed size={20} />
-              </div>
-              <span>Hishob<span style={{ color: 'var(--terracotta)' }}>kr</span></span>
+            <div style={{ marginBottom: '16px' }}>
+              <img src="/logo.png" alt="Hishobkr" style={{ height: '36px', width: 'auto', display: 'block' }} />
             </div>
             <p>
               The offline-first restaurant POS engineered for Indian dining, cafés, and QSRs. Fast billing, instant KOTs, and zero downtime.
