@@ -136,9 +136,17 @@ func seed(st *store.Store, mgr *auth.Manager) error {
 		if err != nil {
 			return err
 		}
-		if _, err := st.DB.ExecContext(ctx, `INSERT INTO staff (id, name, role, pin_hash, avatar_url, mobile, is_active)
-			VALUES (?, ?, ?, ?, ?, ?, 1) ON CONFLICT DO NOTHING`, s.id, s.name, s.role, hash, s.avatar, s.mobile); err != nil {
+		prot := 0
+		if s.id == "st-03" {
+			prot = 1
+		}
+		if _, err := st.DB.ExecContext(ctx, `INSERT INTO staff (id, name, role, pin_hash, avatar_url, mobile, is_active, is_protected)
+			VALUES (?, ?, ?, ?, ?, ?, 1, ?) ON CONFLICT DO NOTHING`, s.id, s.name, s.role, hash, s.avatar, s.mobile, prot); err != nil {
 			return err
+		}
+		// Ensure the demo owner stays protected even if seeded before 007.
+		if prot == 1 {
+			_, _ = st.DB.ExecContext(ctx, `UPDATE staff SET is_protected = 1 WHERE id = ?`, s.id)
 		}
 	}
 

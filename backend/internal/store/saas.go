@@ -691,8 +691,8 @@ func (s *Store) RegisterOrg(ctx context.Context, name, email, gstin, ownerName, 
 	}
 	staffID := NewID("st")
 	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO staff (id, org_id, outlet_id, name, role, pin_hash, avatar_url, mobile, is_active)
-		 VALUES (?, ?, NULL, ?, 'admin', ?, '', '', 1)`,
+		`INSERT INTO staff (id, org_id, outlet_id, name, role, pin_hash, avatar_url, mobile, is_active, is_protected)
+		 VALUES (?, ?, NULL, ?, 'admin', ?, '', '', 1, 1)`,
 		staffID, orgID, ownerName, adminPINHash); err != nil {
 		return nil, err
 	}

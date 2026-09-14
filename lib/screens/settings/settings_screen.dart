@@ -12,6 +12,7 @@ import '../../core/theme/app_theme.dart';
 import '../../models/settings_model.dart';
 import '../../models/table_model.dart';
 import '../../providers/pos_provider.dart';
+import '../../widgets/confirm_dialog.dart';
 import 'subscription_card.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -172,7 +173,7 @@ class SettingsScreen extends StatelessWidget {
           const Divider(height: 20, color: AppColors.borderLight),
           const Text('Move Table to Section', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
           const SizedBox(height: 6),
-          for (final t in provider.tables) _buildTableSectionRow(provider, t, sections),
+          for (final t in provider.tables) _buildTableSectionRow(context, provider, t, sections),
           const Divider(height: 20, color: AppColors.borderLight),
         ],
         TextButton.icon(
@@ -184,7 +185,7 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildTableSectionRow(PosProvider provider, RestaurantTable t, List<String> sections) {
+  Widget _buildTableSectionRow(BuildContext context, PosProvider provider, RestaurantTable t, List<String> sections) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Row(
@@ -221,8 +222,19 @@ class SettingsScreen extends StatelessWidget {
             items: sections
                 .map((s) => DropdownMenuItem(value: s, child: Text(s, style: const TextStyle(fontSize: 12))))
                 .toList(),
-            onChanged: (s) {
-              if (s != null && s != t.floor) provider.updateTableSection(t.id, s);
+            onChanged: (s) async {
+              if (s != null && s != t.floor) {
+                final ok = await showConfirmDialog(
+                  context,
+                  title: 'Move table?',
+                  message:
+                      'Move table ${t.tableNumber} from "${t.floor}" to "$s"?',
+                  confirmLabel: 'Move Table',
+                  isDanger: false,
+                );
+                if (!ok || !context.mounted) return;
+                provider.updateTableSection(t.id, s);
+              }
             },
           ),
         ],
@@ -598,7 +610,7 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
-  void _deleteSection(BuildContext context, PosProvider provider, String name) {
+  void _deleteSection(BuildContext context, PosProvider provider, String name) async {
     final used = provider.tables.where((t) => t.floor == name).length;
     if (used > 0) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -606,6 +618,13 @@ class SettingsScreen extends StatelessWidget {
       );
       return;
     }
+    final ok = await showConfirmDialog(
+      context,
+      title: 'Delete section?',
+      message: 'Delete dining section "$name"? This removes it from settings and cannot be undone.',
+      confirmLabel: 'Delete Section',
+    );
+    if (!ok || !context.mounted) return;
     final next = _sectionBase(provider).where((s) => s != name).toList();
     if (next.length == provider.settings.sections.length &&
         !provider.settings.sections.contains(name)) {

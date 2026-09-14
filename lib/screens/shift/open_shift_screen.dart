@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/pos_provider.dart';
 import '../../models/shift_model.dart';
+import '../../widgets/confirm_dialog.dart';
 import '../shell/main_adaptive_shell.dart';
 
 class OpenShiftScreen extends StatefulWidget {
@@ -208,8 +209,17 @@ class _OpenShiftScreenState extends State<OpenShiftScreen> {
                   width: double.infinity,
                   height: 52,
                   child: ElevatedButton(
-                    onPressed: () {
+                    onPressed: () async {
                       final cash = double.tryParse(_cashController.text) ?? _computedTotal;
+                      final ok = await showConfirmDialog(
+                        context,
+                        title: 'Start shift?',
+                        message:
+                            'Start shift with opening float ₹${cash.toStringAsFixed(0)}? This starts cash accountability and cannot be undone.',
+                        confirmLabel: 'Start Shift',
+                        isDanger: false,
+                      );
+                      if (!ok || !context.mounted) return;
                       provider.openShift(
                         openingCash: cash,
                         notes: _notesController.text.trim().isNotEmpty ? _notesController.text.trim() : null,

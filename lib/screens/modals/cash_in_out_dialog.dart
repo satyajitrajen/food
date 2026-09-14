@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/pos_provider.dart';
+import '../../widgets/confirm_dialog.dart';
 
 class CashInOutDialog extends StatefulWidget {
   final bool isCashIn;
@@ -147,7 +148,7 @@ class _CashInOutDialogState extends State<CashInOutDialog> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: widget.isCashIn ? AppColors.vegGreen : AppColors.primaryOrange,
                   ),
-                  onPressed: () {
+                  onPressed: () async {
                     final amount = double.tryParse(_amountController.text) ?? 0.0;
                     if (amount <= 0) {
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -168,6 +169,18 @@ class _CashInOutDialogState extends State<CashInOutDialog> {
                       );
                       return;
                     }
+                    final ok = await showConfirmDialog(
+                      context,
+                      title: widget.isCashIn ? 'Add cash?' : 'Remove cash?',
+                      message: widget.isCashIn
+                          ? 'Add ₹${amount.toStringAsFixed(0)} to the drawer ($_selectedReason)?'
+                          : 'Remove ₹${amount.toStringAsFixed(0)} from the drawer ($_selectedReason)? This moves cash and cannot be undone.',
+                      confirmLabel: widget.isCashIn
+                          ? 'Add Cash'
+                          : 'Remove Cash',
+                      isDanger: !widget.isCashIn,
+                    );
+                    if (!ok || !context.mounted) return;
 
                     if (widget.isCashIn) {
                       provider.addCashIn(

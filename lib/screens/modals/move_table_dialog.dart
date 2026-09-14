@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/pos_provider.dart';
 import '../../models/table_model.dart';
+import '../../widgets/confirm_dialog.dart';
 
 class MoveTableDialog extends StatefulWidget {
   final RestaurantTable fromTable;
@@ -92,7 +93,17 @@ class _MoveTableDialogState extends State<MoveTableDialog> {
                 child: ElevatedButton(
                   onPressed: _targetTable == null
                       ? null
-                      : () {
+                      : () async {
+                          final ok = await showConfirmDialog(
+                            context,
+                            title: 'Move table?',
+                            message:
+                                'Move order from ${widget.fromTable.tableNumber} to ${_targetTable!.tableNumber}?',
+                            confirmLabel:
+                                'Move to ${_targetTable!.tableNumber}',
+                            isDanger: false,
+                          );
+                          if (!ok || !context.mounted) return;
                           provider.moveTable(widget.fromTable.id, _targetTable!.id);
                           Navigator.of(context).pop();
                           ScaffoldMessenger.of(context).showSnackBar(

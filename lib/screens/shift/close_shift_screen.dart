@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/pos_provider.dart';
 import '../../models/shift_model.dart';
+import '../../widgets/confirm_dialog.dart';
 import '../auth/pin_login_screen.dart';
 
 class CloseShiftScreen extends StatefulWidget {
@@ -279,7 +280,15 @@ class _CloseShiftScreenState extends State<CloseShiftScreen> {
                   height: 52,
                   child: ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryOrange),
-                    onPressed: () {
+                    onPressed: () async {
+                      final ok = await showConfirmDialog(
+                        context,
+                        title: 'Close shift?',
+                        message:
+                            'Close shift? Expected ₹${expectedCash.toStringAsFixed(0)} / Counted ₹${actualCash.toStringAsFixed(0)} / Difference ₹${discrepancy.toStringAsFixed(0)}. This locks the drawer and cannot be undone.',
+                        confirmLabel: 'Close Shift',
+                      );
+                      if (!ok || !context.mounted) return;
                       provider.closeShift(
                         actualCash: actualCash,
                         notes: _notesController.text.trim().isNotEmpty ? _notesController.text.trim() : null,

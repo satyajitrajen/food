@@ -5,6 +5,7 @@ import '../../core/theme/app_theme.dart';
 import '../../providers/pos_provider.dart';
 import '../../models/expense_model.dart';
 import '../../widgets/stat_kpi_card.dart';
+import '../../widgets/confirm_dialog.dart';
 
 class ExpenseScreen extends StatefulWidget {
   const ExpenseScreen({super.key});
@@ -220,7 +221,17 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                           ),
                           IconButton(
                             icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.textLight),
-                            onPressed: () => provider.deleteExpense(exp.id),
+                            onPressed: () async {
+                              final ok = await showConfirmDialog(
+                                context,
+                                title: 'Delete expense?',
+                                message:
+                                    'Delete "${exp.title}" ₹${exp.amount.toStringAsFixed(0)}? Cash expenses adjust the drawer. This cannot be undone.',
+                                confirmLabel: 'Delete',
+                              );
+                              if (!ok || !context.mounted) return;
+                              provider.deleteExpense(exp.id);
+                            },
                           ),
                         ],
                       ),

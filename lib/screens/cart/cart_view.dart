@@ -7,6 +7,7 @@ import '../../widgets/custom_badge.dart';
 import '../modals/kot_preview_dialog.dart';
 import '../modals/kot_sent_dialog.dart';
 import '../modals/manager_pin_dialog.dart';
+import '../../widgets/confirm_dialog.dart';
 import '../billing/bill_preview_screen.dart';
 
 class CartViewScreen extends StatelessWidget {
@@ -213,6 +214,19 @@ class CartViewScreen extends StatelessWidget {
                                           );
                                           if (managerPin == null) return;
                                         }
+                                        if (!context.mounted) return;
+                                        // Strict: confirm every decrement that
+                                        // removes the last unit.
+                                        if (item.quantity <= 1) {
+                                          final ok = await showConfirmDialog(
+                                            context,
+                                            title: 'Remove item?',
+                                            message:
+                                                'Remove "${item.displayName}" from the cart?',
+                                            confirmLabel: 'Remove Item',
+                                          );
+                                          if (!ok || !context.mounted) return;
+                                        }
                                         provider.decrementItem(item, managerPin: managerPin);
                                       },
                                     ),
@@ -236,6 +250,15 @@ class CartViewScreen extends StatelessWidget {
                                           );
                                           if (managerPin == null) return;
                                         }
+                                        if (!context.mounted) return;
+                                        final ok = await showConfirmDialog(
+                                          context,
+                                          title: 'Remove item?',
+                                          message:
+                                              'Remove "${item.displayName}" ×${item.quantity} from the cart?',
+                                          confirmLabel: 'Remove Item',
+                                        );
+                                        if (!ok || !context.mounted) return;
                                         provider.removeItem(item, managerPin: managerPin);
                                       },
                                     ),

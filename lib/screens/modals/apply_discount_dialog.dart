@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/pos_provider.dart';
+import '../../widgets/confirm_dialog.dart';
 import 'manager_pin_dialog.dart';
 
 class ApplyDiscountDialog extends StatefulWidget {
@@ -129,7 +130,15 @@ class _ApplyDiscountDialogState extends State<ApplyDiscountDialog> {
                 children: [
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: () {
+                      onPressed: () async {
+                        final ok = await showConfirmDialog(
+                          context,
+                          title: 'Remove discount?',
+                          message:
+                              'Remove the current discount from this order?',
+                          confirmLabel: 'Remove Discount',
+                        );
+                        if (!ok || !context.mounted) return;
                         provider.applyDiscount(percent: 0, amount: 0, reason: null);
                         Navigator.of(context).pop();
                       },
@@ -178,6 +187,17 @@ class _ApplyDiscountDialogState extends State<ApplyDiscountDialog> {
                           return;
                         }
                       }
+                      if (!context.mounted) return;
+                      final okConfirm = await showConfirmDialog(
+                        context,
+                        title: 'Apply discount?',
+                        message: _isPercentage
+                            ? 'Apply $val% discount ($_selectedReason) to this order?'
+                            : 'Apply ₹${val.toStringAsFixed(0)} discount ($_selectedReason) to this order?',
+                        confirmLabel: 'Apply Discount',
+                        isDanger: false,
+                      );
+                      if (!okConfirm || !context.mounted) return;
 
                       if (_isPercentage) {
                         provider.applyDiscount(percent: val, reason: _selectedReason, managerPin: managerPin);

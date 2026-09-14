@@ -8,6 +8,7 @@ import '../../models/order_model.dart';
 import '../../providers/pos_provider.dart';
 import '../receipt/payment_success_screen.dart';
 import '../modals/manager_pin_dialog.dart';
+import '../../widgets/confirm_dialog.dart';
 
 class PaymentScreen extends StatefulWidget {
   const PaymentScreen({super.key});
@@ -115,7 +116,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
     );
   }
 
-  void _paySplit(BuildContext context, PosProvider provider, double grandTotal) {
+  void _paySplit(BuildContext context, PosProvider provider, double grandTotal) async {
     double amt(TextEditingController c) => double.tryParse(c.text) ?? 0.0;
     final cashAmt = amt(_splitCashC);
     final upiAmt = amt(_splitUpiC);
@@ -137,6 +138,15 @@ class _PaymentScreenState extends State<PaymentScreen> {
       ));
       return;
     }
+    final ok = await showConfirmDialog(
+      context,
+      title: 'Complete split payment?',
+      message:
+          'Collect ₹${grandTotal.toStringAsFixed(0)} as split (Cash ₹${cashAmt.toStringAsFixed(0)} + UPI ₹${upiAmt.toStringAsFixed(0)} + Card ₹${cardAmt.toStringAsFixed(0)})? The order will close and this cannot be undone.',
+      confirmLabel: 'Collect Payment',
+      isDanger: false,
+    );
+    if (!ok || !context.mounted) return;
     final legs = <({String method, double amount})>[
       if (cashAmt > 0) (method: 'Cash', amount: cashAmt),
       if (upiAmt > 0) (method: 'UPI', amount: upiAmt),
@@ -463,9 +473,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
                         if (managerPin == null) return;
                       }
                       if (!context.mounted) return;
-                      final messenger = ScaffoldMessenger.of(context);
                       if (_selectedPaymentMode == 'Cash' && shortBy > 0.005) {
-                        messenger.showSnackBar(
+                        ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text('Cash received is short by ₹${shortBy.toStringAsFixed(0)}'),
                             backgroundColor: AppColors.nonVegRed,
@@ -473,6 +482,15 @@ class _PaymentScreenState extends State<PaymentScreen> {
                         );
                         return;
                       }
+                      final ok = await showConfirmDialog(
+                        context,
+                        title: 'Complete payment?',
+                        message:
+                            'Collect ₹${grandTotal.toStringAsFixed(0)} via $_selectedPaymentMode? The order will close and this cannot be undone.',
+                        confirmLabel: 'Collect Payment',
+                        isDanger: false,
+                      );
+                      if (!ok || !context.mounted) return;
 
                       _finishPayment(
                         context,

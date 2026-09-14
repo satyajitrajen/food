@@ -1306,6 +1306,7 @@ class PosProvider extends ChangeNotifier {
       pin: '0000',
       avatarUrl: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=100',
       mobile: '+91 98220 33445',
+      isProtected: true,
     ),
     Staff(
       id: 'st-04',
@@ -2960,6 +2961,7 @@ class PosProvider extends ChangeNotifier {
       avatarUrl: staff.avatarUrl,
       mobile: staff.mobile,
       isActive: staff.isActive,
+      isProtected: false,
     );
     _staffList.add(s);
     notifyListeners();
@@ -2974,10 +2976,27 @@ class PosProvider extends ChangeNotifier {
     });
   }
 
-  void updateStaff(String id, {String? name, StaffRole? role, String? outletId, bool? isActive, String? pin}) {
+  bool updateStaff(String id, {String? name, StaffRole? role, String? outletId, bool? isActive, String? pin}) {
     final idx = _staffList.indexWhere((s) => s.id == id);
-    if (idx == -1) return;
+    if (idx == -1) return false;
     final s = _staffList[idx];
+    // Owner (main admin) protection: only itself may edit itself, and even
+    // itself cannot deactivate/demote. Any other actor is blocked entirely.
+    if (s.isProtected) {
+      if (_currentStaff?.id != s.id) return false;
+      if (isActive == false) return false;
+      if (role != null && role != StaffRole.admin) return false;
+    } else {
+      // Managers cannot edit any admin row.
+      if (s.role == StaffRole.admin && _currentStaff?.role == StaffRole.manager) {
+        return false;
+      }
+      // No self-deactivation, no self-demotion.
+      if (_currentStaff?.id == s.id) {
+        if (isActive == false) return false;
+        if (role != null && role != s.role) return false;
+      }
+    }
     final effectiveRole = role ?? s.role;
     final effectiveOutlet = effectiveRole == StaffRole.waiter
         ? (outletId ?? s.outletId ?? _currentOutlet.id)
@@ -2991,6 +3010,7 @@ class PosProvider extends ChangeNotifier {
       avatarUrl: s.avatarUrl,
       mobile: s.mobile,
       isActive: isActive ?? s.isActive,
+      isProtected: s.isProtected,
     );
     notifyListeners();
     _sync?.push('staff.patch', {
@@ -3001,6 +3021,7 @@ class PosProvider extends ChangeNotifier {
       'is_active': ?isActive,
       'pin': ?((pin != null && pin.isNotEmpty) ? pin : null),
     });
+    return true;
   }
 
   void addInventoryItem(InventoryItem item) {

@@ -20,15 +20,16 @@ type Outlet struct {
 }
 
 type Staff struct {
-	ID        string    `json:"id"`
-	OrgID     string    `json:"org_id"`
-	OutletID  *string   `json:"outlet_id"`
-	Name      string    `json:"name"`
-	Role      string    `json:"role"` // admin|manager|cashier|waiter|kitchen
-	AvatarURL string    `json:"avatar_url"`
-	Mobile    string    `json:"mobile"`
-	IsActive  bool      `json:"is_active"`
-	CreatedAt time.Time `json:"created_at"`
+	ID          string    `json:"id"`
+	OrgID       string    `json:"org_id"`
+	OutletID    *string   `json:"outlet_id"`
+	Name        string    `json:"name"`
+	Role        string    `json:"role"` // admin|manager|cashier|waiter|kitchen
+	AvatarURL   string    `json:"avatar_url"`
+	Mobile      string    `json:"mobile"`
+	IsActive    bool      `json:"is_active"`
+	IsProtected bool      `json:"is_protected"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 type StaffCreate struct {
