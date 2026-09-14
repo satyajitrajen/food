@@ -1,6 +1,6 @@
 import React from 'react';
 import { useRouter } from '../router';
-import { ArrowRight, UtensilsCrossed } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 
 interface NavbarProps {
   onOpenDemo: () => void;
@@ -8,12 +8,14 @@ interface NavbarProps {
 
 const NAV_LINKS = [
   { label: 'Features', targetId: 'features' },
-  { label: 'Benefits', targetId: 'benefits' },
+  { label: 'POS Terminal', targetId: 'terminal' },
+  { label: 'Workflow', targetId: 'workflow' },
   { label: 'Pricing', targetId: 'pricing' },
+  { label: 'FAQ', targetId: 'faq' },
 ];
 
 export const Navbar: React.FC<NavbarProps> = ({ onOpenDemo }) => {
-  const { navigate, currentPath } = useRouter();
+  const { currentPath, navigate } = useRouter();
 
   const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, targetId: string) => {
     e.preventDefault();
@@ -32,11 +34,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenDemo }) => {
     <header className="t-header">
       <nav className="t-header-inner" aria-label="Main">
         {/* Brand */}
-        <a href="/" onClick={(e) => { e.preventDefault(); navigate('/'); }} className="t-brand">
-          <span className="t-brand-mark">
-            <UtensilsCrossed size={18} />
-          </span>
-          <span>Hishobkr</span>
+        <a href="/" onClick={(e) => { e.preventDefault(); navigate('/'); }} className="t-brand" aria-label="Hishobkr Home">
+          <img src="/logo.png" alt="Hishobkr" className="t-brand-logo" />
         </a>
 
         {/* Center links */}

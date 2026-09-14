@@ -63,6 +63,12 @@ section[id], .section-header { scroll-margin-top: 84px; }
   color: #0B0B0F;
   letter-spacing: -0.02em;
 }
+.t-brand-logo {
+  height: 42px;
+  width: auto;
+  object-fit: contain;
+  display: block;
+}
 .t-brand-mark {
   width: 34px;
   height: 34px;
@@ -538,6 +544,7 @@ section[id], .section-header { scroll-margin-top: 84px; }
 @media (max-width: 640px) {
   .t-header-inner { height: 62px; padding: 0 16px; }
   .t-brand { font-size: 1.05rem; }
+  .t-brand-logo { height: 34px; }
   .t-hero { padding: 48px 18px 72px; }
   .t-hero-pill { max-width: 100%; flex-wrap: wrap; justify-content: center; }
   .t-hero-title { font-size: clamp(1.9rem, 9vw, 2.5rem); }

@@ -85,7 +85,7 @@ type StaffRow struct {
 // ListStaff lists active staff of an org. When outletID is non-empty only that
 // outlet's staff (plus org-wide staff with outlet_id NULL) are returned.
 func (s *Store) ListStaff(ctx context.Context, orgID, outletID string) ([]models.Staff, error) {
-	q := `SELECT id, org_id, outlet_id, name, role, avatar_url, mobile, is_active FROM staff WHERE org_id = ? AND is_active = 1`
+	q := `SELECT id, org_id, outlet_id, name, role, avatar_url, mobile, is_active, COALESCE(is_protected, 0) FROM staff WHERE org_id = ? AND is_active = 1`
 	args := []any{orgID}
 	if outletID != "" {
 		q += ` AND (outlet_id = ? OR (outlet_id IS NULL AND role != 'waiter'))`
@@ -112,10 +112,12 @@ func scanStaff(sc interface{ Scan(...any) error }) (*models.Staff, error) {
 	var st models.Staff
 	var outlet sql.NullString
 	var active int
-	if err := sc.Scan(&st.ID, &st.OrgID, &outlet, &st.Name, &st.Role, &st.AvatarURL, &st.Mobile, &active); err != nil {
+	var prot int
+	if err := sc.Scan(&st.ID, &st.OrgID, &outlet, &st.Name, &st.Role, &st.AvatarURL, &st.Mobile, &active, &prot); err != nil {
 		return nil, err
 	}
 	st.IsActive = active == 1
+	st.IsProtected = prot == 1
 	if outlet.Valid {
 		st.OutletID = &outlet.String
 	}
@@ -126,9 +128,10 @@ func (s *Store) GetStaff(ctx context.Context, id string) (*StaffRow, error) {
 	var st StaffRow
 	var outlet sql.NullString
 	var active int
+	var prot int
 	err := s.DB.QueryRowContext(ctx,
-		`SELECT id, org_id, outlet_id, name, role, avatar_url, mobile, is_active, pin_hash FROM staff WHERE id = ?`, id).
-		Scan(&st.ID, &st.OrgID, &outlet, &st.Name, &st.Role, &st.AvatarURL, &st.Mobile, &active, &st.PINHash)
+		`SELECT id, org_id, outlet_id, name, role, avatar_url, mobile, is_active, COALESCE(is_protected, 0), pin_hash FROM staff WHERE id = ?`, id).
+		Scan(&st.ID, &st.OrgID, &outlet, &st.Name, &st.Role, &st.AvatarURL, &st.Mobile, &active, &prot, &st.PINHash)
 	if err == sql.ErrNoRows {
 		return nil, httpx.ErrNotFound
 	}
@@ -136,6 +139,7 @@ func (s *Store) GetStaff(ctx context.Context, id string) (*StaffRow, error) {
 		return nil, err
 	}
 	st.IsActive = active == 1
+	st.IsProtected = prot == 1
 	if outlet.Valid {
 		st.OutletID = &outlet.String
 	}
@@ -149,8 +153,8 @@ func (s *Store) CreateStaff(ctx context.Context, orgID string, st models.StaffCr
 		outlet = *st.OutletID
 	}
 	_, err := s.DB.ExecContext(ctx,
-		`INSERT INTO staff (id, org_id, outlet_id, name, role, pin_hash, avatar_url, mobile, is_active)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+		`INSERT INTO staff (id, org_id, outlet_id, name, role, pin_hash, avatar_url, mobile, is_active, is_protected)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 0)`,
 		id, orgID, outlet, st.Name, st.Role, pinHash, st.AvatarURL, st.Mobile)
 	if err != nil {
 		return nil, err

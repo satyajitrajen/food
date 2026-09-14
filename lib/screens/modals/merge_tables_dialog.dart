@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/pos_provider.dart';
 import '../../models/table_model.dart';
+import '../../widgets/confirm_dialog.dart';
 
 class MergeTablesDialog extends StatefulWidget {
   final RestaurantTable primaryTable;
@@ -75,15 +76,29 @@ class _MergeTablesDialogState extends State<MergeTablesDialog> {
                           activeColor: AppColors.primaryOrange,
                           title: Text('${t.tableNumber} (${t.seats} Seats) — ${t.floor}'),
                           subtitle: Text('Status: ${t.statusLabel}'),
-                          onChanged: (checked) {
+                          onChanged: (checked) async {
+                            if (checked == false &&
+                                t.mergedWithTableId ==
+                                    widget.primaryTable.id) {
+                              final ok = await showConfirmDialog(
+                                context,
+                                title: 'Split table?',
+                                message:
+                                    'Split table ${t.tableNumber} from ${widget.primaryTable.tableNumber}? Bill linkage breaks immediately.',
+                                confirmLabel: 'Split Table',
+                              );
+                              if (!ok || !context.mounted) return;
+                              setState(() {
+                                _selectedSecondaryIds.remove(t.id);
+                                provider.unmergeTable(t.id);
+                              });
+                              return;
+                            }
                             setState(() {
                               if (checked == true) {
                                 _selectedSecondaryIds.add(t.id);
                               } else {
                                 _selectedSecondaryIds.remove(t.id);
-                                if (t.mergedWithTableId == widget.primaryTable.id) {
-                                  provider.unmergeTable(t.id);
-                                }
                               }
                             });
                           },
@@ -107,7 +122,16 @@ class _MergeTablesDialogState extends State<MergeTablesDialog> {
                     child: ElevatedButton(
                       onPressed: _selectedSecondaryIds.isEmpty
                           ? null
-                          : () {
+                          : () async {
+                              final ok = await showConfirmDialog(
+                                context,
+                                title: 'Merge tables?',
+                                message:
+                                    'Merge ${_selectedSecondaryIds.length} table(s) into ${widget.primaryTable.tableNumber}? Bills link together.',
+                                confirmLabel: 'Merge Tables',
+                                isDanger: false,
+                              );
+                              if (!ok || !context.mounted) return;
                               for (var id in _selectedSecondaryIds) {
                                 provider.mergeTables(widget.primaryTable.id, id);
                               }

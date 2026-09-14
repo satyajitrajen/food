@@ -9,6 +9,7 @@ class Staff {
   final String avatarUrl;
   final String mobile;
   final bool isActive;
+  final bool isProtected;
 
   Staff({
     required this.id,
@@ -19,6 +20,7 @@ class Staff {
     required this.avatarUrl,
     required this.mobile,
     this.isActive = true,
+    this.isProtected = false,
   });
 
   String get roleTitle {

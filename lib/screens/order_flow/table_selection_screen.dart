@@ -4,6 +4,7 @@ import '../../core/theme/app_theme.dart';
 import '../../providers/pos_provider.dart';
 import '../../models/table_model.dart';
 import '../../widgets/custom_badge.dart';
+import '../../widgets/confirm_dialog.dart';
 import '../modals/guest_details_dialog.dart';
 import '../pos_menu/pos_menu_screen.dart';
 import '../running_orders/running_order_detail_screen.dart';
@@ -123,7 +124,7 @@ class TableSelectionScreen extends StatelessWidget {
     if (table.status == TableStatus.billing) borderColor = AppColors.saffronAmber;
 
     return InkWell(
-      onTap: () {
+      onTap: () async {
         provider.selectTable(table);
 
         if (table.status == TableStatus.available) {
@@ -161,6 +162,15 @@ class TableSelectionScreen extends StatelessWidget {
           }
         } else {
           // Reserved or Cleaning - Allow toggle to available via provider
+          final ok = await showConfirmDialog(
+            context,
+            title: 'Mark table available?',
+            message:
+                'Mark table ${table.tableNumber} as Available? This changes floor status.',
+            confirmLabel: 'Mark Available',
+            isDanger: false,
+          );
+          if (!ok || !context.mounted) return;
           provider.markTableAvailable(table);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Table ${table.tableNumber} is now marked Available!')),

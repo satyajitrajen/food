@@ -259,6 +259,17 @@ func (s *Server) handleCreateStaff(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorJSON(w, r, httpx.ErrUnauthorized)
 		return
 	}
+	switch req.Role {
+	case "admin", "manager", "cashier", "waiter", "kitchen":
+	default:
+		httpx.ErrorJSON(w, r, httpx.NewError(400, "invalid_role", "role must be admin, manager, cashier, waiter or kitchen"))
+		return
+	}
+	// Managers cannot create admin staff (privilege escalation).
+	if claims.Role == "manager" && req.Role == "admin" {
+		httpx.ErrorJSON(w, r, httpx.NewError(403, "admin_only", "Only admins can create admin staff"))
+		return
+	}
 	if req.Role == "waiter" {
 		if req.OutletID == nil || *req.OutletID == "" {
 			if outID := outletScope(r); outID != "" {
@@ -318,6 +329,41 @@ func (s *Server) handlePatchStaff(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorJSON(w, r, httpx.ErrNotFound)
 		return
 	}
+	// Owner (main admin) protection: the protected row is editable only by
+	// itself, and even itself cannot deactivate/demote. Any other staff token
+	// — including another admin — gets 403. Owner credential changes require
+	// owner auth (self session), never a manager PIN.
+	if existing.IsProtected {
+		if claims.ActorID != existing.ID {
+			httpx.ErrorJSON(w, r, httpx.NewError(403, "owner_protected", "Main admin (owner) can only be edited by itself"))
+			return
+		}
+		if (p.IsActive != nil && !*p.IsActive) || (p.Role != nil && *p.Role != "admin") {
+			httpx.ErrorJSON(w, r, httpx.NewError(403, "owner_protected", "Main admin (owner) cannot be deactivated or demoted"))
+			return
+		}
+	}
+	// Managers cannot edit any regular admin row. Protected (owner) rows are
+	// already limited to self-only above.
+	if !existing.IsProtected && existing.Role == "admin" && claims.Role == "manager" {
+		httpx.ErrorJSON(w, r, httpx.NewError(403, "admin_only", "Only admins can edit admin staff"))
+		return
+	}
+	// Self guards for all roles: no self-deactivation, no self-demotion.
+	if claims.ActorID == existing.ID {
+		if p.IsActive != nil && !*p.IsActive {
+			httpx.ErrorJSON(w, r, httpx.NewError(403, "self_deactivation", "You cannot deactivate yourself"))
+			return
+		}
+		if p.Role != nil && *p.Role != existing.Role {
+			httpx.ErrorJSON(w, r, httpx.NewError(403, "self_demotion", "You cannot change your own role"))
+			return
+		}
+		// Owner PIN reset via POS is allowed only for owner-self (already
+		// checked above); non-owner self PIN changes fall through.
+	}
+	// Non-self PIN reset on a protected row is already rejected above
+	// (owner_protected), so reaching here with a PIN means self or regular row.
 	effectiveRole := existing.Role
 	if p.Role != nil {
 		effectiveRole = *p.Role

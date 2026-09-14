@@ -250,6 +250,7 @@ Staff staffFromApi(Map<String, dynamic> j) {
     avatarUrl: _str(j['avatar_url']),
     mobile: _str(j['mobile']),
     isActive: j['is_active'] != false,
+    isProtected: j['is_protected'] == true || j['is_protected'] == 1,
   );
 }
 

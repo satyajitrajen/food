@@ -5,6 +5,7 @@ import '../../core/theme/app_theme.dart';
 import '../../providers/pos_provider.dart';
 import '../../models/kot_model.dart';
 import '../../widgets/custom_badge.dart';
+import '../../widgets/confirm_dialog.dart';
 import '../auth/pin_login_screen.dart';
 
 class KitchenBoardScreen extends StatefulWidget {
@@ -237,21 +238,53 @@ class _KitchenBoardScreenState extends State<KitchenBoardScreen> with SingleTick
                     if (kot.status == KOTStatus.newTicket)
                       ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(backgroundColor: AppColors.saffronAmber),
-                        onPressed: () => provider.updateKOTStatus(kot.id, KOTStatus.preparing),
+                        onPressed: () async {
+                          final ok = await showConfirmDialog(
+                            context,
+                            title: 'Start preparing?',
+                            message:
+                                'Start preparing ${kot.kotNumber}? The ticket moves to Preparing.',
+                            confirmLabel: 'Start Preparing',
+                            isDanger: false,
+                          );
+                          if (!ok || !context.mounted) return;
+                          provider.updateKOTStatus(kot.id, KOTStatus.preparing);
+                        },
                         icon: const Icon(Icons.soup_kitchen, size: 16),
                         label: const Text('Start Preparing'),
                       )
                     else if (kot.status == KOTStatus.preparing)
                       ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(backgroundColor: AppColors.vegGreen),
-                        onPressed: () => provider.updateKOTStatus(kot.id, KOTStatus.ready),
+                        onPressed: () async {
+                          final ok = await showConfirmDialog(
+                            context,
+                            title: 'Mark ready?',
+                            message:
+                                'Mark ${kot.kotNumber} as Ready? This notifies the floor.',
+                            confirmLabel: 'Mark Ready',
+                            isDanger: false,
+                          );
+                          if (!ok || !context.mounted) return;
+                          provider.updateKOTStatus(kot.id, KOTStatus.ready);
+                        },
                         icon: const Icon(Icons.check_circle_outline, size: 16),
                         label: const Text('Mark Ready'),
                       )
                     else if (kot.status == KOTStatus.ready)
                       ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(backgroundColor: AppColors.textDark),
-                        onPressed: () => provider.updateKOTStatus(kot.id, KOTStatus.served),
+                        onPressed: () async {
+                          final ok = await showConfirmDialog(
+                            context,
+                            title: 'Mark served?',
+                            message:
+                                'Mark ${kot.kotNumber} as Served? This closes the kitchen ticket.',
+                            confirmLabel: 'Mark Served',
+                          );
+                          if (!ok || !context.mounted) return;
+                          provider.updateKOTStatus(kot.id, KOTStatus.served);
+                        },
                         icon: const Icon(Icons.room_service_outlined, size: 16),
                         label: const Text('Mark Served'),
                       ),

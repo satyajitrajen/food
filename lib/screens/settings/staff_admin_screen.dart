@@ -3,10 +3,13 @@ import 'package:provider/provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/staff_model.dart';
 import '../../providers/pos_provider.dart';
+import '../../widgets/confirm_dialog.dart';
+import '../modals/manager_pin_dialog.dart';
 
 /// W3/B3 (PRD admin capability): staff directory management — add staff,
 /// toggle active, change role, reset PIN. Manager/Admin only; the server
-/// enforces the role on POST /staff and PATCH /staff/{id}.
+/// enforces owner protection + role on POST /staff and PATCH /staff/{id}.
+/// Main (owner) admin: editable only by itself, never deactivatable/demotable.
 class StaffAdminScreen extends StatelessWidget {
   const StaffAdminScreen({super.key});
 
@@ -14,6 +17,7 @@ class StaffAdminScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final provider = context.watch<PosProvider>();
     final canManage = provider.canManage;
+    final current = provider.currentStaff;
     final staff = List<Staff>.from(provider.staffList)
       ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
@@ -51,6 +55,46 @@ class StaffAdminScreen extends StatelessWidget {
                 itemCount: staff.length,
                 itemBuilder: (context, i) {
                   final s = staff[i];
+                  final isSelf = current?.id == s.id;
+                  final iAmManager = current?.role == StaffRole.manager;
+                  final isOwnerRow = s.isProtected;
+                  // Owner row: only itself may edit (name/PIN); nobody can
+                  // change role/status, nobody else can touch it at all.
+                  final ownerBlocked = isOwnerRow && !isSelf;
+                  // Manager cannot edit any admin row.
+                  final managerBlocked =
+                      !isOwnerRow && s.role == StaffRole.admin && iAmManager;
+                  final selfRoleBlocked = isSelf;
+                  final roleEnabled = canManage &&
+                      !ownerBlocked &&
+                      !managerBlocked &&
+                      !selfRoleBlocked;
+                  final statusEnabled = canManage &&
+                      !ownerBlocked &&
+                      !managerBlocked &&
+                      !isSelf;
+                  final pinEnabled =
+                      canManage && !ownerBlocked && !managerBlocked;
+
+                  String roleTooltip = 'Change role';
+                  if (ownerBlocked) {
+                    roleTooltip =
+                        'Main admin (owner) — only the owner can edit this account';
+                  } else if (managerBlocked) {
+                    roleTooltip = 'Only admins can edit admin staff';
+                  } else if (selfRoleBlocked) {
+                    roleTooltip = 'You cannot change your own role';
+                  }
+                  String statusTooltip = s.isActive ? 'Deactivate' : 'Activate';
+                  if (ownerBlocked) {
+                    statusTooltip =
+                        'Main admin (owner) cannot be deactivated';
+                  } else if (managerBlocked) {
+                    statusTooltip = 'Only admins can edit admin staff';
+                  } else if (isSelf) {
+                    statusTooltip = 'You cannot deactivate yourself';
+                  }
+
                   return Container(
                     margin: const EdgeInsets.only(bottom: 8),
                     padding: const EdgeInsets.all(12),
@@ -74,7 +118,54 @@ class StaffAdminScreen extends StatelessWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(s.name, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+                              Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(s.name,
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 14)),
+                                  ),
+                                  if (isOwnerRow) ...[
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 7, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.infoBlueBg,
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: const Text(
+                                        'OWNER',
+                                        style: TextStyle(
+                                          color: AppColors.infoBlue,
+                                          fontWeight: FontWeight.w900,
+                                          fontSize: 10,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                  if (isSelf) ...[
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 7, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.creamSubtle,
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: const Text(
+                                        'YOU',
+                                        style: TextStyle(
+                                          color: AppColors.textMuted,
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 10,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
                               const SizedBox(height: 2),
                               Text(
                                 s.role == StaffRole.waiter && s.outletId != null
@@ -89,29 +180,58 @@ class StaffAdminScreen extends StatelessWidget {
                           ),
                         ),
                         if (canManage) ...[
-                          DropdownButton<StaffRole>(
-                            value: s.role,
-                            underline: const SizedBox.shrink(),
-                            items: StaffRole.values
-                                .map((r) => DropdownMenuItem(value: r, child: Text(r.name, style: const TextStyle(fontSize: 12))))
-                                .toList(),
-                            onChanged: (r) {
-                              if (r != null && r != s.role) provider.updateStaff(s.id, role: r);
-                            },
+                          Tooltip(
+                            message: roleTooltip,
+                            child: DropdownButton<StaffRole>(
+                              value: s.role,
+                              underline: const SizedBox.shrink(),
+                              items: StaffRole.values
+                                  .map((r) => DropdownMenuItem(
+                                      value: r,
+                                      child: Text(r.name,
+                                          style: const TextStyle(fontSize: 12))))
+                                  .toList(),
+                              onChanged: roleEnabled
+                                  ? (r) {
+                                      if (r != null && r != s.role) {
+                                        _confirmRoleChange(
+                                            context, provider, s, r);
+                                      }
+                                    }
+                                  : null,
+                            ),
                           ),
                           IconButton(
-                            tooltip: s.isActive ? 'Deactivate' : 'Activate',
+                            tooltip: statusTooltip,
                             icon: Icon(
                               s.isActive ? Icons.block_outlined : Icons.check_circle_outline,
                               size: 18,
-                              color: s.isActive ? AppColors.nonVegRed : AppColors.vegGreen,
+                              color: statusEnabled
+                                  ? (s.isActive
+                                      ? AppColors.nonVegRed
+                                      : AppColors.vegGreen)
+                                  : AppColors.textLight,
                             ),
-                            onPressed: () => provider.updateStaff(s.id, isActive: !s.isActive),
+                            onPressed: statusEnabled
+                                ? () => _confirmStatusChange(
+                                    context, provider, s)
+                                : null,
                           ),
                           IconButton(
-                            tooltip: 'Reset PIN',
-                            icon: const Icon(Icons.password, size: 18, color: AppColors.primaryOrange),
-                            onPressed: () => _showPinResetDialog(context, provider, s),
+                            tooltip: ownerBlocked
+                                ? 'Main admin (owner) — only the owner can reset this PIN'
+                                : (managerBlocked
+                                    ? 'Only admins can reset admin PINs'
+                                    : 'Reset PIN'),
+                            icon: Icon(Icons.password,
+                                size: 18,
+                                color: pinEnabled
+                                    ? AppColors.primaryOrange
+                                    : AppColors.textLight),
+                            onPressed: pinEnabled
+                                ? () =>
+                                    _showPinResetDialog(context, provider, s)
+                                : null,
                           ),
                         ],
                       ],
@@ -122,6 +242,54 @@ class StaffAdminScreen extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Future<void> _confirmRoleChange(BuildContext context, PosProvider provider,
+      Staff s, StaffRole r) async {
+    final ok = await showConfirmDialog(
+      context,
+      title: 'Change role?',
+      message:
+          'Change ${s.name} from ${s.role.name} to ${r.name}? This changes what they can access immediately.',
+      confirmLabel: 'Change Role',
+    );
+    if (!ok || !context.mounted) return;
+    final applied = provider.updateStaff(s.id, role: r);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(applied
+            ? '✓ Role updated to ${r.name}'
+            : 'Blocked: this change is not allowed (owner/self/admin rule)'),
+        backgroundColor:
+            applied ? AppColors.vegGreen : AppColors.nonVegRed,
+      ),
+    );
+  }
+
+  Future<void> _confirmStatusChange(
+      BuildContext context, PosProvider provider, Staff s) async {
+    final toActive = !s.isActive;
+    final ok = await showConfirmDialog(
+      context,
+      title: toActive ? 'Activate staff?' : 'Deactivate staff?',
+      message: toActive
+          ? 'Activate ${s.name} (${s.roleTitle})? They will be able to log in again.'
+          : 'Deactivate ${s.name} (${s.roleTitle})? They will immediately lose login access.',
+      confirmLabel: toActive ? 'Activate' : 'Deactivate',
+    );
+    if (!ok || !context.mounted) return;
+    final applied = provider.updateStaff(s.id, isActive: toActive);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(applied
+            ? (toActive ? '✓ Staff activated' : '✓ Staff deactivated')
+            : 'Blocked: this change is not allowed (owner/self/admin rule)'),
+        backgroundColor:
+            applied ? AppColors.vegGreen : AppColors.nonVegRed,
       ),
     );
   }
@@ -188,6 +356,17 @@ class StaffAdminScreen extends StatelessWidget {
                 final name = nameC.text.trim();
                 final pin = pinC.text.trim();
                 if (name.isEmpty || pin.length < 4 || pin.length > 6 || !RegExp(r'^\d+$').hasMatch(pin)) return;
+                // Managers cannot create admin staff (server enforces too).
+                if (provider.currentStaff?.role == StaffRole.manager &&
+                    role == StaffRole.admin) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Only admins can create admin staff'),
+                      backgroundColor: AppColors.nonVegRed,
+                    ),
+                  );
+                  return;
+                }
                 provider.addStaff(Staff(
                   id: 'st-${DateTime.now().millisecondsSinceEpoch}',
                   outletId: role == StaffRole.waiter ? selectedOutletId : null,
@@ -209,27 +388,82 @@ class StaffAdminScreen extends StatelessWidget {
 
   void _showPinResetDialog(BuildContext context, PosProvider provider, Staff s) {
     final pinC = TextEditingController();
+    final isOwnerTarget = s.isProtected;
+    final isSelf = provider.currentStaff?.id == s.id;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('Reset PIN — ${s.name}'),
         content: SizedBox(
           width: 440,
-          child: TextField(
-            controller: pinC,
-            keyboardType: TextInputType.number,
-            maxLength: 6,
-            decoration: const InputDecoration(labelText: 'New PIN (4-6 digits)', counterText: ''),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (isOwnerTarget)
+                const Text(
+                  'Owner account: PIN changes require owner authorization (your own owner session). Manager approval alone is not sufficient.',
+                  style: TextStyle(color: AppColors.nonVegRed, fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: pinC,
+                keyboardType: TextInputType.number,
+                maxLength: 6,
+                decoration: const InputDecoration(labelText: 'New PIN (4-6 digits)', counterText: ''),
+              ),
+            ],
           ),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               final pin = pinC.text.trim();
               if (pin.length < 4 || pin.length > 6 || !RegExp(r'^\d+$').hasMatch(pin)) return;
-              provider.updateStaff(s.id, pin: pin);
+              // Owner target: only owner-self may proceed (server enforces too).
+              if (isOwnerTarget && !isSelf) {
+                if (ctx.mounted) Navigator.of(ctx).pop();
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Blocked: only the owner can reset the owner PIN'),
+                      backgroundColor: AppColors.nonVegRed,
+                    ),
+                  );
+                }
+                return;
+              }
               Navigator.of(ctx).pop();
+              final ok = await showConfirmDialog(
+                context,
+                title: 'Reset PIN?',
+                message:
+                    'Reset login PIN for ${s.name}? They will need the new PIN to log in.',
+                confirmLabel: 'Reset PIN',
+              );
+              if (!ok || !context.mounted) return;
+              // Non-owner targets keep the existing manager gate for accountability.
+              if (!isOwnerTarget) {
+                final managerPin = await ManagerPinDialog.show(
+                  context,
+                  title: 'Authorize PIN Reset',
+                  description:
+                      'Enter a Manager/Admin PIN to authorize resetting ${s.name}\u2019s login PIN.',
+                );
+                if (managerPin == null || !context.mounted) return;
+              }
+              final applied = provider.updateStaff(s.id, pin: pin);
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(applied
+                      ? '✓ PIN reset for ${s.name}'
+                      : 'Blocked: PIN reset not allowed for this account'),
+                  backgroundColor:
+                      applied ? AppColors.vegGreen : AppColors.nonVegRed,
+                ),
+              );
             },
             child: const Text('Reset'),
           ),

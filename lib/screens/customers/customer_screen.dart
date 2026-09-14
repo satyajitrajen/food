@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/pos_provider.dart';
 import '../../models/customer_model.dart';
+import '../../widgets/confirm_dialog.dart';
 
 class CustomerScreen extends StatefulWidget {
   const CustomerScreen({super.key});
@@ -124,9 +125,19 @@ class _CustomerScreenState extends State<CustomerScreen> {
         actions: [
           TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               final amount = double.tryParse(amountCtrl.text.trim()) ?? 0;
-              final ok = provider.bookCustomerCredit(
+              final ok = await showConfirmDialog(
+                context,
+                title: isSettle ? 'Record settlement?' : 'Book credit sale?',
+                message: isSettle
+                    ? 'Record settlement of ₹${amount.toStringAsFixed(0)} for ${cust.name}? Outstanding: ₹${cust.outstandingCredit.toStringAsFixed(0)}.'
+                    : 'Book credit sale of ₹${amount.toStringAsFixed(0)} for ${cust.name}? This adds to their outstanding.',
+                confirmLabel:
+                    isSettle ? 'Record Settlement' : 'Book Credit',
+              );
+              if (!ok || !context.mounted) return;
+              final booked = provider.bookCustomerCredit(
                 customerId: cust.id,
                 kind: kind,
                 amount: amount,
@@ -135,10 +146,10 @@ class _CustomerScreenState extends State<CustomerScreen> {
               Navigator.of(ctx).pop();
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text(ok
+                  content: Text(booked
                       ? (isSettle ? '✓ Settlement recorded' : '✓ Credit sale booked')
                       : 'Invalid amount or reason (settlement cannot exceed outstanding)'),
-                  backgroundColor: ok ? AppColors.vegGreen : AppColors.nonVegRed,
+                  backgroundColor: booked ? AppColors.vegGreen : AppColors.nonVegRed,
                 ),
               );
             },

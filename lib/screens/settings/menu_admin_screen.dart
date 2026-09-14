@@ -9,6 +9,7 @@ import '../../core/media.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/menu_model.dart';
 import '../../providers/pos_provider.dart';
+import '../../widgets/confirm_dialog.dart';
 
 /// W2 (FR-M1/M2): menu management for managers/admins — add/edit/delete items,
 /// availability toggle, photo upload, and full variant/modifier-group (add-on)
@@ -100,7 +101,23 @@ class MenuAdminScreen extends StatelessWidget {
                           value: item.isAvailable,
                           activeThumbColor: AppColors.vegGreen,
                           onChanged: canManage
-                              ? (v) => provider.updateMenuItem(item, isAvailable: v)
+                              ? (v) async {
+                                  final ok = await showConfirmDialog(
+                                    context,
+                                    title: v
+                                        ? 'Make item available?'
+                                        : 'Hide item from sale?',
+                                    message: v
+                                        ? 'Make "${item.name}" available for sale?'
+                                        : 'Hide "${item.name}" from the POS menu? It will stop selling immediately.',
+                                    confirmLabel:
+                                        v ? 'Make Available' : 'Hide Item',
+                                    isDanger: !v,
+                                  );
+                                  if (!ok) return;
+                                  provider.updateMenuItem(item,
+                                      isAvailable: v);
+                                }
                               : null,
                         ),
                         IconButton(

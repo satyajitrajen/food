@@ -6,6 +6,7 @@ import '../../providers/pos_provider.dart';
 import '../../models/menu_model.dart';
 import '../../widgets/custom_badge.dart';
 import '../modals/variant_and_modifiers_dialog.dart';
+import '../../widgets/confirm_dialog.dart';
 import '../cart/cart_view.dart';
 import '../order_flow/table_selection_screen.dart';
 
@@ -438,11 +439,22 @@ class _PosMenuScreenState extends State<PosMenuScreen> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               InkWell(
-                                onTap: () {
+                                onTap: () async {
                                   final orderItem = provider.activeOrder?.items
                                       .where((i) => !i.isCancelled && i.menuItem.id == item.id)
                                       .firstOrNull;
-                                  if (orderItem != null) provider.decrementItem(orderItem);
+                                  if (orderItem == null) return;
+                                  if (orderItem.quantity <= 1) {
+                                    final ok = await showConfirmDialog(
+                                      context,
+                                      title: 'Remove item?',
+                                      message:
+                                          'Remove "${item.name}" from the cart?',
+                                      confirmLabel: 'Remove Item',
+                                    );
+                                    if (!ok || !context.mounted) return;
+                                  }
+                                  provider.decrementItem(orderItem);
                                 },
                                 child: const Padding(
                                   padding: EdgeInsets.symmetric(horizontal: 4),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/pos_provider.dart';
+import '../../widgets/confirm_dialog.dart';
 
 class AddChargeDialog extends StatefulWidget {
   const AddChargeDialog({super.key});
@@ -110,7 +111,7 @@ class _AddChargeDialogState extends State<AddChargeDialog> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton(
-                    onPressed: () {
+                    onPressed: () async {
                       final sc = double.tryParse(_serviceController.text) ?? 0.0;
                       final pk = double.tryParse(_packagingController.text) ?? 0.0;
                       final dl = double.tryParse(_deliveryController.text) ?? 0.0;
@@ -124,6 +125,15 @@ class _AddChargeDialogState extends State<AddChargeDialog> {
                         );
                         return;
                       }
+                      final ok = await showConfirmDialog(
+                        context,
+                        title: 'Update charges?',
+                        message:
+                            'Set charges to Service ₹${sc.toStringAsFixed(0)} + Packaging ₹${pk.toStringAsFixed(0)} + Delivery ₹${dl.toStringAsFixed(0)}?',
+                        confirmLabel: 'Update Charges',
+                        isDanger: false,
+                      );
+                      if (!ok || !context.mounted) return;
 
                       provider.addCharges(
                         serviceCharge: sc,

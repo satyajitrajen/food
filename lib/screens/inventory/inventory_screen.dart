@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/pos_provider.dart';
 import '../../models/inventory_model.dart';
+import '../../widgets/confirm_dialog.dart';
 
 class InventoryScreen extends StatefulWidget {
   const InventoryScreen({super.key});
@@ -99,9 +100,18 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
           actions: [
             TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
                 final qty = double.tryParse(qtyCtrl.text) ?? 0.0;
                 if (qty <= 0) return;
+                final ok = await showConfirmDialog(
+                  context,
+                  title: isIncrease ? 'Increase stock?' : 'Decrease stock?',
+                  message: isIncrease
+                      ? 'Add $qty ${item.unit} to ${item.name} ($reason)?'
+                      : 'Remove $qty ${item.unit} from ${item.name} ($reason)? Decreases can wipe stock and cannot be undone.',
+                  confirmLabel: 'Confirm Adjustment',
+                );
+                if (!ok || !context.mounted) return;
                 provider.adjustStock(item.id, isIncrease ? qty : -qty, reason);
                 Navigator.of(ctx).pop();
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -398,7 +408,18 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
                       ),
                       if (isPending && provider.canManage)
                         TextButton(
-                          onPressed: () => provider.markPurchasePaid(pur.id),
+                          onPressed: () async {
+                            final ok = await showConfirmDialog(
+                              context,
+                              title: 'Mark purchase paid?',
+                              message:
+                                  'Mark ${pur.invoiceNumber} ₹${pur.totalAmount.toStringAsFixed(0)} as Paid? This clears the supplier due and cannot be undone.',
+                              confirmLabel: 'Mark Paid',
+                              isDanger: false,
+                            );
+                            if (!ok || !context.mounted) return;
+                            provider.markPurchasePaid(pur.id);
+                          },
                           child: const Text('Mark Paid', style: TextStyle(fontWeight: FontWeight.w700)),
                         ),
                     ],
