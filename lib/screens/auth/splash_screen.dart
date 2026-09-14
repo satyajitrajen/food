@@ -62,44 +62,20 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Logo Icon
-              Container(
-                width: 90,
-                height: 90,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [AppColors.primaryOrange, Color(0xFFFF922B)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(24),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.primaryOrange.withValues(alpha: 0.3),
-                      blurRadius: 20,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.restaurant_menu_rounded,
-                  color: Colors.white,
-                  size: 48,
+              // Brand Logo
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32),
+                child: Image.asset(
+                  'assets/logo.png',
+                  width: 280,
+                  fit: BoxFit.contain,
                 ),
               ),
-              const SizedBox(height: 24),
-              const Text(
-                'HISHOBKR',
-                style: TextStyle(
-                  color: AppColors.textDark,
-                  fontSize: 28,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 2.0,
-                ),
-              ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 12),
               Text(
-                '${provider.currentOutlet.name} · Terminal ${provider.currentOutlet.terminal}',
+                provider.tenantOrgName != null
+                    ? '${provider.tenantOrgName} · ${provider.currentOutlet.name}'
+                    : '${provider.currentOutlet.name} · Terminal ${provider.currentOutlet.terminal}',
                 style: const TextStyle(
                   color: AppColors.textMuted,
                   fontSize: 14,
