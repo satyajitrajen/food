@@ -105,7 +105,7 @@ class SettingsScreen extends StatelessWidget {
                   contentPadding: EdgeInsets.zero,
                   title: const Text('Auto-print KOT on order placement', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
                   value: settings.autoPrintKOT,
-                  activeThumbColor: AppColors.primaryOrange,
+                  activeThumbColor: AppColors.primaryGreen,
                   onChanged: (v) {
                     provider.updateSettings(settings.copyWith(autoPrintKOT: v));
                   },
@@ -114,7 +114,7 @@ class SettingsScreen extends StatelessWidget {
                   contentPadding: EdgeInsets.zero,
                   title: const Text('Allow reprint of completed bills', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
                   value: settings.allowReprint,
-                  activeThumbColor: AppColors.primaryOrange,
+                  activeThumbColor: AppColors.primaryGreen,
                   onChanged: (v) {
                     provider.updateSettings(settings.copyWith(allowReprint: v));
                   },
@@ -157,7 +157,7 @@ class SettingsScreen extends StatelessWidget {
               return InputChip(
                 label: Text('$name ($tableCount)'),
                 selected: true,
-                selectedColor: AppColors.primaryOrangeLight,
+                selectedColor: AppColors.primaryGreenLight,
                 deleteIconColor: AppColors.nonVegRed,
                 onPressed: () => _showRenameSectionDialog(context, provider, name),
                 onDeleted: () => _deleteSection(context, provider, name),
@@ -732,10 +732,10 @@ class SettingsScreen extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: AppColors.primaryOrangeLight,
+                  color: AppColors.primaryGreenLight,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(icon, color: AppColors.primaryOrange, size: 20),
+                child: Icon(icon, color: AppColors.primaryGreen, size: 20),
               ),
               const SizedBox(width: 12),
               Expanded(

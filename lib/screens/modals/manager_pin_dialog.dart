@@ -75,10 +75,10 @@ class _ManagerPinDialogState extends State<ManagerPinDialog> {
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: AppColors.primaryOrangeLight,
+                          color: AppColors.primaryGreenLight,
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: const Icon(Icons.lock_outline, color: AppColors.primaryOrange, size: 20),
+                        child: const Icon(Icons.lock_outline, color: AppColors.primaryGreen, size: 20),
                       ),
                       const SizedBox(width: 10),
                       Text(
@@ -119,10 +119,10 @@ class _ManagerPinDialogState extends State<ManagerPinDialog> {
                     width: 16,
                     height: 16,
                     decoration: BoxDecoration(
-                      color: isFilled ? AppColors.primaryOrange : AppColors.creamSubtle,
+                      color: isFilled ? AppColors.primaryGreen : AppColors.creamSubtle,
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: isFilled ? AppColors.primaryOrange : AppColors.borderMedium,
+                        color: isFilled ? AppColors.primaryGreen : AppColors.borderMedium,
                         width: 1.5,
                       ),
                     ),

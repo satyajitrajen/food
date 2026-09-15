@@ -50,7 +50,7 @@ class PosDashboardScreen extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: AppColors.primaryOrange,
+                color: AppColors.primaryGreen,
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const Icon(Icons.restaurant, color: Colors.white, size: 18),
@@ -106,8 +106,8 @@ class PosDashboardScreen extends StatelessWidget {
                       title: "Today's Sales",
                       value: '₹${todaySales.toStringAsFixed(0)}',
                       icon: Icons.payments_outlined,
-                      iconColor: AppColors.primaryOrange,
-                      iconBgColor: AppColors.primaryOrangeLight,
+                      iconColor: AppColors.primaryGreen,
+                      iconBgColor: AppColors.primaryGreenLight,
                     ),
                     StatKpiCard(
                       title: 'Total Orders',
@@ -144,8 +144,8 @@ class PosDashboardScreen extends StatelessWidget {
                       title: 'Pending KOTs',
                       value: '$pendingKOTs',
                       icon: Icons.soup_kitchen_outlined,
-                      iconColor: AppColors.primaryOrange,
-                      iconBgColor: AppColors.primaryOrangeLight,
+                      iconColor: AppColors.primaryGreen,
+                      iconBgColor: AppColors.primaryGreenLight,
                       onTap: () {
                         Navigator.of(context).push(MaterialPageRoute(builder: (_) => const KitchenBoardScreen()));
                       },
@@ -184,7 +184,7 @@ class PosDashboardScreen extends StatelessWidget {
                     children: [
                       _buildFloorBadge('Available', '$freeTables Free', AppColors.vegGreen, AppColors.vegGreenBg),
                       const SizedBox(width: 8),
-                      _buildFloorBadge('Occupied', '$occupiedTables Running', AppColors.primaryOrange, AppColors.primaryOrangeLight),
+                      _buildFloorBadge('Occupied', '$occupiedTables Running', AppColors.primaryGreen, AppColors.primaryGreenLight),
                       const SizedBox(width: 8),
                       _buildFloorBadge('Billing', '$billingTables Invoiced', AppColors.saffronAmber, AppColors.saffronAmberBg),
                     ],
@@ -204,7 +204,7 @@ class PosDashboardScreen extends StatelessWidget {
                   _buildQuickActionBtn(
                     title: '+ New Order',
                     icon: Icons.add_circle,
-                    color: AppColors.primaryOrange,
+                    color: AppColors.primaryGreen,
                     onTap: () {
                       SelectOrderTypeDialog.show(
                         context,
@@ -301,7 +301,7 @@ class PosDashboardScreen extends StatelessWidget {
                                 color: AppColors.creamSubtle,
                                 borderRadius: BorderRadius.circular(10),
                               ),
-                              child: const Icon(Icons.fastfood, color: AppColors.primaryOrange, size: 20),
+                              child: const Icon(Icons.fastfood, color: AppColors.primaryGreen, size: 20),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
@@ -343,7 +343,7 @@ class PosDashboardScreen extends StatelessWidget {
                             },
                             child: const Text(
                               'Details →',
-                              style: TextStyle(color: AppColors.primaryOrange, fontWeight: FontWeight.w700, fontSize: 12),
+                              style: TextStyle(color: AppColors.primaryGreen, fontWeight: FontWeight.w700, fontSize: 12),
                             ),
                           ),
                         ],

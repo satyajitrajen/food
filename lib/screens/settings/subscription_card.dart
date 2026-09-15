@@ -115,7 +115,7 @@ class _SubscriptionCardBodyState extends State<SubscriptionCardBody>
         const SizedBox(width: 8),
         FilledButton(
           onPressed: () => _enableAutoRenew(provider),
-          style: FilledButton.styleFrom(backgroundColor: AppColors.primaryOrange),
+          style: FilledButton.styleFrom(backgroundColor: AppColors.primaryGreen),
           child: const Text('Enable auto-renew'),
         ),
       ],

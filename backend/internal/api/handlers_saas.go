@@ -374,8 +374,8 @@ func (s *Server) handleSaaSCreateStaff(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorJSON(w, r, httpx.NewError(400, "invalid_role", "Unknown staff role"))
 		return
 	}
-	if req.Role == "waiter" && (req.OutletID == nil || *req.OutletID == "") {
-		httpx.ErrorJSON(w, r, httpx.NewError(400, "outlet_required", "A waiter must be assigned to a specific outlet"))
+	if (req.Role == "waiter" || req.Role == "kitchen") && (req.OutletID == nil || *req.OutletID == "") {
+		httpx.ErrorJSON(w, r, httpx.NewError(400, "outlet_required", "A waiter or kitchen staff must be assigned to a specific outlet"))
 		return
 	}
 	if req.OutletID != nil {

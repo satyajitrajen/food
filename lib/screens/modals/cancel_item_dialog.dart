@@ -96,7 +96,7 @@ class _CancelItemDialogState extends State<CancelItemDialog> {
                       children: [
                         Icon(
                           _selectedReason == r ? Icons.radio_button_checked : Icons.radio_button_off,
-                          color: _selectedReason == r ? AppColors.primaryOrange : AppColors.textLight,
+                          color: _selectedReason == r ? AppColors.primaryGreen : AppColors.textLight,
                           size: 18,
                         ),
                         const SizedBox(width: 10),

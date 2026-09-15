@@ -185,14 +185,14 @@ class _MainAdaptiveShellState extends State<MainAdaptiveShell> {
                     provider.goToDest(tabs[tabPosition]);
                   },
                   backgroundColor: Colors.white,
-                  indicatorColor: AppColors.primaryOrangeLight,
+                  indicatorColor: AppColors.primaryGreenLight,
                   destinations: [
                     for (final d in tabs)
                       NavigationDestination(
                         icon: Icon(_iconFor(d)),
                         selectedIcon: Icon(
                           _selectedIconFor(d),
-                          color: d == AppDest.pos ? AppColors.primaryOrangeDark : AppColors.primaryOrange,
+                          color: d == AppDest.pos ? AppColors.primaryGreenDark : AppColors.primaryGreen,
                         ),
                         label: d.label,
                       ),
@@ -228,7 +228,7 @@ class _MainAdaptiveShellState extends State<MainAdaptiveShell> {
                             Container(
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: AppColors.primaryOrange,
+                                color: AppColors.primaryGreen,
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: const Icon(Icons.restaurant, color: Colors.white, size: 20),
@@ -270,10 +270,10 @@ class _MainAdaptiveShellState extends State<MainAdaptiveShell> {
                           children: [
                             CircleAvatar(
                               radius: 18,
-                              backgroundColor: AppColors.primaryOrangeLight,
+                              backgroundColor: AppColors.primaryGreenLight,
                               child: Text(
                                 _initialOf(staffName),
-                                style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.primaryOrange, fontSize: 13),
+                                style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.primaryGreen, fontSize: 13),
                               ),
                             ),
                             const SizedBox(width: 10),
@@ -330,7 +330,7 @@ class _MainAdaptiveShellState extends State<MainAdaptiveShell> {
     return Container(
       margin: const EdgeInsets.only(bottom: 4),
       decoration: BoxDecoration(
-        color: isSelected ? AppColors.primaryOrangeLight : Colors.transparent,
+        color: isSelected ? AppColors.primaryGreenLight : Colors.transparent,
         borderRadius: BorderRadius.circular(12),
       ),
       child: ListTile(
@@ -338,7 +338,7 @@ class _MainAdaptiveShellState extends State<MainAdaptiveShell> {
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
         leading: Icon(
           _iconFor(dest),
-          color: isSelected ? AppColors.primaryOrange : AppColors.textDark,
+          color: isSelected ? AppColors.primaryGreen : AppColors.textDark,
           size: 20,
         ),
         title: Text(
@@ -346,7 +346,7 @@ class _MainAdaptiveShellState extends State<MainAdaptiveShell> {
           style: TextStyle(
             fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
             fontSize: 13,
-            color: isSelected ? AppColors.primaryOrange : AppColors.textDark,
+            color: isSelected ? AppColors.primaryGreen : AppColors.textDark,
           ),
         ),
         onTap: () => provider.goToDest(dest),

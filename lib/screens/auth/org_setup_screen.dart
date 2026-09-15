@@ -115,7 +115,7 @@ class _OrgSetupScreenState extends State<OrgSetupScreen> {
                     width: double.infinity,
                     height: 50,
                     child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryOrange),
+                      style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryGreen),
                       onPressed: _busy ? null : _continue,
                       child: _busy
                           ? const SizedBox(

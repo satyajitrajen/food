@@ -78,7 +78,7 @@ class _MoveTableDialogState extends State<MoveTableDialog> {
                     return ChoiceChip(
                       label: Text('${tbl.tableNumber} (${tbl.seats} Seats)'),
                       selected: isSelected,
-                      selectedColor: AppColors.primaryOrange,
+                      selectedColor: AppColors.primaryGreen,
                       labelStyle: TextStyle(
                         color: isSelected ? Colors.white : AppColors.textDark,
                         fontWeight: FontWeight.w700,

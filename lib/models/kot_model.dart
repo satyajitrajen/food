@@ -4,6 +4,7 @@ enum KOTStatus { newTicket, preparing, ready, served, cancelled }
 
 class KitchenOrderTicket {
   final String id;
+  final String outletId;
   final String kotNumber; // e.g. 'KOT #1204'
   final String orderId;
   final String? tableNumber;
@@ -16,6 +17,7 @@ class KitchenOrderTicket {
 
   KitchenOrderTicket({
     required this.id,
+    required this.outletId,
     required this.kotNumber,
     required this.orderId,
     this.tableNumber,

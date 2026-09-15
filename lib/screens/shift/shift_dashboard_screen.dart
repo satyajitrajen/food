@@ -141,7 +141,7 @@ class ShiftDashboardScreen extends StatelessWidget {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.primaryOrange.withValues(alpha: 0.4), width: 1.5),
+                border: Border.all(color: AppColors.primaryGreen.withValues(alpha: 0.4), width: 1.5),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -150,14 +150,14 @@ class ShiftDashboardScreen extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text('Current Expected Cash in Drawer', style: TextStyle(color: AppColors.textMuted, fontSize: 13, fontWeight: FontWeight.w600)),
-                      Icon(Icons.point_of_sale, color: AppColors.primaryOrange, size: 20),
+                      Icon(Icons.point_of_sale, color: AppColors.primaryGreen, size: 20),
                     ],
                   ),
                   const SizedBox(height: 8),
                   Text(
                     '₹${shift.expectedCash.toStringAsFixed(0)}',
                     style: const TextStyle(
-                      color: AppColors.primaryOrange,
+                      color: AppColors.primaryGreen,
                       fontWeight: FontWeight.w900,
                       fontSize: 32,
                       letterSpacing: -0.5,

@@ -146,8 +146,8 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
         bottom: TabBar(
           controller: _tabController,
           isScrollable: true,
-          labelColor: AppColors.primaryOrange,
-          indicatorColor: AppColors.primaryOrange,
+          labelColor: AppColors.primaryGreen,
+          indicatorColor: AppColors.primaryGreen,
           unselectedLabelColor: AppColors.textMuted,
           labelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
           tabs: [
@@ -244,7 +244,7 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
       floatingActionButton: provider.canManage
           ? FloatingActionButton.extended(
               heroTag: 'addSupplier',
-              backgroundColor: AppColors.primaryOrange,
+              backgroundColor: AppColors.primaryGreen,
               foregroundColor: Colors.white,
               icon: const Icon(Icons.add_business, size: 20),
               label: const Text('Add Supplier'),
@@ -283,7 +283,7 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
                           const Text('Outstanding Due', style: TextStyle(color: AppColors.textLight, fontSize: 11)),
                           Text(
                             '₹${sup.outstanding.toStringAsFixed(0)}',
-                            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: AppColors.primaryOrange),
+                            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: AppColors.primaryGreen),
                           ),
                         ],
                       ),
@@ -526,7 +526,7 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text('Total', style: TextStyle(fontWeight: FontWeight.w800)),
-                      Text('₹${total.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.w900, color: AppColors.primaryOrange)),
+                      Text('₹${total.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.w900, color: AppColors.primaryGreen)),
                     ],
                   ),
                 ],

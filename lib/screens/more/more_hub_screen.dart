@@ -20,7 +20,8 @@ import '../auth/select_outlet_screen.dart';
 /// Secondary operations hub. Tiles are filtered by role — Admin sees the
 /// overall revenue area (Reports) that Manager/Cashier cannot, and back-office
 /// tiles (menu/staff/settings) are management-only. Waiters keep a minimal hub
-/// (profile + outlet switch + lock).
+/// (profile + outlet switch + lock); kitchen terminals are locked to their
+/// assigned outlet (profile + lock, no outlet switch).
 class MoreHubScreen extends StatelessWidget {
   const MoreHubScreen({super.key});
 
@@ -39,8 +40,8 @@ class MoreHubScreen extends StatelessWidget {
           title: 'Shift Dashboard & Cash',
           subtitle: 'Live float balance, Cash In/Out & Shift Closing',
           icon: Icons.alarm_on,
-          color: AppColors.primaryOrange,
-          bgColor: AppColors.primaryOrangeLight,
+          color: AppColors.primaryGreen,
+          bgColor: AppColors.primaryGreenLight,
           screen: const ShiftDashboardScreen(),
         ),
       if (isOps)
@@ -89,8 +90,8 @@ class MoreHubScreen extends StatelessWidget {
           title: 'Customer Directory',
           subtitle: 'Customer contact book, visits, spend & credit ledger',
           icon: Icons.people_outline,
-          color: AppColors.primaryOrange,
-          bgColor: AppColors.primaryOrangeLight,
+          color: AppColors.primaryGreen,
+          bgColor: AppColors.primaryGreenLight,
           screen: const CustomerScreen(),
         ),
       if (isOps)
@@ -121,8 +122,8 @@ class MoreHubScreen extends StatelessWidget {
           title: 'Menu Management',
           subtitle: 'Add/edit items, categories, prices & availability',
           icon: Icons.restaurant_menu,
-          color: AppColors.primaryOrange,
-          bgColor: AppColors.primaryOrangeLight,
+          color: AppColors.primaryGreen,
+          bgColor: AppColors.primaryGreenLight,
           screen: const MenuAdminScreen(),
         ),
       if (canManage)
@@ -145,15 +146,17 @@ class MoreHubScreen extends StatelessWidget {
           bgColor: AppColors.creamSubtle,
           screen: const SettingsScreen(),
         ),
-      _tile(
-        context: context,
-        title: 'Switch Outlet / Terminal',
-        subtitle: 'Currently connected to ${provider.currentOutlet.name}',
-        icon: Icons.store_mall_directory_outlined,
-        color: AppColors.textDark,
-        bgColor: AppColors.creamSubtle,
-        screen: const SelectOutletScreen(),
-      ),
+      // Kitchen terminals are locked to their assigned outlet: no switching.
+      if (role != StaffRole.kitchen)
+        _tile(
+          context: context,
+          title: 'Switch Outlet / Terminal',
+          subtitle: 'Currently connected to ${provider.currentOutlet.name}',
+          icon: Icons.store_mall_directory_outlined,
+          color: AppColors.textDark,
+          bgColor: AppColors.creamSubtle,
+          screen: const SelectOutletScreen(),
+        ),
     ];
 
     return Scaffold(
@@ -180,7 +183,7 @@ class MoreHubScreen extends StatelessWidget {
                 children: [
                   CircleAvatar(
                     radius: 26,
-                    backgroundColor: AppColors.primaryOrangeLight,
+                    backgroundColor: AppColors.primaryGreenLight,
                     backgroundImage: NetworkImage(provider.currentStaff?.avatarUrl ?? ''),
                     onBackgroundImageError: (_, _) {},
                   ),

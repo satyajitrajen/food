@@ -53,6 +53,10 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorJSON(w, r, httpx.NewError(403, "forbidden_outlet", "Waiter is not assigned to any outlet"))
 		return
 	}
+	if row.Role == "kitchen" && (row.OutletID == nil || *row.OutletID == "") {
+		httpx.ErrorJSON(w, r, httpx.NewError(403, "forbidden_outlet", "Kitchen staff is not assigned to any outlet"))
+		return
+	}
 	if row.OutletID != nil && *row.OutletID != req.OutletID {
 		httpx.ErrorJSON(w, r, httpx.NewError(403, "forbidden_outlet", "Staff is not assigned to this outlet"))
 		return
@@ -270,12 +274,12 @@ func (s *Server) handleCreateStaff(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorJSON(w, r, httpx.NewError(403, "admin_only", "Only admins can create admin staff"))
 		return
 	}
-	if req.Role == "waiter" {
+	if req.Role == "waiter" || req.Role == "kitchen" {
 		if req.OutletID == nil || *req.OutletID == "" {
 			if outID := outletScope(r); outID != "" {
 				req.OutletID = &outID
 			} else {
-				httpx.ErrorJSON(w, r, httpx.NewError(400, "outlet_required", "A waiter must be assigned to a specific outlet"))
+				httpx.ErrorJSON(w, r, httpx.NewError(400, "outlet_required", "A waiter or kitchen staff must be assigned to a specific outlet"))
 				return
 			}
 		}
@@ -372,13 +376,13 @@ func (s *Server) handlePatchStaff(w http.ResponseWriter, r *http.Request) {
 	if p.OutletID != nil {
 		effectiveOutlet = p.OutletID
 	}
-	if effectiveRole == "waiter" {
+	if effectiveRole == "waiter" || effectiveRole == "kitchen" {
 		if effectiveOutlet == nil || *effectiveOutlet == "" {
 			if outID := outletScope(r); outID != "" {
 				effectiveOutlet = &outID
 				p.OutletID = &outID
 			} else {
-				httpx.ErrorJSON(w, r, httpx.NewError(400, "outlet_required", "A waiter must be assigned to a specific outlet"))
+				httpx.ErrorJSON(w, r, httpx.NewError(400, "outlet_required", "A waiter or kitchen staff must be assigned to a specific outlet"))
 				return
 			}
 		}

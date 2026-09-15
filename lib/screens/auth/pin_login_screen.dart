@@ -117,6 +117,13 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
+                  // Brand mark
+                  Image.asset(
+                    'assets/logo.png',
+                    width: 120,
+                    fit: BoxFit.contain,
+                  ),
+                  const SizedBox(height: 16),
                   // Outlet and Terminal Banner
                   InkWell(
                     onTap: () {
@@ -135,7 +142,7 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.storefront_outlined, size: 16, color: AppColors.primaryOrange),
+                          const Icon(Icons.storefront_outlined, size: 16, color: AppColors.primaryGreen),
                           const SizedBox(width: 8),
                           Text(
                             '${provider.currentOutlet.name} (${provider.currentOutlet.terminal})',
@@ -151,7 +158,7 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
                   // Staff Avatar & Profile
                   CircleAvatar(
                     radius: 36,
-                    backgroundColor: AppColors.primaryOrangeLight,
+                    backgroundColor: AppColors.primaryGreenLight,
                     backgroundImage: NetworkImage(_selectedStaff?.avatarUrl ?? ''),
                     onBackgroundImageError: (_, _) {},
                   ),
@@ -164,13 +171,13 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                     decoration: BoxDecoration(
-                      color: AppColors.primaryOrangeLight,
+                      color: AppColors.primaryGreenLight,
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
                       _selectedStaff?.roleTitle ?? '',
                       style: const TextStyle(
-                        color: AppColors.primaryOrange,
+                        color: AppColors.primaryGreen,
                         fontWeight: FontWeight.w700,
                         fontSize: 12,
                       ),
@@ -181,7 +188,7 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
                   if (_verifying) ...[
                     const SizedBox(height: 6),
                     const CircularProgressIndicator(
-                      color: AppColors.primaryOrange,
+                      color: AppColors.primaryGreen,
                       strokeWidth: 2.5,
                     ),
                     const SizedBox(height: 6),
@@ -195,10 +202,10 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
                           width: 18,
                           height: 18,
                           decoration: BoxDecoration(
-                            color: isFilled ? AppColors.primaryOrange : Colors.white,
+                            color: isFilled ? AppColors.primaryGreen : Colors.white,
                             shape: BoxShape.circle,
                             border: Border.all(
-                              color: isFilled ? AppColors.primaryOrange : AppColors.borderMedium,
+                              color: isFilled ? AppColors.primaryGreen : AppColors.borderMedium,
                               width: 1.5,
                             ),
                           ),
@@ -246,13 +253,13 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
                                     border: Border.all(
-                                      color: isSelected ? AppColors.primaryOrange : Colors.transparent,
+                                      color: isSelected ? AppColors.primaryGreen : Colors.transparent,
                                       width: 2,
                                     ),
                                   ),
                                   child: CircleAvatar(
                                     radius: 18,
-                                    backgroundColor: AppColors.primaryOrangeLight,
+                                    backgroundColor: AppColors.primaryGreenLight,
                                     backgroundImage: NetworkImage(s.avatarUrl),
                                     onBackgroundImageError: (_, _) {},
                                   ),
@@ -263,7 +270,7 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
                                   style: TextStyle(
                                     fontSize: 11,
                                     fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                                    color: isSelected ? AppColors.primaryOrange : AppColors.textMuted,
+                                    color: isSelected ? AppColors.primaryGreen : AppColors.textMuted,
                                   ),
                                 ),
                               ],

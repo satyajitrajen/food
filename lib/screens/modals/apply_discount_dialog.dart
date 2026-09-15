@@ -72,7 +72,7 @@ class _ApplyDiscountDialogState extends State<ApplyDiscountDialog> {
                     child: ChoiceChip(
                       label: const Center(child: Text('Percentage (%)')),
                       selected: _isPercentage,
-                      selectedColor: AppColors.primaryOrange,
+                      selectedColor: AppColors.primaryGreen,
                       labelStyle: TextStyle(
                         color: _isPercentage ? Colors.white : AppColors.textDark,
                         fontWeight: FontWeight.w700,
@@ -85,7 +85,7 @@ class _ApplyDiscountDialogState extends State<ApplyDiscountDialog> {
                     child: ChoiceChip(
                       label: const Center(child: Text('Fixed Amount (₹)')),
                       selected: !_isPercentage,
-                      selectedColor: AppColors.primaryOrange,
+                      selectedColor: AppColors.primaryGreen,
                       labelStyle: TextStyle(
                         color: !_isPercentage ? Colors.white : AppColors.textDark,
                         fontWeight: FontWeight.w700,
@@ -115,7 +115,7 @@ class _ApplyDiscountDialogState extends State<ApplyDiscountDialog> {
                   return ChoiceChip(
                     label: Text(r),
                     selected: isSelected,
-                    selectedColor: AppColors.primaryOrange,
+                    selectedColor: AppColors.primaryGreen,
                     labelStyle: TextStyle(
                       color: isSelected ? Colors.white : AppColors.textDark,
                       fontWeight: FontWeight.w600,

@@ -61,9 +61,9 @@ class _RunningOrdersScreenState extends State<RunningOrdersScreen> with SingleTi
         elevation: 0,
         bottom: TabBar(
           controller: _tabController,
-          labelColor: AppColors.primaryOrange,
+          labelColor: AppColors.primaryGreen,
           unselectedLabelColor: AppColors.textMuted,
-          indicatorColor: AppColors.primaryOrange,
+          indicatorColor: AppColors.primaryGreen,
           indicatorWeight: 3,
           labelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
           tabs: [
@@ -160,12 +160,12 @@ class _RunningOrdersScreenState extends State<RunningOrdersScreen> with SingleTi
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                               decoration: BoxDecoration(
-                                color: AppColors.primaryOrangeLight,
+                                color: AppColors.primaryGreenLight,
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
                                 tableName,
-                                style: const TextStyle(color: AppColors.primaryOrange, fontWeight: FontWeight.w800, fontSize: 12),
+                                style: const TextStyle(color: AppColors.primaryGreen, fontWeight: FontWeight.w800, fontSize: 12),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),

@@ -135,7 +135,7 @@ class ReportsScreen extends StatelessWidget {
                   Text(
                     '₹${estimatedProfit.toStringAsFixed(0)}',
                     style: const TextStyle(
-                      color: AppColors.primaryOrange,
+                      color: AppColors.primaryGreen,
                       fontWeight: FontWeight.w900,
                       fontSize: 36,
                       letterSpacing: -0.5,
@@ -174,7 +174,7 @@ class ReportsScreen extends StatelessWidget {
                 }
 
                 if (byTypeServer.isNotEmpty) {
-                  addRow('Dine-In Orders', byTypeServer['dine_in'] ?? 0, AppColors.primaryOrange);
+                  addRow('Dine-In Orders', byTypeServer['dine_in'] ?? 0, AppColors.primaryGreen);
                   addRow('Takeaway / Parcel', byTypeServer['takeaway'] ?? 0, AppColors.vegGreen);
                   addRow('Direct Delivery', byTypeServer['delivery'] ?? 0, AppColors.infoBlue);
                 } else {
@@ -189,7 +189,7 @@ class ReportsScreen extends StatelessWidget {
                               : 'Direct Delivery',
                       entry.amount,
                       t == OrderType.dineIn
-                          ? AppColors.primaryOrange
+                          ? AppColors.primaryGreen
                           : t == OrderType.takeaway
                               ? AppColors.vegGreen
                               : AppColors.infoBlue,
@@ -311,7 +311,7 @@ class ReportsScreen extends StatelessWidget {
           children: [
             Text(orderCount, style: const TextStyle(color: AppColors.textLight, fontSize: 12)),
             const SizedBox(width: 12),
-            Text(revenue, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: AppColors.primaryOrange)),
+            Text(revenue, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: AppColors.primaryGreen)),
           ],
         ),
       ],

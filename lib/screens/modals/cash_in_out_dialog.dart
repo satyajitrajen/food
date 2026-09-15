@@ -122,7 +122,7 @@ class _CashInOutDialogState extends State<CashInOutDialog> {
                   return ChoiceChip(
                     label: Text(r),
                     selected: isSelected,
-                    selectedColor: AppColors.primaryOrange,
+                    selectedColor: AppColors.primaryGreen,
                     labelStyle: TextStyle(
                       color: isSelected ? Colors.white : AppColors.textDark,
                       fontWeight: FontWeight.w600,
@@ -146,7 +146,7 @@ class _CashInOutDialogState extends State<CashInOutDialog> {
                 height: 48,
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: widget.isCashIn ? AppColors.vegGreen : AppColors.primaryOrange,
+                    backgroundColor: widget.isCashIn ? AppColors.vegGreen : AppColors.primaryGreen,
                   ),
                   onPressed: () async {
                     final amount = double.tryParse(_amountController.text) ?? 0.0;

@@ -9,13 +9,13 @@ class AppColors {
   static const Color borderLight = Color(0xFFEBE3D5); // Gentle divider & border
   static const Color borderMedium = Color(0xFFD8CEBE); // Active input border
 
-  // Accents
-  static const Color primaryOrange = Color(0xFFFF6B35); // Burnt terracotta / orange
-  static const Color primaryOrangeDark = Color(0xFFE8590C); // Pressed state
-  static const Color primaryOrangeLight = Color(0xFFFFECE2); // Light badge fill
+  // Accents — Hishobkr brand green sampled from assets/logo.png (#08A84C)
+  static const Color primaryGreen = Color(0xFF08A84C); // Brand green
+  static const Color primaryGreenDark = Color(0xFF07873D); // Pressed state
+  static const Color primaryGreenLight = Color(0xFFE6F6EC); // Light badge fill
 
-  // Charcoal & Text
-  static const Color textDark = Color(0xFF1E1B18); // Deep espresso
+  // Charcoal & Text — logo wordmark charcoal (#142029)
+  static const Color textDark = Color(0xFF142029); // Deep slate-black
   static const Color textMuted = Color(0xFF6B655D); // Warm grey secondary
   static const Color textLight = Color(0xFF9E978C); // Caption / placeholder
 
@@ -38,8 +38,8 @@ class AppTheme {
       useMaterial3: true,
       scaffoldBackgroundColor: AppColors.creamBg,
       colorScheme: ColorScheme.fromSeed(
-        seedColor: AppColors.primaryOrange,
-        primary: AppColors.primaryOrange,
+        seedColor: AppColors.primaryGreen,
+        primary: AppColors.primaryGreen,
         surface: AppColors.creamCard,
         surfaceContainer: AppColors.creamSubtle,
         onSurface: AppColors.textDark,
@@ -102,7 +102,7 @@ class AppTheme {
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primaryOrange,
+          backgroundColor: AppColors.primaryGreen,
           foregroundColor: Colors.white,
           elevation: 0,
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
@@ -137,7 +137,7 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.primaryOrange, width: 2),
+          borderSide: const BorderSide(color: AppColors.primaryGreen, width: 2),
         ),
         hintStyle: const TextStyle(color: AppColors.textLight, fontSize: 14),
       ),

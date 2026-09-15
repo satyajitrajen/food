@@ -50,7 +50,7 @@ class SelectOutletScreen extends StatelessWidget {
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: isSelected ? AppColors.primaryOrange : AppColors.borderLight,
+                          color: isSelected ? AppColors.primaryGreen : AppColors.borderLight,
                           width: isSelected ? 2 : 1.2,
                         ),
                         boxShadow: [
@@ -80,12 +80,12 @@ class SelectOutletScreen extends StatelessWidget {
                               Container(
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
-                                  color: isSelected ? AppColors.primaryOrangeLight : AppColors.creamSubtle,
+                                  color: isSelected ? AppColors.primaryGreenLight : AppColors.creamSubtle,
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: Icon(
                                   Icons.store_mall_directory_outlined,
-                                  color: isSelected ? AppColors.primaryOrange : AppColors.textMuted,
+                                  color: isSelected ? AppColors.primaryGreen : AppColors.textMuted,
                                   size: 28,
                                 ),
                               ),
@@ -121,7 +121,7 @@ class SelectOutletScreen extends StatelessWidget {
                                     const SizedBox(height: 4),
                                     Text(
                                       'Terminal ${outlet.terminal} · GST: ${outlet.gstin}',
-                                      style: const TextStyle(color: AppColors.primaryOrange, fontWeight: FontWeight.w600, fontSize: 12),
+                                      style: const TextStyle(color: AppColors.primaryGreen, fontWeight: FontWeight.w600, fontSize: 12),
                                     ),
                                     const SizedBox(height: 2),
                                     Text(
@@ -132,7 +132,7 @@ class SelectOutletScreen extends StatelessWidget {
                                 ),
                               ),
                               if (isSelected)
-                                const Icon(Icons.check_circle, color: AppColors.primaryOrange, size: 24),
+                                const Icon(Icons.check_circle, color: AppColors.primaryGreen, size: 24),
                             ],
                           ),
                         ),

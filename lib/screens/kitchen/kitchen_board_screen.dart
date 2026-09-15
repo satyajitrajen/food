@@ -47,7 +47,8 @@ class _KitchenBoardScreenState extends State<KitchenBoardScreen> with SingleTick
     return Scaffold(
       backgroundColor: AppColors.creamBg,
       appBar: AppBar(
-        title: const Text('Kitchen Display (KDS)', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+        title: Text('Kitchen Display · ${provider.currentOutlet.name}',
+            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
         backgroundColor: Colors.white,
         elevation: 0,
         actions: [
@@ -66,9 +67,9 @@ class _KitchenBoardScreenState extends State<KitchenBoardScreen> with SingleTick
         ],
         bottom: TabBar(
           controller: _tabController,
-          labelColor: AppColors.primaryOrange,
+          labelColor: AppColors.primaryGreen,
           unselectedLabelColor: AppColors.textMuted,
-          indicatorColor: AppColors.primaryOrange,
+          indicatorColor: AppColors.primaryGreen,
           indicatorWeight: 3,
           labelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
           tabs: [
@@ -146,12 +147,12 @@ class _KitchenBoardScreenState extends State<KitchenBoardScreen> with SingleTick
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                               decoration: BoxDecoration(
-                                color: AppColors.primaryOrangeLight,
+                                color: AppColors.primaryGreenLight,
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
                                 kot.tableNumber != null ? 'Table ${kot.tableNumber}' : kot.orderType.name.toUpperCase(),
-                                style: const TextStyle(color: AppColors.primaryOrange, fontWeight: FontWeight.w800, fontSize: 12),
+                                style: const TextStyle(color: AppColors.primaryGreen, fontWeight: FontWeight.w800, fontSize: 12),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -184,7 +185,7 @@ class _KitchenBoardScreenState extends State<KitchenBoardScreen> with SingleTick
                             style: const TextStyle(
                               fontWeight: FontWeight.w800,
                               fontSize: 14,
-                              color: AppColors.primaryOrange,
+                              color: AppColors.primaryGreen,
                             ),
                           ),
                           VegMark(isVeg: item.menuItem.isVeg, size: 12),
@@ -205,7 +206,7 @@ class _KitchenBoardScreenState extends State<KitchenBoardScreen> with SingleTick
                                 if (item.itemNote != null)
                                   Text(
                                     'Special: "${item.itemNote}"',
-                                    style: const TextStyle(color: AppColors.primaryOrange, fontSize: 11, fontStyle: FontStyle.italic),
+                                    style: const TextStyle(color: AppColors.primaryGreen, fontSize: 11, fontStyle: FontStyle.italic),
                                   ),
                               ],
                             ),

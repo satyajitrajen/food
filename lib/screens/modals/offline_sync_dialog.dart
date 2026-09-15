@@ -109,7 +109,7 @@ class OfflineSyncDialog extends StatelessWidget {
                         const Text('Simulate Offline Switch:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
                         Switch(
                           value: provider.isOfflineMode,
-                          activeThumbColor: AppColors.primaryOrange,
+                          activeThumbColor: AppColors.primaryGreen,
                           onChanged: (_) {
                             provider.toggleOfflineMode();
                           },

@@ -85,7 +85,7 @@ class _RefundDialogState extends State<RefundDialog> {
                     child: ChoiceChip(
                       label: const Center(child: Text('Full Refund')),
                       selected: _isFullRefund,
-                      selectedColor: AppColors.primaryOrange,
+                      selectedColor: AppColors.primaryGreen,
                       labelStyle: TextStyle(
                         color: _isFullRefund ? Colors.white : AppColors.textDark,
                         fontWeight: FontWeight.w700,
@@ -103,7 +103,7 @@ class _RefundDialogState extends State<RefundDialog> {
                     child: ChoiceChip(
                       label: const Center(child: Text('Partial Refund')),
                       selected: !_isFullRefund,
-                      selectedColor: AppColors.primaryOrange,
+                      selectedColor: AppColors.primaryGreen,
                       labelStyle: TextStyle(
                         color: !_isFullRefund ? Colors.white : AppColors.textDark,
                         fontWeight: FontWeight.w700,
@@ -135,7 +135,7 @@ class _RefundDialogState extends State<RefundDialog> {
                   return ChoiceChip(
                     label: Text(r),
                     selected: isSelected,
-                    selectedColor: AppColors.primaryOrange,
+                    selectedColor: AppColors.primaryGreen,
                     labelStyle: TextStyle(
                       color: isSelected ? Colors.white : AppColors.textDark,
                       fontWeight: FontWeight.w600,
@@ -156,7 +156,7 @@ class _RefundDialogState extends State<RefundDialog> {
                     child: ChoiceChip(
                       label: Text(m),
                       selected: isSelected,
-                      selectedColor: AppColors.primaryOrange,
+                      selectedColor: AppColors.primaryGreen,
                       labelStyle: TextStyle(
                         color: isSelected ? Colors.white : AppColors.textDark,
                         fontWeight: FontWeight.w600,

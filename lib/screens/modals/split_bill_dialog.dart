@@ -71,7 +71,7 @@ class _SplitBillDialogState extends State<SplitBillDialog> {
                     const Text('Total Bill Amount:', style: TextStyle(fontWeight: FontWeight.w600)),
                     Text(
                       '₹${_totalAmount.toStringAsFixed(0)}',
-                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: AppColors.primaryOrange),
+                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: AppColors.primaryGreen),
                     ),
                   ],
                 ),
@@ -96,7 +96,7 @@ class _SplitBillDialogState extends State<SplitBillDialog> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.remove_circle_outline, color: AppColors.primaryOrange),
+                      icon: const Icon(Icons.remove_circle_outline, color: AppColors.primaryGreen),
                       onPressed: _personCount > 2 ? () => setState(() => _personCount--) : null,
                     ),
                     Padding(
@@ -107,7 +107,7 @@ class _SplitBillDialogState extends State<SplitBillDialog> {
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.add_circle_outline, color: AppColors.primaryOrange),
+                      icon: const Icon(Icons.add_circle_outline, color: AppColors.primaryGreen),
                       onPressed: () => setState(() => _personCount++),
                     ),
                   ],
@@ -117,9 +117,9 @@ class _SplitBillDialogState extends State<SplitBillDialog> {
                   width: double.infinity,
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: AppColors.primaryOrangeLight,
+                    color: AppColors.primaryGreenLight,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.primaryOrange.withValues(alpha: 0.3)),
+                    border: Border.all(color: AppColors.primaryGreen.withValues(alpha: 0.3)),
                   ),
                   child: Column(
                     children: [
@@ -130,7 +130,7 @@ class _SplitBillDialogState extends State<SplitBillDialog> {
                             ? '₹${base.toStringAsFixed(0)} × $_personCount'
                             : '₹${base.toStringAsFixed(0)} × ${_personCount - 1} + ₹${lastShare.toStringAsFixed(0)}',
                         style: const TextStyle(
-                          color: AppColors.primaryOrange,
+                          color: AppColors.primaryGreen,
                           fontWeight: FontWeight.w900,
                           fontSize: 24,
                         ),
