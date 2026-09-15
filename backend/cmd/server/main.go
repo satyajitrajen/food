@@ -122,13 +122,18 @@ func seed(st *store.Store, mgr *auth.Manager) error {
 		return err
 	}
 
-	// Staff (PINs: admin 0000, manager 9999, cashier 1234, waiter 1111, kitchen 5555) — one per unique role
+	// Staff (PINs: admin 0000, manager 9999, cashier 1234, waiter 1111, kitchen 5555) — one per unique role per outlet
+	// out-01 (Baner) + out-02 (Kothrud) mirrors the 2-outlet demo setup
 	staff := []struct{ id, name, role, pin, avatar, mobile string }{
 		{"st-01", "Rahul Sharma", "cashier", "1234", "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100", "+91 98220 11223"},
 		{"st-02", "Priya Joshi", "manager", "9999", "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100", "+91 98220 22334"},
 		{"st-03", "Vikram Singh", "admin", "0000", "https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=100", "+91 98220 33445"},
 		{"st-04", "Amit Deshmukh", "waiter", "1111", "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100", "+91 98220 44556"},
 		{"st-06", "Chef Sharma", "kitchen", "5555", "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100", "+91 98220 66778"},
+		{"st-452d-4558ff", "Neha Kulkarni", "manager", "8888", "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100", "+91 98220 77889"},
+		{"st-9226-ae5f97", "Suresh Patel", "cashier", "3333", "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100", "+91 98220 88990"},
+		{"st-ffd8-832499", "Kiran More", "waiter", "2222", "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100", "+91 98220 99001"},
+		{"st-f92e-2a769a", "Sunita Rao", "kitchen", "6666", "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100", "+91 98220 10112"},
 	}
 	for _, s := range staff {
 		hash, err := mgr.HashPIN(s.pin)
@@ -150,6 +155,13 @@ func seed(st *store.Store, mgr *auth.Manager) error {
 		// Kitchen is single-outlet bound (008): pin the demo kitchen to out-01.
 		if s.id == "st-06" {
 			_, _ = st.DB.ExecContext(ctx, `UPDATE staff SET outlet_id = 'out-01' WHERE id = ? AND outlet_id IS NULL`, s.id)
+		}
+		// Waiter/cashier/manager outlet binding (single-outlet constraint)
+		if s.id == "st-01" || s.id == "st-02" || s.id == "st-04" {
+			_, _ = st.DB.ExecContext(ctx, `UPDATE staff SET outlet_id = 'out-01' WHERE id = ? AND outlet_id IS NULL`, s.id)
+		}
+		if s.id == "st-452d-4558ff" || s.id == "st-9226-ae5f97" || s.id == "st-ffd8-832499" || s.id == "st-f92e-2a769a" {
+			_, _ = st.DB.ExecContext(ctx, `UPDATE staff SET outlet_id = 'out-02' WHERE id = ? AND outlet_id IS NULL`, s.id)
 		}
 	}
 

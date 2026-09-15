@@ -1290,10 +1290,11 @@ class PosProvider extends ChangeNotifier {
 
   void selectOutlet(Outlet outlet) => _switchOutlet(outlet);
 
-  // Staff Directory & Authentication
+  // Staff Directory & Authentication — 5 uniq roles for out-01 + 4 for out-02 (admin org-wide)
   final List<Staff> _staffList = [
     Staff(
       id: 'st-01',
+      outletId: 'out-01',
       name: 'Rahul Sharma',
       role: StaffRole.cashier,
       pin: '1234',
@@ -1302,6 +1303,7 @@ class PosProvider extends ChangeNotifier {
     ),
     Staff(
       id: 'st-02',
+      outletId: 'out-01',
       name: 'Priya Joshi',
       role: StaffRole.manager,
       pin: '9999',
@@ -1334,6 +1336,43 @@ class PosProvider extends ChangeNotifier {
       pin: '5555',
       avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100',
       mobile: '+91 98220 66778',
+    ),
+    // out-02 (Kothrud) — mirrors out-01 roles per outlet
+    Staff(
+      id: 'st-452d-4558ff',
+      outletId: 'out-02',
+      name: 'Neha Kulkarni',
+      role: StaffRole.manager,
+      pin: '8888',
+      avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100',
+      mobile: '+91 98220 77889',
+    ),
+    Staff(
+      id: 'st-9226-ae5f97',
+      outletId: 'out-02',
+      name: 'Suresh Patel',
+      role: StaffRole.cashier,
+      pin: '3333',
+      avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100',
+      mobile: '+91 98220 88990',
+    ),
+    Staff(
+      id: 'st-ffd8-832499',
+      outletId: 'out-02',
+      name: 'Kiran More',
+      role: StaffRole.waiter,
+      pin: '2222',
+      avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100',
+      mobile: '+91 98220 99001',
+    ),
+    Staff(
+      id: 'st-f92e-2a769a',
+      outletId: 'out-02',
+      name: 'Sunita Rao',
+      role: StaffRole.kitchen,
+      pin: '6666',
+      avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100',
+      mobile: '+91 98220 10112',
     ),
   ];
   List<Staff> get staffList => List.unmodifiable(_staffList);
