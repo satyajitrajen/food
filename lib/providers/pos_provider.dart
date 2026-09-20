@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../core/api/api_client.dart';
 import '../core/api/dto.dart';
 import '../core/auth/pin_vault.dart';
+import '../core/auth/session_store.dart';
 import '../core/auth/tenant.dart';
 import '../core/notifications/push_notification_service.dart';
 import '../core/printing/printing.dart';
@@ -42,6 +43,7 @@ class PosProvider extends ChangeNotifier {
   PrinterAdapter? _printer;
   PinVault? _pinVault;
   TenantStore? _tenantStore;
+  SessionStore? _sessionStore;
   TenantInfo? _tenant;
   EntitlementSnapshot? _entitlement;
   bool _hydrating = false;
@@ -49,12 +51,22 @@ class PosProvider extends ChangeNotifier {
   DateTime? _lastSyncAt;
   String? _printerError;
 
+  /// Completes once boot hydration + saved-login restore finish. Screens
+  /// (e.g. Splash) await this instead of guessing with a fixed delay.
+  Future<void>? _readyFuture;
+  Future<void> get ready => _readyFuture ?? Future.value();
+  bool _bootstrapped = false;
+  bool get bootstrapDone => _bootstrapped;
+
   String? get lastSyncError => _lastSyncError;
   DateTime? get lastSyncAt => _lastSyncAt;
   String? get printerError => _printerError;
 
   PosProvider({this.apiEnabled = false, PrinterAdapter? printer}) {
     _printer = printer;
+    // No secrets: only the staff/outlet snapshot (tokens stay in OutboxStore,
+    // PINs only as salted vault hashes), so this is kept in every mode.
+    _sessionStore = SessionStore();
     if (apiEnabled) {
       _api = ApiClient(baseUrl: kDefaultApiBaseUrl, onSessionChanged: _persistSession);
       _pinVault = PinVault();
@@ -70,7 +82,7 @@ class PosProvider extends ChangeNotifier {
         },
       );
       _registerOps();
-      unawaited(_bootstrap());
+      _readyFuture = _bootstrap();
     }
     if (!kDebugMode) {
       // Release binaries ship without the demo dataset (fake staff, plaintext
@@ -87,21 +99,39 @@ class PosProvider extends ChangeNotifier {
     unawaited(OutboxStore().saveSession(session?.accessToken, session?.refreshToken));
   }
 
+  /// Runs a boot phase with a hard cap so startup can never hang forever on
+  /// a stalled read (storage or network). A timed-out phase behaves as if it
+  /// returned nothing — boot continues offline toward PIN login.
+  Future<T?> _bootPhase<T>(Future<T> phase, {int seconds = 5}) async {
+    try {
+      return await phase.timeout(Duration(seconds: seconds));
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> _bootstrap() async {
     // Restore the bound tenant + last entitlement before any network calls so
     // hydrations are org-scoped and offline grace survives restarts.
     if (_tenantStore != null) {
-      _tenant = await _tenantStore!.load();
-      _entitlement = await _tenantStore!.loadEntitlement();
+      _tenant = await _bootPhase<TenantInfo?>(_tenantStore!.load());
+      _entitlement =
+          await _bootPhase<EntitlementSnapshot?>(_tenantStore!.loadEntitlement());
     }
-    await _sync!.initialize();
-    await _sync!.probe();
-    if (_sync!.online && _tenant != null) {
-      await hydratePublic();
+    try {
+      await _sync!.initialize().timeout(const Duration(seconds: 5));
+      await _sync!.probe().timeout(const Duration(seconds: 8));
+    } catch (_) {
+      // Boot continues offline; the PIN screen stays available.
     }
-    if (_currentStaff != null) {
-      unawaited(_postLoginSync());
+    if ((_sync?.online ?? false) && _tenant != null) {
+      await _bootPhase(hydratePublic(), seconds: 10);
     }
+    // Stay signed in across restarts: whoever was logged in keeps working
+    // until an explicit logout. Only then is the PIN screen shown.
+    await _bootPhase(restoreSavedLogin(), seconds: 15);
+    _bootstrapped = true;
+    notifyListeners();
     PushNotificationService.instance.onMessage.listen((msg) {
       final type = msg.data['type'] as String?;
       if (type != null) {
@@ -163,14 +193,17 @@ class PosProvider extends ChangeNotifier {
       _menuItems.where((m) => m.id == id).firstOrNull;
 
   /// Re-binds this terminal to a different org (change-code flow): clears the
-  /// previous tenant + entitlement, then bootstraps the new code.
+  /// previous tenant + entitlement + signed-in staff, then bootstraps the
+  /// new code.
   Future<void> rebindOrg(String code) async {
     _tenant = null;
     _entitlement = null;
+    _currentStaff = null;
     _staffList.clear();
     _outlets.clear();
     await _tenantStore?.clear();
     await _tenantStore?.clearEntitlement();
+    await _sessionStore?.clear();
     notifyListeners();
     await bootstrapOrg(code);
   }
@@ -1423,6 +1456,81 @@ class PosProvider extends ChangeNotifier {
           s.isActive &&
           s.canAccessOutlet(_currentOutlet.id)));
 
+  /// Remembers who is signed in (and on which outlet) so the login survives
+  /// app restarts. Cleared only on explicit logout / org rebind. No secrets:
+  /// tokens live in OutboxStore, PINs never leave the vault as hashes.
+  Future<void> _saveLoginSnapshot() async {
+    final staff = _currentStaff;
+    if (staff == null) return;
+    await _sessionStore?.save(StaffSessionSnapshot(
+      staffId: staff.id,
+      outletId: _currentOutlet.id,
+      outletName: _currentOutlet.name,
+      outletTerminal: _currentOutlet.terminal,
+    ));
+  }
+
+  /// Silent re-login after an app restart. Online: rotates the saved refresh
+  /// token and restores the authoritative staff + entitlement from the
+  /// server. Offline: restores the previously server-verified identity from
+  /// the vault. Returns true when a session was restored; false (no snapshot
+  /// or rejected session) means the PIN screen stays.
+  Future<bool> restoreSavedLogin() async {
+    if (!apiEnabled || _api == null) return false;
+    final snap = await _sessionStore?.load();
+    if (snap == null) return false;
+    final outletMatch =
+        _outlets.where((o) => o.id == snap.outletId).firstOrNull;
+    if (outletMatch != null) {
+      _currentOutlet = outletMatch;
+    } else if (snap.outletId.isNotEmpty) {
+      _currentOutlet = Outlet(
+        id: snap.outletId,
+        name: snap.outletName.isEmpty ? _currentOutlet.name : snap.outletName,
+        address: '',
+        terminal: snap.outletTerminal,
+        gstin: '',
+        fssai: '',
+        phone: '',
+      );
+    }
+    if (_sync?.online ?? false) {
+      try {
+        final data = await _api!.refreshSessionWithPayload();
+        final staffMap = data?['staff'] is Map
+            ? (data!['staff'] as Map).cast<String, dynamic>()
+            : null;
+        if (data == null || staffMap == null) {
+          await _sessionStore?.clear();
+          return false;
+        }
+        final serverStaff = staffFromApi(staffMap);
+        _currentStaff =
+            _staffList.where((s) => s.id == serverStaff.id).firstOrNull ??
+                serverStaff;
+        _applyLoginEntitlement(data);
+        _isOfflineMode = false;
+        _lastSyncError = null;
+      } catch (_) {
+        await _sessionStore?.clear();
+        return false;
+      }
+    } else {
+      Staff? match =
+          _staffList.where((s) => s.id == snap.staffId).firstOrNull;
+      match ??= await _pinVault?.lookup(snap.staffId);
+      if (match == null || !match.isActive) {
+        await _sessionStore?.clear();
+        return false;
+      }
+      _currentStaff = match;
+      _isOfflineMode = true;
+    }
+    notifyListeners();
+    unawaited(_postLoginSync());
+    return true;
+  }
+
   /// Server-first login. On success the PIN is cached as a salted hash
   /// (PinVault) so THIS terminal can authenticate that staff offline. When
   /// the server is unreachable, verification falls back to the vault —
@@ -1449,6 +1557,7 @@ class PosProvider extends ChangeNotifier {
         _isOfflineMode = false;
         _lastSyncError = null;
         notifyListeners();
+        unawaited(_saveLoginSnapshot());
         unawaited(_postLoginSync());
         return true;
       } on ApiException {
@@ -1464,6 +1573,7 @@ class PosProvider extends ChangeNotifier {
       if (cached != null) {
         _currentStaff = cached;
         notifyListeners();
+        unawaited(_saveLoginSnapshot());
         unawaited(_postLoginSync());
         return true;
       }
@@ -1475,6 +1585,7 @@ class PosProvider extends ChangeNotifier {
       );
       _currentStaff = staff;
       notifyListeners();
+      unawaited(_saveLoginSnapshot());
       unawaited(_postLoginSync());
       return true;
     } catch (_) {
@@ -1502,6 +1613,7 @@ class PosProvider extends ChangeNotifier {
       _api!.session = null;
       _persistSession(null);
     }
+    unawaited(_sessionStore?.clear());
     _currentStaff = null;
     // Forget pending "order ready" alerts and home position for the next
     // staff member on this terminal.
@@ -3290,6 +3402,8 @@ class PosProvider extends ChangeNotifier {
     final previousOutletId = _currentOutlet.id;
     _currentOutlet = outlet;
     _rebuildCategories();
+    // The saved login follows the counter: a restart must land back here.
+    unawaited(_saveLoginSnapshot());
     // Strict outlet isolation: drop the previous outlet's board immediately so
     // no stale cross-outlet ticket is ever visible, then rehydrate.
     _kots.clear();

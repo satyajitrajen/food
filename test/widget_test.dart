@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:food_pos/main.dart';
 import 'package:food_pos/providers/pos_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:food_pos/models/shift_model.dart';
 import 'package:food_pos/models/table_model.dart';
 import 'package:food_pos/models/order_model.dart';
@@ -84,6 +85,8 @@ class _MockHttpClientResponse implements HttpClientResponse {
 void main() {
   setUpAll(() {
     HttpOverrides.global = TestHttpOverrides();
+    // Boot reads SharedPreferences (tenant/session restore): resolve instantly.
+    SharedPreferences.setMockInitialValues({});
   });
 
   group('Resto POS Unit & Widget Tests', () {

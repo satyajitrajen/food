@@ -21,12 +21,19 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
   Staff? _selectedStaff;
   String _pin = '';
   String? _errorMessage;
+  final TextEditingController _pickerSearchC = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     final provider = context.read<PosProvider>();
     _selectedStaff = provider.currentOutletStaff.isEmpty ? null : provider.currentOutletStaff.first;
+  }
+
+  @override
+  void dispose() {
+    _pickerSearchC.dispose();
+    super.dispose();
   }
 
   bool _verifying = false;
@@ -59,6 +66,184 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
       _pin = '';
       _errorMessage = null;
     });
+  }
+
+  void _selectStaff(Staff s) {
+    setState(() {
+      _selectedStaff = s;
+      _pin = '';
+      _errorMessage = null;
+    });
+  }
+
+  /// Staff picker: searchable, vertically scrolling list in a bottom sheet.
+  /// Full names + roles stay readable no matter how large the team gets.
+  /// Fixed-height sheet with an internally scrolling list (no nested-scroll
+  /// coordination surprises on small screens).
+  void _showStaffPicker(List<Staff> outletStaff) {
+    _pickerSearchC.clear();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setSheetState) {
+          final q = _pickerSearchC.text.trim().toLowerCase();
+          final filtered = q.isEmpty
+              ? outletStaff
+              : outletStaff
+                  .where((s) =>
+                      s.name.toLowerCase().contains(q) ||
+                      s.roleTitle.toLowerCase().contains(q))
+                  .toList();
+          final sheetHeight =
+              MediaQuery.of(sheetContext).size.height * 0.75;
+          return Padding(
+            padding: EdgeInsets.only(
+                bottom: MediaQuery.of(sheetContext).viewInsets.bottom),
+            child: SizedBox(
+              height: sheetHeight,
+              child: Container(
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                ),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 10),
+                    Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppColors.borderMedium,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+                      child: Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'Who is signing in?',
+                              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
+                            ),
+                          ),
+                          Text(
+                            '${filtered.length} of ${outletStaff.length}',
+                            style: const TextStyle(
+                                color: AppColors.textMuted, fontSize: 12, fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                      child: TextField(
+                        controller: _pickerSearchC,
+                        autofocus: outletStaff.length > 6,
+                        decoration: InputDecoration(
+                          hintText: 'Search name or role…',
+                          prefixIcon: const Icon(Icons.search, size: 20),
+                          suffixIcon: _pickerSearchC.text.isEmpty
+                              ? null
+                              : IconButton(
+                                  icon: const Icon(Icons.clear, size: 18),
+                                  onPressed: () {
+                                    _pickerSearchC.clear();
+                                    setSheetState(() {});
+                                  },
+                                ),
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 10),
+                        ),
+                        onChanged: (_) => setSheetState(() {}),
+                      ),
+                    ),
+                    Expanded(
+                      child: filtered.isEmpty
+                          ? const Center(
+                              child: Text(
+                                'No staff match that search.',
+                                style: TextStyle(
+                                    color: AppColors.textMuted, fontSize: 13),
+                              ),
+                            )
+                          : ListView.separated(
+                              padding: const EdgeInsets.fromLTRB(8, 4, 8, 16),
+                              itemCount: filtered.length,
+                              separatorBuilder: (context, index) => const Divider(
+                                  height: 1,
+                                  indent: 68,
+                                  color: AppColors.borderLight),
+                              itemBuilder: (_, i) {
+                                final s = filtered[i];
+                                final isSelected =
+                                    _selectedStaff?.id == s.id;
+                                return ListTile(
+                                  leading: CircleAvatar(
+                                    radius: 22,
+                                    backgroundColor:
+                                        AppColors.primaryGreenLight,
+                                    backgroundImage:
+                                        NetworkImage(s.avatarUrl),
+                                    onBackgroundImageError: (error, stackTrace) {},
+                                    child: s.avatarUrl.isEmpty
+                                        ? Text(
+                                            s.name.isEmpty
+                                                ? '?'
+                                                : s.name[0].toUpperCase(),
+                                            style: const TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                                color: AppColors.primaryGreen),
+                                          )
+                                        : null,
+                                  ),
+                                  title: Text(
+                                    s.name,
+                                    style: TextStyle(
+                                      fontWeight: isSelected
+                                          ? FontWeight.w800
+                                          : FontWeight.w600,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    s.roleTitle,
+                                    style: const TextStyle(
+                                        color: AppColors.textMuted,
+                                        fontSize: 12),
+                                  ),
+                                  trailing: isSelected
+                                      ? const Icon(Icons.check_circle,
+                                          color: AppColors.primaryGreen)
+                                      : const Icon(
+                                          Icons.chevron_right,
+                                          color: AppColors.textLight),
+                                  selected: isSelected,
+                                  selectedTileColor:
+                                      AppColors.primaryGreenLight,
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius:
+                                          BorderRadius.circular(12)),
+                                  onTap: () {
+                                    _selectStaff(s);
+                                    Navigator.of(sheetContext).pop();
+                                  },
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 
   Future<void> _verifyPin() async {
@@ -120,10 +305,10 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
                   // Brand mark
                   Image.asset(
                     'assets/logo.png',
-                    width: 120,
+                    width: 76,
                     fit: BoxFit.contain,
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 10),
                   // Outlet and Counter Banner
                   InkWell(
                     onTap: () {
@@ -157,18 +342,44 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 24),
-                  // Staff Avatar & Profile
-                  CircleAvatar(
-                    radius: 36,
-                    backgroundColor: AppColors.primaryGreenLight,
-                    backgroundImage: NetworkImage(_selectedStaff?.avatarUrl ?? ''),
-                    onBackgroundImageError: (_, _) {},
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    _selectedStaff?.name ?? 'Staff Login',
-                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 20),
+                  const SizedBox(height: 14),
+                  // Staff Avatar & Profile (tappable: opens the picker)
+                  InkWell(
+                    onTap: _verifying || outletStaff.isEmpty
+                        ? null
+                        : () => _showStaffPicker(outletStaff),
+                    borderRadius: BorderRadius.circular(16),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      child: Column(
+                        children: [
+                          CircleAvatar(
+                            radius: 30,
+                            backgroundColor: AppColors.primaryGreenLight,
+                            backgroundImage: NetworkImage(_selectedStaff?.avatarUrl ?? ''),
+                            onBackgroundImageError: (error, stackTrace) {},
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  _selectedStaff?.name ?? 'Staff Login',
+                                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (outletStaff.length > 1) ...[
+                                const SizedBox(width: 4),
+                                const Icon(Icons.switch_account_outlined,
+                                    size: 16, color: AppColors.textMuted),
+                              ],
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Container(
@@ -186,7 +397,27 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 10),
+                  // Switch profile: a searchable sheet that scales from a
+                  // handful of staff to dozens (the old horizontal avatar
+                  // strip broke down and fought the page scroll). Placed
+                  // above the keypad so it never sits below the fold.
+                  if (outletStaff.isNotEmpty)
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.switch_account_outlined, size: 18),
+                      label: Text(
+                        outletStaff.length == 1
+                            ? '1 profile on this counter'
+                            : 'Switch profile · ${outletStaff.length} on this counter',
+                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      onPressed: _verifying ? null : () => _showStaffPicker(outletStaff),
+                    ),
+                  const SizedBox(height: 14),
                   // PIN Indicator Dots
                   if (_verifying) ...[
                     const SizedBox(height: 6),
@@ -222,66 +453,12 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
                       style: const TextStyle(color: AppColors.nonVegRed, fontSize: 12, fontWeight: FontWeight.w600),
                     ),
                   ],
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 16),
                   // Keypad
                   NumericKeypad(
                     onKeyPressed: _onKeyPress,
                     onDelete: _onDelete,
                     onClear: _onClear,
-                  ),
-                  const SizedBox(height: 20),
-                  // Switch Staff List
-                  const Text('Switch Profile:', style: TextStyle(color: AppColors.textLight, fontSize: 12)),
-                  const SizedBox(height: 8),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: outletStaff.map((s) {
-                        final isSelected = _selectedStaff?.id == s.id;
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 6),
-                          child: InkWell(
-                            onTap: () {
-                              setState(() {
-                                _selectedStaff = s;
-                                _pin = '';
-                                _errorMessage = null;
-                              });
-                            },
-                            child: Column(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(2),
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: isSelected ? AppColors.primaryGreen : Colors.transparent,
-                                      width: 2,
-                                    ),
-                                  ),
-                                  child: CircleAvatar(
-                                    radius: 18,
-                                    backgroundColor: AppColors.primaryGreenLight,
-                                    backgroundImage: NetworkImage(s.avatarUrl),
-                                    onBackgroundImageError: (_, _) {},
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  s.name.split(' ').first,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                                    color: isSelected ? AppColors.primaryGreen : AppColors.textMuted,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
                   ),
                 if (provider.apiEnabled)
                   Padding(

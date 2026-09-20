@@ -175,17 +175,25 @@ class ApiClient {
   }
 
   Future<bool> refreshSession() async {
+    return (await refreshSessionWithPayload()) != null;
+  }
+
+  /// Rotates the session and returns the full refresh response (tokens plus
+  /// the authoritative `staff` / `entitlement` payloads), or null when the
+  /// refresh token is missing, expired or revoked. Callers treat null as
+  /// "signed out" and fall back to PIN login.
+  Future<Map<String, dynamic>?> refreshSessionWithPayload() async {
     final refresh = session?.refreshToken;
-    if (refresh == null || refresh.isEmpty) return false;
+    if (refresh == null || refresh.isEmpty) return null;
     try {
       final data = await request('POST', '/api/v1/auth/refresh',
           body: {'refresh_token': refresh}, auth: false);
       _storeSession(data);
-      return true;
+      return data is Map ? data.cast<String, dynamic>() : null;
     } catch (_) {
       session = null;
       onSessionChanged?.call(null);
-      return false;
+      return null;
     }
   }
 
