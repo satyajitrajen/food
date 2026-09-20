@@ -488,6 +488,16 @@ class PosProvider extends ChangeNotifier {
   bool get canTakeOrders => licenseActive;
   int get licenseDaysLeft => _entitlement?.daysLeft ?? 0;
   bool get licenseTokenVerified => _entitlement?.tokenVerified ?? false;
+  bool get isTrial => _entitlement?.status == 'trial';
+
+  /// Trial countdown prefers the subscription card (server truth with
+  /// trial_ends_at) and falls back to the cached entitlement window.
+  int get trialDaysLeft {
+    final fromCard = _subscriptionStatus?.trialDaysLeft ?? 0;
+    if (fromCard > 0) return fromCard;
+    if (isTrial) return licenseDaysLeft;
+    return 0;
+  }
 
   // ---- Subscription card (Settings, admins) ----
 
@@ -632,6 +642,59 @@ class PosProvider extends ChangeNotifier {
       _currentOutlet = _outlets.first;
     }
     notifyListeners();
+  }
+
+  /// Self-service organization onboarding (SaaS): creates the org + owner
+  /// account + 7-day Pro trial + first outlet + admin staff via
+  /// POST /api/v1/auth/register, then binds this terminal to the new org
+  /// (same hydration as [bootstrapOrg]) so PIN login works immediately.
+  /// Returns the org code + one-time admin PIN for the success screen.
+  /// Throws ApiException/NetworkException/FormatException on failure.
+  Future<RegisterOrgResult> registerOrg({
+    required String orgName,
+    required String ownerName,
+    required String email,
+    required String password,
+    required String outletName,
+    String terminal = 'Counter 1',
+  }) async {
+    if (!apiEnabled || _api == null) {
+      throw NetworkException('Registration requires the server connection');
+    }
+    final org = orgName.trim();
+    final owner = ownerName.trim();
+    final mail = email.trim();
+    final outlet = outletName.trim();
+    final term = terminal.trim().isEmpty ? 'Counter 1' : terminal.trim();
+    if (org.isEmpty || owner.isEmpty || mail.isEmpty || outlet.isEmpty) {
+      throw const FormatException(
+          'Restaurant, owner, email and outlet names are required');
+    }
+    if (password.length < 8) {
+      throw const FormatException('Password must be at least 8 characters');
+    }
+    final resp = await _api!.request('POST', '/api/v1/auth/register',
+        body: {
+          'org_name': org,
+          'owner_name': owner,
+          'email': mail,
+          'password': password,
+          'outlet_name': outlet,
+          'terminal': term,
+          'plan_code': 'pro',
+        },
+        auth: false);
+    if (resp is! Map) {
+      throw const FormatException('Unexpected server response');
+    }
+    final result =
+        registerOrgResultFromApi(resp.cast<String, dynamic>());
+    if (result.orgCode.isEmpty || result.orgId.isEmpty) {
+      throw const FormatException('Registration failed. Try again.');
+    }
+    // Bind the terminal to the freshly provisioned org.
+    await bootstrapOrg(result.orgCode);
+    return result;
   }
 
   void _applyLoginEntitlement(Map<String, dynamic> resp) {

@@ -150,7 +150,7 @@ class MoreHubScreen extends StatelessWidget {
       if (role != StaffRole.kitchen)
         _tile(
           context: context,
-          title: 'Switch Outlet / Terminal',
+          title: 'Switch Outlet / Counter',
           subtitle: 'Currently connected to ${provider.currentOutlet.name}',
           icon: Icons.store_mall_directory_outlined,
           color: AppColors.textDark,
@@ -197,7 +197,7 @@ class MoreHubScreen extends StatelessWidget {
                           style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
                         ),
                         Text(
-                          '${provider.currentStaff?.roleTitle ?? ""} · ${provider.currentOutlet.name} (${provider.currentOutlet.terminal})',
+                            '${provider.currentStaff?.roleTitle ?? ""} · ${provider.currentOutlet.name} · Counter ${provider.currentOutlet.terminal}',
                           style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
                         ),
                       ],

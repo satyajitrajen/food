@@ -72,18 +72,61 @@ class _SubscriptionCardBodyState extends State<SubscriptionCardBody>
     final periodText = status.periodEnd == null
         ? '—'
         : DateFormat('dd MMM yyyy').format(status.periodEnd!.toLocal());
+    final trialEndText = status.trialEndsAt == null
+        ? null
+        : DateFormat('dd MMM yyyy').format(status.trialEndsAt!.toLocal());
+    final firstChargeText = status.firstChargeAt == null
+        ? trialEndText
+        : DateFormat('dd MMM yyyy').format(status.firstChargeAt!.toLocal());
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (status.isTrial) _trialBanner(status, trialEndText, firstChargeText),
         _row('Plan', status.planName),
         _row('Status', _statusLabel(status.status)),
         _row('Auto-renew', status.autoRenewLive ? 'On' : 'Off'),
-        _row('Next cycle', periodText),
+        if (status.isTrial && trialEndText != null)
+          _row('Trial ends', '$trialEndText (${status.trialDaysLeft}d left)')
+        else
+          _row('Next cycle', periodText),
+        if (status.isTrial && firstChargeText != null && status.autoRenewLive)
+          _row('First charge', firstChargeText),
         _row('Price (excl. GST)', '₹${status.priceRupees.toStringAsFixed(0)}'),
         const SizedBox(height: 8),
         _actions(provider, status),
       ],
+    );
+  }
+
+  Widget _trialBanner(
+      SubscriptionStatus status, String? trialEndText, String? firstChargeText) {
+    final days = status.trialDaysLeft;
+    final message = status.autoRenewLive
+        ? 'Free trial${days > 0 ? ' — $days day${days == 1 ? '' : 's'} left' : ''}'
+            '${firstChargeText != null ? ', first charge $firstChargeText' : ''}. Auto-pay is on.'
+        : 'Free trial${days > 0 ? ' — $days day${days == 1 ? '' : 's'} left' : ''}'
+            '${trialEndText != null ? ' (ends $trialEndText)' : ''}. Enable auto-pay now — first charge happens automatically.';
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.primaryGreenLight,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.schedule_outlined,
+              size: 18, color: AppColors.primaryGreen),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(message,
+                style: const TextStyle(
+                    fontSize: 12, height: 1.4, color: AppColors.textDark)),
+          ),
+        ],
+      ),
     );
   }
 
@@ -116,7 +159,9 @@ class _SubscriptionCardBodyState extends State<SubscriptionCardBody>
         FilledButton(
           onPressed: () => _enableAutoRenew(provider),
           style: FilledButton.styleFrom(backgroundColor: AppColors.primaryGreen),
-          child: const Text('Enable auto-renew'),
+          child: Text(status.isTrial
+                ? 'Enable auto-pay'
+                : 'Enable auto-renew'),
         ),
       ],
     );
@@ -254,6 +299,9 @@ class _SubscriptionCardBodyState extends State<SubscriptionCardBody>
         _snack(context, 'Payment handed off to ${result.wallet}');
       } else if (!result.success) {
         _snack(context, result.error ?? 'Payment cancelled');
+      } else if (start.trial && start.firstChargeAt != null) {
+        _snack(context,
+            'Auto-pay authorized — first charge on ${DateFormat('dd MMM yyyy').format(start.firstChargeAt!.toLocal())}');
       } else {
         _snack(context, 'Payment received — status updating');
       }

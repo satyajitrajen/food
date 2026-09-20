@@ -64,7 +64,7 @@ class PosDashboardScreen extends StatelessWidget {
                   style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17),
                 ),
                 Text(
-                  'Terminal ${provider.currentOutlet.terminal} · Cashier: ${provider.currentStaff?.name ?? "Staff"}',
+                  'Counter ${provider.currentOutlet.terminal} · Cashier: ${provider.currentStaff?.name ?? "Staff"}',
                   style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
                 ),
               ],

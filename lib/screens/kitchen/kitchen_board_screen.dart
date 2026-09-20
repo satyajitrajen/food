@@ -54,7 +54,7 @@ class _KitchenBoardScreenState extends State<KitchenBoardScreen> with SingleTick
         actions: [
           if (widget.showLock)
             IconButton(
-              tooltip: 'Lock Kitchen Terminal',
+              tooltip: 'Lock Kitchen Display',
               icon: const Icon(Icons.lock_outline, size: 20),
               onPressed: () {
                 provider.logout();

@@ -103,13 +103,29 @@ func TestOwnerStartSubscription(t *testing.T) {
 		t.Fatalf("registration add-on not requested: %q", got)
 	}
 	var subReq struct {
-		Notes map[string]string `json:"notes"`
+		Notes   map[string]string `json:"notes"`
+		StartAt *int64            `json:"start_at"`
 	}
 	if err := json.Unmarshal([]byte(hits["/v1/subscriptions|POST"]), &subReq); err != nil {
 		t.Fatal(err)
 	}
 	if subReq.Notes["org_id"] != orgID {
 		t.Fatalf("subscription notes missing org_id: %+v", subReq)
+	}
+	// Fresh registration is inside the 7-day trial: the mandate must be
+	// scheduled with start_at = trial end, not charged immediately.
+	if body["trial"] != true {
+		t.Fatalf("expected trial=true in start payload: %v", body)
+	}
+	subRow, err := e.st.GetSubscription(context.Background(), orgID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if subRow.TrialEndsAt == nil {
+		t.Fatal("expected trial_ends_at on fresh registration")
+	}
+	if subReq.StartAt == nil || *subReq.StartAt != subRow.TrialEndsAt.Unix() {
+		t.Fatalf("expected start_at=%d (trial end), got %+v", subRow.TrialEndsAt.Unix(), subReq.StartAt)
 	}
 
 	sub, err := e.st.GetSubscription(context.Background(), orgID)

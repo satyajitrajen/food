@@ -25,13 +25,17 @@ class _FakePosProvider extends PosProvider {
 
 SubscriptionStatus _status(
     {String subStatus = 'trial', String gatewayStatus = ''}) {
+  final trial = subStatus == 'trial';
   return SubscriptionStatus(
     planCode: 'pro',
     planName: 'Pro',
     status: subStatus,
     gatewayStatus: gatewayStatus,
-    periodEnd: subStatus == 'trial' ? DateTime(2026, 9, 20) : null,
+    periodEnd: trial ? null : DateTime(2026, 9, 20),
     priceRupees: 1999,
+    trialEndsAt: trial ? DateTime(2026, 9, 27) : null,
+    trialDaysLeft: trial ? 7 : 0,
+    firstChargeAt: trial ? DateTime(2026, 9, 27) : null,
   );
 }
 
@@ -54,9 +58,13 @@ void main() {
     expect(find.text('Pro'), findsOneWidget);
     expect(find.text('Trial'), findsOneWidget);
     expect(find.text('Off'), findsOneWidget);
-    expect(find.text('Enable auto-renew'), findsOneWidget);
+    // Trial CTA authorizes the mandate with the first charge at trial end.
+    expect(find.text('Enable auto-pay'), findsOneWidget);
     expect(find.text('Pay one cycle now'), findsOneWidget);
     expect(find.text('Cancel auto-renew'), findsNothing);
+    // Trial banner + countdown rows.
+    expect(find.textContaining('Free trial'), findsOneWidget);
+    expect(find.text('Trial ends'), findsOneWidget);
   });
 
   testWidgets('shows cancel only when auto-renew is live', (tester) async {
@@ -67,8 +75,21 @@ void main() {
     expect(find.text('On'), findsOneWidget);
     expect(find.text('Active'), findsOneWidget);
     expect(find.text('Enable auto-renew'), findsNothing);
+    expect(find.text('Enable auto-pay'), findsNothing);
     expect(find.text('Pay one cycle now'), findsNothing);
     expect(find.text('Cancel auto-renew'), findsOneWidget);
+  });
+
+  testWidgets('trial with auto-pay armed shows first charge and cancel',
+      (tester) async {
+    final provider = _FakePosProvider()
+      ..status = _status(subStatus: 'trial', gatewayStatus: 'active');
+    await tester.pumpWidget(_wrap(provider));
+
+    expect(find.text('On'), findsOneWidget);
+    expect(find.text('First charge'), findsOneWidget);
+    expect(find.text('Cancel auto-renew'), findsOneWidget);
+    expect(find.text('Enable auto-pay'), findsNothing);
   });
 
   testWidgets('shows the load error when no status is available',

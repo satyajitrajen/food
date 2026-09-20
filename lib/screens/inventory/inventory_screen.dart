@@ -576,7 +576,7 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
               padding: const EdgeInsets.all(16),
               children: [
                 const Text(
-                  'This terminal is offline — showing locally recorded adjustments only.',
+                  'This device is offline — showing locally recorded adjustments only.',
                   style: TextStyle(color: AppColors.textMuted, fontSize: 12),
                 ),
                 const SizedBox(height: 10),

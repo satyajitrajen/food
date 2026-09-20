@@ -290,13 +290,15 @@ type seedPlanRow struct {
 // at ₹999/₹1,999/₹3,999 monthly and their 20%-off annual variants (interval
 // 365). Canonical codes are upserted so catalog changes ship with the binary;
 // superadmin-created plans use other codes and are never touched here.
+// All plans carry a 7-day free trial: registration sets trial_ends_at =
+// now + 7d and Razorpay mandates are scheduled with start_at = trial end.
 var defaultPlans = []seedPlanRow{
-	{"starter", "Starter Café", 99900, 30, 1, 10, 14},
-	{"pro", "Pro Dining", 199900, 30, 5, 20, 14},
-	{"chain", "Multi-Outlet Chain", 399900, 30, 100, 500, 14},
-	{"starter-annual", "Starter Café (Annual)", 958800, 365, 1, 10, 14},
-	{"pro-annual", "Pro Dining (Annual)", 1918800, 365, 5, 20, 14},
-	{"chain-annual", "Multi-Outlet Chain (Annual)", 3838800, 365, 100, 500, 14},
+	{"starter", "Starter Café", 99900, 30, 1, 10, 7},
+	{"pro", "Pro Dining", 199900, 30, 5, 20, 7},
+	{"chain", "Multi-Outlet Chain", 399900, 30, 100, 500, 7},
+	{"starter-annual", "Starter Café (Annual)", 958800, 365, 1, 10, 7},
+	{"pro-annual", "Pro Dining (Annual)", 1918800, 365, 5, 20, 7},
+	{"chain-annual", "Multi-Outlet Chain (Annual)", 3838800, 365, 100, 500, 7},
 }
 
 // SeedDefaultPlans upserts the landing pricing catalog (idempotent).

@@ -421,7 +421,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Card Terminal: POS-01 (PineLabs)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                        const Text('Card machine: POS-01 (PineLabs)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
                         const SizedBox(height: 12),
                         TextField(
                           controller: _cardRefController,

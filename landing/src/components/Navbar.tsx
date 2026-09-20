@@ -8,7 +8,7 @@ interface NavbarProps {
 
 const NAV_LINKS = [
   { label: 'Features', targetId: 'features' },
-  { label: 'POS Terminal', targetId: 'terminal' },
+  { label: 'POS Billing', targetId: 'terminal' },
   { label: 'Workflow', targetId: 'workflow' },
   { label: 'Pricing', targetId: 'pricing' },
   { label: 'FAQ', targetId: 'faq' },

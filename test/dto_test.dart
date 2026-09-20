@@ -193,6 +193,47 @@ void main() {
       expect(start.amountPaise, 235882);
       expect(start.currency, 'INR');
       expect(start.registrationPaise, 10100);
+      expect(start.trial, isFalse);
+    });
+
+    test('razorpayStartFromApi parses trial scheduling (start_at = trial end)', () {
+      final start = razorpayStartFromApi({
+        'subscription_id': 'sub_1', 'key_id': 'rzp_test_1', 'plan_code': 'pro',
+        'plan_name': 'Pro', 'amount_paise': 235882, 'currency': 'INR',
+        'registration_paise': 10100, 'trial': true,
+        'trial_ends_at': '2026-09-27T00:00:00Z',
+        'first_charge_at': '2026-09-27T00:00:00Z',
+      });
+      expect(start.trial, isTrue);
+      expect(start.trialEndsAt, DateTime.parse('2026-09-27T00:00:00Z').toLocal());
+      expect(start.firstChargeAt, DateTime.parse('2026-09-27T00:00:00Z').toLocal());
+    });
+
+    test('subscriptionStatusFromApi parses trial countdown fields', () {
+      final status = subscriptionStatusFromApi({
+        'plan_code': 'pro', 'plan_name': 'Pro', 'status': 'trial',
+        'gateway_status': 'authenticated', 'price_paise': 199900,
+        'trial_ends_at': '2026-09-27T00:00:00Z', 'trial_days_left': 7,
+        'first_charge_at': '2026-09-27T00:00:00Z',
+      });
+      expect(status.isTrial, isTrue);
+      expect(status.trialDaysLeft, 7);
+      expect(status.trialAutoPayArmed, isTrue);
+      expect(status.firstChargeAt, DateTime.parse('2026-09-27T00:00:00Z').toLocal());
+    });
+
+    test('registerOrgResultFromApi parses the onboarding payload', () {
+      final result = registerOrgResultFromApi({
+        'org_code': 'ABCD1234',
+        'admin_pin': '4821',
+        'org': {'id': 'org-1', 'name': 'Sharma Bhojnalaya'},
+        'subscription': {'trial_ends_at': '2026-09-27T00:00:00Z'},
+      });
+      expect(result.orgCode, 'ABCD1234');
+      expect(result.orgId, 'org-1');
+      expect(result.orgName, 'Sharma Bhojnalaya');
+      expect(result.adminPin, '4821');
+      expect(result.trialEndsAt, DateTime.parse('2026-09-27T00:00:00Z').toLocal());
     });
 
     test('razorpayManualOrderFromApi parses the order payload', () {

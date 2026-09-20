@@ -151,15 +151,27 @@ type razorpaySubReq struct {
 	TotalCount     int               `json:"total_count"`
 	CustomerNotify int               `json:"customer_notify"`
 	Notes          map[string]string `json:"notes"`
+	// StartAt schedules the first charge (Unix seconds). Used to authorize
+	// the mandate during the 7-day free trial with the first debit on day 8.
+	// Omitted (nil) for an immediate start.
+	StartAt *int64 `json:"start_at,omitempty"`
 }
 
 // CreateSubscription creates a hosted-checkout subscription for the plan. The
 // org note lets subscription.* webhooks resolve the org without a DB lookup.
-func (g *RazorpayGateway) CreateSubscription(ctx context.Context, planID, orgID string, totalCount int) (*Subscription, error) {
+// Pass startAt != nil to delay the first charge until the trial ends — the
+// customer authorizes the mandate now and Razorpay debits automatically later.
+func (g *RazorpayGateway) CreateSubscription(ctx context.Context, planID, orgID string, totalCount int, startAt *time.Time) (*Subscription, error) {
 	var out Subscription
+	var start *int64
+	if startAt != nil && !startAt.IsZero() {
+		unix := startAt.Unix()
+		start = &unix
+	}
 	err := g.call(ctx, http.MethodPost, "/v1/subscriptions", razorpaySubReq{
 		PlanID: planID, TotalCount: totalCount, CustomerNotify: 0,
 		Notes: map[string]string{"org_id": orgID},
+		StartAt: start,
 	}, &out)
 	if err != nil {
 		return nil, err

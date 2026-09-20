@@ -49,7 +49,7 @@ func (s Sender) Send(to, subject, body string) error {
 func Welcome(name, orgName, baseURL, verifyToken string) string {
 	return fmt.Sprintf(`Hello %s,
 
-Welcome to FoodPOS! Your organization "%s" is on a 14-day free trial.
+Welcome to FoodPOS! Your organization "%s" is on a 7-day free trial.
 
 Verify your e-mail address here:
 %s/verify?token=%s

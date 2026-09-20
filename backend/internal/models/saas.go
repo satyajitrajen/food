@@ -227,7 +227,9 @@ type ExtendReq struct {
 // ---- Razorpay hosted subscriptions (owner self-service auto-renew) ----
 
 // RazorpaySubscriptionStart is the payload the console needs to open hosted
-// checkout.js with subscription_id + key_id.
+// checkout.js with subscription_id + key_id. When the org is still inside its
+// free trial, FirstChargeAt/TrialEndsAt carry the scheduled start_at (the
+// mandate is authorized now, the first debit happens on day 8).
 type RazorpaySubscriptionStart struct {
 	SubscriptionID    string `json:"subscription_id"`
 	KeyID             string `json:"key_id"`
@@ -236,10 +238,14 @@ type RazorpaySubscriptionStart struct {
 	AmountPaise       int64  `json:"amount_paise"` // gross per cycle (base + GST)
 	Currency          string `json:"currency"`
 	RegistrationPaise int64  `json:"registration_paise"` // one-time fee charged with cycle 1 (0 = none)
+	Trial             bool   `json:"trial"`
+	TrialEndsAt       *time.Time `json:"trial_ends_at,omitempty"`
+	FirstChargeAt     *time.Time `json:"first_charge_at,omitempty"`
 }
 
 // SubscriptionAppStatus is the staff-scoped read behind the POS app's
-// subscription card (GET /api/v1/saas/subscription/status).
+// subscription card (GET /api/v1/saas/subscription/status). Trial fields let
+// the app render "X days left, auto-pay On, first charge <date>".
 type SubscriptionAppStatus struct {
 	PlanCode      string     `json:"plan_code"`
 	PlanName      string     `json:"plan_name"`
@@ -247,6 +253,9 @@ type SubscriptionAppStatus struct {
 	GatewayStatus string     `json:"gateway_status"`
 	PeriodEnd     *time.Time `json:"period_end,omitempty"`
 	PricePaise    int64      `json:"price_paise"`
+	TrialEndsAt   *time.Time `json:"trial_ends_at,omitempty"`
+	TrialDaysLeft int        `json:"trial_days_left"`
+	FirstChargeAt *time.Time `json:"first_charge_at,omitempty"`
 }
 
 // RazorpayManualOrder is the owner one-cycle checkout payload

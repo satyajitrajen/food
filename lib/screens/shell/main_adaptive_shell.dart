@@ -238,7 +238,7 @@ class _MainAdaptiveShellState extends State<MainAdaptiveShell> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 const Text('HISHOBKR', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 1.0)),
-                                Text(outlet.terminal, style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                                Text('Counter ${outlet.terminal}', style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
                               ],
                             ),
                           ],

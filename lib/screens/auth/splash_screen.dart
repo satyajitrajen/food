@@ -75,7 +75,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
               Text(
                 provider.tenantOrgName != null
                     ? '${provider.tenantOrgName} · ${provider.currentOutlet.name}'
-                    : '${provider.currentOutlet.name} · Terminal ${provider.currentOutlet.terminal}',
+                    : '${provider.currentOutlet.name} · Counter ${provider.currentOutlet.terminal}',
                 style: const TextStyle(
                   color: AppColors.textMuted,
                   fontSize: 14,

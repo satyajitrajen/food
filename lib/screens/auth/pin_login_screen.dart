@@ -124,7 +124,7 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
                     fit: BoxFit.contain,
                   ),
                   const SizedBox(height: 16),
-                  // Outlet and Terminal Banner
+                  // Outlet and Counter Banner
                   InkWell(
                     onTap: () {
                       Navigator.of(context).push(
@@ -144,9 +144,12 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
                         children: [
                           const Icon(Icons.storefront_outlined, size: 16, color: AppColors.primaryGreen),
                           const SizedBox(width: 8),
-                          Text(
-                            '${provider.currentOutlet.name} (${provider.currentOutlet.terminal})',
-                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                          Flexible(
+                            child: Text(
+                              '${provider.currentOutlet.name} · Counter ${provider.currentOutlet.terminal}',
+                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                           const SizedBox(width: 6),
                           const Icon(Icons.arrow_drop_down, size: 18, color: AppColors.textMuted),

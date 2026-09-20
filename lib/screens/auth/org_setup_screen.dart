@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../core/api/api_client.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/pos_provider.dart';
+import 'org_registration_screen.dart';
 import 'pin_login_screen.dart';
 
 /// First-run terminal setup for SaaS terminals: binds this device to an
@@ -85,12 +86,12 @@ class _OrgSetupScreenState extends State<OrgSetupScreen> {
                   ),
                   const SizedBox(height: 16),
                   const Text(
-                    'Terminal Setup',
+                    'Set Up This Device',
                     style: TextStyle(fontWeight: FontWeight.w900, fontSize: 22),
                   ),
                   const SizedBox(height: 6),
                   const Text(
-                    'Enter your organization code to set up this terminal.\n'
+                    'Enter your organization code to set up this device.\n'
                     'It is shown in your welcome e-mail and the owner console.',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: AppColors.textMuted, fontSize: 13, height: 1.4),
@@ -124,6 +125,42 @@ class _OrgSetupScreenState extends State<OrgSetupScreen> {
                           : const Text('Continue',
                               style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
                     ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: const [
+                      Expanded(child: Divider()),
+                      Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 12),
+                        child: Text('or',
+                            style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                      ),
+                      Expanded(child: Divider()),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.add_business_outlined, size: 20),
+                      label: const Text('Create new organization',
+                          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                      onPressed: _busy
+                          ? null
+                          : () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                    builder: (_) => const OrgRegistrationScreen()),
+                              );
+                            },
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'New here? Start your 7-day free trial — no card needed.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: AppColors.textMuted, fontSize: 12),
                   ),
                 ],
               ),

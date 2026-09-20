@@ -607,6 +607,9 @@ SubscriptionStatus subscriptionStatusFromApi(Map<String, dynamic> j) =>
       gatewayStatus: _str(j['gateway_status']),
       periodEnd: _dt(j['period_end']),
       priceRupees: toRupees(_int(j['price_paise'])),
+      trialEndsAt: _dt(j['trial_ends_at']),
+      trialDaysLeft: _int(j['trial_days_left']),
+      firstChargeAt: _dt(j['first_charge_at']),
     );
 
 RazorpaySubscriptionStart razorpayStartFromApi(Map<String, dynamic> j) =>
@@ -618,7 +621,22 @@ RazorpaySubscriptionStart razorpayStartFromApi(Map<String, dynamic> j) =>
       amountPaise: _int(j['amount_paise']),
       currency: _str(j['currency']),
       registrationPaise: _int(j['registration_paise']),
+      trial: j['trial'] == true,
+      trialEndsAt: _dt(j['trial_ends_at']),
+      firstChargeAt: _dt(j['first_charge_at']),
     );
+
+RegisterOrgResult registerOrgResultFromApi(Map<String, dynamic> j) {
+  final org = j['org'] is Map ? (j['org'] as Map).cast<String, dynamic>() : <String, dynamic>{};
+  final sub = j['subscription'] is Map ? (j['subscription'] as Map).cast<String, dynamic>() : <String, dynamic>{};
+  return RegisterOrgResult(
+    orgCode: _str(j['org_code']),
+    orgId: _str(org['id']),
+    orgName: _str(org['name']),
+    adminPin: _str(j['admin_pin']),
+    trialEndsAt: _dt(sub['trial_ends_at']),
+  );
+}
 
 RazorpayManualOrder razorpayManualOrderFromApi(Map<String, dynamic> j) =>
     RazorpayManualOrder(

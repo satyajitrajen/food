@@ -14,7 +14,7 @@ class SelectOutletScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.creamBg,
       appBar: AppBar(
-        title: const Text('Select Outlet & Terminal', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+        title: const Text('Select Outlet & Counter', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
@@ -36,7 +36,7 @@ class SelectOutletScreen extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               const Text(
-                'Select which outlet and billing counter terminal this device is operating on.',
+                'Select which outlet and billing counter this device will use.',
                 style: TextStyle(color: AppColors.textMuted, fontSize: 13),
               ),
               const SizedBox(height: 20),
@@ -120,7 +120,7 @@ class SelectOutletScreen extends StatelessWidget {
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
-                                      'Terminal ${outlet.terminal} · GST: ${outlet.gstin}',
+                                      'Counter ${outlet.terminal} · GST: ${outlet.gstin}',
                                       style: const TextStyle(color: AppColors.primaryGreen, fontWeight: FontWeight.w600, fontSize: 12),
                                     ),
                                     const SizedBox(height: 2),
