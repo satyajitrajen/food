@@ -148,22 +148,35 @@ class _SubscriptionCardBodyState extends State<SubscriptionCardBody>
         ),
       );
     }
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.end,
-      children: [
-        TextButton(
-          onPressed: () => _payOneCycle(provider),
-          child: const Text('Pay one cycle now'),
-        ),
-        const SizedBox(width: 8),
-        FilledButton(
-          onPressed: () => _enableAutoRenew(provider),
-          style: FilledButton.styleFrom(backgroundColor: AppColors.primaryGreen),
-          child: Text(status.isTrial
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Wrap(
+        alignment: WrapAlignment.end,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          TextButton(
+            onPressed: () => _payOneCycle(provider),
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: const Text('Pay one cycle now'),
+          ),
+          FilledButton(
+            onPressed: () => _enableAutoRenew(provider),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.primaryGreen,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: Text(status.isTrial
                 ? 'Enable auto-pay'
                 : 'Enable auto-renew'),
-        ),
-      ],
+          ),
+        ],
+      ),
     );
   }
 

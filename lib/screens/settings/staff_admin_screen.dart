@@ -168,9 +168,22 @@ class StaffAdminScreen extends StatelessWidget {
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                (s.role == StaffRole.waiter || s.role == StaffRole.kitchen) && s.outletId != null
-                                    ? '${s.roleTitle} · ${provider.outlets.where((o) => o.id == s.outletId).firstOrNull?.name ?? s.outletId}${s.isActive ? '' : ' · Inactive'}'
-                                    : '${s.roleTitle}${s.isActive ? '' : ' · Inactive'}',
+                                () {
+                                  final outletName = s.outletId == null
+                                      ? null
+                                      : provider.outlets
+                                              .where((o) => o.id == s.outletId)
+                                              .firstOrNull
+                                              ?.name ??
+                                          s.outletId;
+                                  final parts = <String>[s.roleTitle];
+                                  if (outletName != null) parts.add(outletName);
+                                  if (s.mobile.trim().isNotEmpty) {
+                                    parts.add(s.mobile.trim());
+                                  }
+                                  if (!s.isActive) parts.add('Inactive');
+                                  return parts.join(' · ');
+                                }(),
                                 style: TextStyle(
                                   color: s.isActive ? AppColors.textMuted : AppColors.nonVegRed,
                                   fontSize: 11,
@@ -231,6 +244,21 @@ class StaffAdminScreen extends StatelessWidget {
                             onPressed: pinEnabled
                                 ? () =>
                                     _showPinResetDialog(context, provider, s)
+                                : null,
+                          ),
+                          IconButton(
+                            tooltip: ownerBlocked
+                                ? 'Main admin (owner) — only the owner can edit this account'
+                                : (managerBlocked
+                                    ? 'Only admins can edit admin staff'
+                                    : 'Edit name, mobile, role & outlet'),
+                            icon: Icon(Icons.edit_outlined,
+                                size: 18,
+                                color: pinEnabled
+                                    ? AppColors.infoBlue
+                                    : AppColors.textLight),
+                            onPressed: pinEnabled
+                                ? () => _showEditDialog(context, provider, s)
                                 : null,
                           ),
                         ],
@@ -299,7 +327,9 @@ class StaffAdminScreen extends StatelessWidget {
     final pinC = TextEditingController();
     final mobileC = TextEditingController();
     var role = StaffRole.cashier;
-    var selectedOutletId = provider.currentOutlet.id;
+    // Null = org-wide floater (allowed for admin/manager/cashier).
+    // Waiter/kitchen must pick a specific outlet (backend enforces).
+    String? selectedOutletId = provider.currentOutlet.id;
 
     showDialog(
       context: context,
@@ -329,22 +359,51 @@ class StaffAdminScreen extends StatelessWidget {
                     items: StaffRole.values
                         .map((r) => DropdownMenuItem(value: r, child: Text(r.name)))
                         .toList(),
-                    onChanged: (v) => setDialogState(() => role = v ?? role),
+                    onChanged: (v) {
+                      if (v == null) return;
+                      setDialogState(() {
+                        role = v;
+                        // Default waiter/kitchen to current outlet when switching.
+                        if ((role == StaffRole.waiter || role == StaffRole.kitchen) &&
+                            selectedOutletId == null &&
+                            provider.outlets.isNotEmpty) {
+                          selectedOutletId = provider.currentOutlet.id;
+                        }
+                      });
+                    },
                   ),
-                  if (role == StaffRole.waiter || role == StaffRole.kitchen) ...[
-                    const SizedBox(height: 10),
+                  const SizedBox(height: 10),
+                  if (role == StaffRole.waiter || role == StaffRole.kitchen)
                     DropdownButtonFormField<String>(
                       initialValue: selectedOutletId,
                       decoration: const InputDecoration(
-                        labelText: 'Assigned Outlet',
+                        labelText: 'Assigned Outlet *',
                         helperText: 'A waiter or kitchen staff is assigned to one specific outlet',
                       ),
                       items: provider.outlets
                           .map((o) => DropdownMenuItem(value: o.id, child: Text(o.name)))
                           .toList(),
                       onChanged: (v) => setDialogState(() => selectedOutletId = v ?? selectedOutletId),
+                      validator: (v) => (v == null || v.isEmpty) ? 'Outlet required' : null,
+                    )
+                  else
+                    DropdownButtonFormField<String?>(
+                      initialValue: selectedOutletId,
+                      decoration: const InputDecoration(
+                        labelText: 'Assigned Outlet',
+                        helperText: 'Optional — empty means all outlets (org-wide)',
+                      ),
+                      items: [
+                        const DropdownMenuItem<String?>(
+                          value: null,
+                          child: Text('All outlets (org-wide)'),
+                        ),
+                        ...provider.outlets.map(
+                          (o) => DropdownMenuItem<String?>(value: o.id, child: Text(o.name)),
+                        ),
+                      ],
+                      onChanged: (v) => setDialogState(() => selectedOutletId = v),
                     ),
-                  ],
                 ],
               ),
             ),
@@ -356,6 +415,16 @@ class StaffAdminScreen extends StatelessWidget {
                 final name = nameC.text.trim();
                 final pin = pinC.text.trim();
                 if (name.isEmpty || pin.length < 4 || pin.length > 6 || !RegExp(r'^\d+$').hasMatch(pin)) return;
+                if ((role == StaffRole.waiter || role == StaffRole.kitchen) &&
+                    (selectedOutletId == null || selectedOutletId!.isEmpty)) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Please assign an outlet for waiter/kitchen staff'),
+                      backgroundColor: AppColors.nonVegRed,
+                    ),
+                  );
+                  return;
+                }
                 // Managers cannot create admin staff (server enforces too).
                 if (provider.currentStaff?.role == StaffRole.manager &&
                     role == StaffRole.admin) {
@@ -371,7 +440,7 @@ class StaffAdminScreen extends StatelessWidget {
                   id: 'st-${DateTime.now().millisecondsSinceEpoch}',
                   outletId: role == StaffRole.waiter || role == StaffRole.kitchen
                       ? selectedOutletId
-                      : null,
+                      : selectedOutletId,
                   name: name,
                   role: role,
                   pin: pin,
@@ -384,6 +453,203 @@ class StaffAdminScreen extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showEditDialog(BuildContext context, PosProvider provider, Staff s) {
+    final nameC = TextEditingController(text: s.name);
+    final mobileC = TextEditingController(text: s.mobile);
+    var role = s.role;
+    // Null = org-wide (only meaningful for admin/manager/cashier).
+    String? selectedOutletId = s.outletId ?? provider.currentOutlet.id;
+    if (role != StaffRole.waiter && role != StaffRole.kitchen) {
+      selectedOutletId = s.outletId;
+    }
+
+    final isSelf = provider.currentStaff?.id == s.id;
+    final iAmManager = provider.currentStaff?.role == StaffRole.manager;
+    final isOwnerRow = s.isProtected;
+    final ownerBlocked = isOwnerRow && !isSelf;
+    final managerBlocked =
+        !isOwnerRow && s.role == StaffRole.admin && iAmManager;
+    // Name/mobile/outlet editable by manager/admin (self included);
+    // role change additionally blocked for self.
+    final roleChangeBlocked =
+        ownerBlocked || managerBlocked || isSelf;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          final needsOutlet =
+              role == StaffRole.waiter || role == StaffRole.kitchen;
+          return AlertDialog(
+            title: Text('Edit — ${s.name}'),
+            content: SizedBox(
+              width: 520,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: nameC,
+                      decoration: const InputDecoration(labelText: 'Full name'),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: mobileC,
+                      keyboardType: TextInputType.phone,
+                      decoration: const InputDecoration(
+                          labelText: 'Mobile (optional)'),
+                    ),
+                    const SizedBox(height: 10),
+                    DropdownButtonFormField<StaffRole>(
+                      initialValue: role,
+                      decoration: InputDecoration(
+                        labelText: 'Role',
+                        helperText: roleChangeBlocked
+                            ? (isSelf
+                                ? 'You cannot change your own role'
+                                : 'Role change not allowed for this account')
+                            : null,
+                      ),
+                      items: StaffRole.values
+                          .map((r) =>
+                              DropdownMenuItem(value: r, child: Text(r.name)))
+                          .toList(),
+                      onChanged: roleChangeBlocked
+                          ? null
+                          : (v) {
+                              if (v == null) return;
+                              setDialogState(() {
+                                role = v;
+                                if ((role == StaffRole.waiter ||
+                                        role == StaffRole.kitchen) &&
+                                    (selectedOutletId == null ||
+                                        selectedOutletId!.isEmpty) &&
+                                    provider.outlets.isNotEmpty) {
+                                  selectedOutletId =
+                                      provider.currentOutlet.id;
+                                }
+                              });
+                            },
+                    ),
+                    const SizedBox(height: 10),
+                    if (needsOutlet)
+                      DropdownButtonFormField<String>(
+                        initialValue: selectedOutletId,
+                        decoration: const InputDecoration(
+                          labelText: 'Assigned Outlet *',
+                          helperText:
+                              'A waiter or kitchen staff works at one specific outlet',
+                        ),
+                        items: provider.outlets
+                            .map((o) => DropdownMenuItem(
+                                value: o.id, child: Text(o.name)))
+                            .toList(),
+                        onChanged: (v) => setDialogState(
+                            () => selectedOutletId = v ?? selectedOutletId),
+                      )
+                    else
+                      DropdownButtonFormField<String?>(
+                        initialValue: selectedOutletId,
+                        decoration: const InputDecoration(
+                          labelText: 'Assigned Outlet',
+                          helperText:
+                              'Optional — empty means all outlets (org-wide)',
+                        ),
+                        items: [
+                          const DropdownMenuItem<String?>(
+                            value: null,
+                            child: Text('All outlets (org-wide)'),
+                          ),
+                          ...provider.outlets.map(
+                            (o) => DropdownMenuItem<String?>(
+                                value: o.id, child: Text(o.name)),
+                          ),
+                        ],
+                        onChanged: (v) =>
+                            setDialogState(() => selectedOutletId = v),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text('Cancel')),
+              ElevatedButton(
+                onPressed: () {
+                  final name = nameC.text.trim();
+                  final mobile = mobileC.text.trim();
+                  if (name.isEmpty) return;
+                  if (needsOutlet &&
+                      (selectedOutletId == null ||
+                          selectedOutletId!.isEmpty)) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                            'Please assign an outlet for waiter/kitchen staff'),
+                        backgroundColor: AppColors.nonVegRed,
+                      ),
+                    );
+                    return;
+                  }
+                  // Managers cannot promote to admin (server enforces too).
+                  if (iAmManager &&
+                      role == StaffRole.admin &&
+                      s.role != StaffRole.admin) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content:
+                            Text('Only admins can create admin staff'),
+                        backgroundColor: AppColors.nonVegRed,
+                      ),
+                    );
+                    return;
+                  }
+                  final roleChanged = role != s.role;
+                  final nameChanged = name != s.name;
+                  final mobileChanged = mobile != s.mobile;
+                  // '' = clear to org-wide; omit when unchanged for others.
+                  String? outletParam;
+                  if (needsOutlet) {
+                    outletParam = (selectedOutletId != s.outletId ||
+                            roleChanged)
+                        ? selectedOutletId
+                        : null;
+                  } else {
+                    final prev = s.outletId;
+                    if (selectedOutletId != prev) {
+                      outletParam = selectedOutletId ?? '';
+                    }
+                  }
+                  final applied = provider.updateStaff(
+                    s.id,
+                    name: nameChanged ? name : null,
+                    mobile: mobileChanged ? mobile : null,
+                    role: (!roleChangeBlocked && roleChanged) ? role : null,
+                    outletId: outletParam,
+                  );
+                  Navigator.of(ctx).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(applied
+                          ? '✓ Staff updated'
+                          : 'Blocked: this change is not allowed (owner/self/admin rule)'),
+                      backgroundColor: applied
+                          ? AppColors.vegGreen
+                          : AppColors.nonVegRed,
+                    ),
+                  );
+                },
+                child: const Text('Save'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

@@ -19,7 +19,7 @@ body {
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  overflow-x: hidden;
+  overflow-x: clip;
   padding: 0;
   margin: 0;
 }
@@ -31,7 +31,7 @@ body {
   display: flex;
   flex-direction: column;
   background-color: var(--bg-frame);
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 /* Typography */
@@ -55,10 +55,10 @@ button {
 }
 
 .container {
-  width: 100%;
-  max-width: 1400px;
+  width: 80%;
   margin: 0 auto;
-  padding: 0 40px;
+  padding: 0;
+  box-sizing: border-box;
 }
 
 .section {
@@ -1240,6 +1240,9 @@ button {
 
 /* Responsive */
 @media (max-width: 900px) {
+  .container {
+    width: 90%;
+  }
   .footer-grid {
     grid-template-columns: 1fr 1fr;
   }
@@ -1264,6 +1267,10 @@ button {
 }
 
 @media (max-width: 640px) {
+  .container {
+    width: 100%;
+    padding: 0 16px;
+  }
   body {
     padding: 8px 6px;
   }

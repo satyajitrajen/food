@@ -72,16 +72,32 @@ func newEnvWithCfg(t *testing.T, cfg config.Config) *env {
 }
 
 // seedServer mirrors main's seed() with a minimal staff+table+menu set.
+// Staff follow the current rules: waiter/kitchen are single-outlet bound,
+// admin/manager/cashier are org-wide (outlet_id NULL). Upserts keep the
+// shared test database deterministic across runs.
 func seedServer(st *store.Store, mgr *auth.Manager) {
-	st.DB.Exec(`INSERT INTO outlets (id, name, terminal) VALUES ('out-01', 'Test Outlet', 'POS-01')`)
-	hash, _ := mgr.HashPIN("1234")
-	st.DB.Exec(`INSERT INTO staff (id, name, role, pin_hash, is_active, is_protected) VALUES ('st-01', 'Rahul', 'cashier', ?, 1, 0)`, hash)
-	hash2, _ := mgr.HashPIN("9999")
-	st.DB.Exec(`INSERT INTO staff (id, name, role, pin_hash, is_active, is_protected) VALUES ('st-02', 'Priya', 'manager', ?, 1, 0)`, hash2)
-	hash3, _ := mgr.HashPIN("0000")
-	st.DB.Exec(`INSERT INTO staff (id, name, role, pin_hash, is_active, is_protected) VALUES ('st-03', 'Vikram', 'admin', ?, 1, 1)`, hash3)
-	hash4, _ := mgr.HashPIN("5555")
-	st.DB.Exec(`INSERT INTO staff (id, name, role, pin_hash, is_active, is_protected, outlet_id) VALUES ('st-06', 'Chef', 'kitchen', ?, 1, 0, 'out-01')`, hash4)
+	st.DB.Exec(`INSERT INTO outlets (id, org_id, name, terminal) VALUES ('out-01', 'org-01', 'Test Outlet', 'POS-01')
+		ON CONFLICT (id) DO UPDATE SET org_id = EXCLUDED.org_id, name = EXCLUDED.name, terminal = EXCLUDED.terminal`)
+	type seedStaff struct {
+		id, name, role, pin string
+		outlet              any
+		protected           int
+	}
+	for _, s := range []seedStaff{
+		{"st-01", "Rahul", "cashier", "1234", nil, 0},
+		{"st-02", "Priya", "manager", "9999", nil, 0},
+		{"st-03", "Vikram", "admin", "0000", nil, 1},
+		{"st-04", "Amit", "waiter", "1111", "out-01", 0},
+		{"st-06", "Chef", "kitchen", "5555", "out-01", 0},
+	} {
+		hash, _ := mgr.HashPIN(s.pin)
+		st.DB.Exec(`INSERT INTO staff (id, org_id, outlet_id, name, role, pin_hash, is_active, is_protected)
+			VALUES (?, 'org-01', ?, ?, ?, ?, 1, ?)
+			ON CONFLICT (id) DO UPDATE SET org_id = EXCLUDED.org_id, outlet_id = EXCLUDED.outlet_id,
+				name = EXCLUDED.name, role = EXCLUDED.role, pin_hash = EXCLUDED.pin_hash,
+				is_active = 1, is_protected = EXCLUDED.is_protected`,
+			s.id, s.outlet, s.name, s.role, hash, s.protected)
+	}
 	st.DB.Exec(`INSERT INTO tables (id, outlet_id, table_number, seats, floor, status) VALUES ('t-01', 'out-01', 'T01', 4, 'Ground', 'available')`)
 	st.DB.Exec(`INSERT INTO tables (id, outlet_id, table_number, seats, floor, status) VALUES ('t-02', 'out-01', 'T02', 2, 'Ground', 'available')`)
 	st.DB.Exec(`INSERT INTO menu_categories (id, outlet_id, name) VALUES ('cat-1', 'out-01', 'Starters')`)
@@ -90,7 +106,7 @@ func seedServer(st *store.Store, mgr *auth.Manager) {
 	st.DB.Exec(`INSERT INTO modifier_items (id, group_id, name, price_paise) VALUES ('mo-1', 'mg-1', 'Extra Chutney', 2000)`)
 	st.DB.Exec(`INSERT INTO settings (outlet_id, restaurant_name) VALUES ('out-01', 'Test Resto')`)
 
-	// SaaS: default plan catalog + active subscription for the legacy demo org,
+	// SaaS: default plan catalog + active subscription for the demo org,
 	// and a platform superadmin for manual-billing tests.
 	ctx := context.Background()
 	if err := st.SeedDefaultPlans(ctx); err == nil {

@@ -10,6 +10,7 @@ import '../../core/theme/app_theme.dart';
 import '../../models/menu_model.dart';
 import '../../providers/pos_provider.dart';
 import '../../widgets/confirm_dialog.dart';
+import '../../widgets/dialog_controller_scope.dart';
 
 /// W2 (FR-M1/M2): menu management for managers/admins — add/edit/delete items,
 /// availability toggle, photo upload, and full variant/modifier-group (add-on)
@@ -211,7 +212,8 @@ class MenuAdminScreen extends StatelessWidget {
 
     await showDialog(
       context: context,
-      builder: (ctx) => StatefulBuilder(
+      builder: (ctx) => DialogControllerScope(
+        controllers: [nameC, priceC, descC],
         builder: (ctx, setDialogState) {
           final existingUrl = resolveMediaUrl(
             (removedImage ? '' : existing?.imageUrl ?? ''),
@@ -503,9 +505,6 @@ class MenuAdminScreen extends StatelessWidget {
         },
       ),
     );
-    nameC.dispose();
-    priceC.dispose();
-    descC.dispose();
   }
 
   Widget _emptyPhoto() => Container(

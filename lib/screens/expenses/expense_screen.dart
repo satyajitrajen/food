@@ -6,6 +6,7 @@ import '../../providers/pos_provider.dart';
 import '../../models/expense_model.dart';
 import '../../widgets/stat_kpi_card.dart';
 import '../../widgets/confirm_dialog.dart';
+import '../../widgets/dialog_controller_scope.dart';
 
 class ExpenseScreen extends StatefulWidget {
   const ExpenseScreen({super.key});
@@ -25,7 +26,8 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
 
     showDialog(
       context: context,
-      builder: (ctx) => StatefulBuilder(
+      builder: (ctx) => DialogControllerScope(
+        controllers: [titleCtrl, amountCtrl, vendorCtrl, descCtrl],
         builder: (ctx, setDialogState) => AlertDialog(
           title: const Text('Add Operating Expense', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
           content: SizedBox(
@@ -114,12 +116,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
           ],
         ),
       ),
-    ).then((_) {
-      titleCtrl.dispose();
-      amountCtrl.dispose();
-      vendorCtrl.dispose();
-      descCtrl.dispose();
-    });
+    );
   }
 
   @override

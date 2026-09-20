@@ -201,32 +201,44 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Text(item.name, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-                      if (item.isLowStock) ...[
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: AppColors.nonVegRedBg,
-                            borderRadius: BorderRadius.circular(6),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            item.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
                           ),
-                          child: const Text('LOW STOCK', style: TextStyle(color: AppColors.nonVegRed, fontWeight: FontWeight.w800, fontSize: 10)),
                         ),
+                        if (item.isLowStock) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppColors.nonVegRedBg,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text('LOW STOCK', style: TextStyle(color: AppColors.nonVegRed, fontWeight: FontWeight.w800, fontSize: 10)),
+                          ),
+                        ],
                       ],
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Available: ${item.availableStock} ${item.unit} · Min: ${item.minStock} ${item.unit}',
-                    style: const TextStyle(color: AppColors.textMuted, fontSize: 13),
-                  ),
-                ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Available: ${item.availableStock} ${item.unit} · Min: ${item.minStock} ${item.unit}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: AppColors.textMuted, fontSize: 13),
+                    ),
+                  ],
+                ),
               ),
+              const SizedBox(width: 12),
               OutlinedButton(
                 onPressed: () => _showAdjustStockDialog(context, item, provider),
                 child: const Text('Adjust'),
@@ -254,7 +266,7 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
       body: suppliers.isEmpty
           ? const Center(child: Text('No suppliers yet'))
           : ListView.builder(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
               itemCount: suppliers.length,
               itemBuilder: (context, index) {
                 final sup = suppliers[index];
@@ -269,14 +281,27 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(sup.name, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-                          const SizedBox(height: 4),
-                          Text('${sup.category} · Phone: ${sup.mobile}', style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
-                        ],
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              sup.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${sup.category} · Phone: ${sup.mobile}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+                            ),
+                          ],
+                        ),
                       ),
+                      const SizedBox(width: 12),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
@@ -356,7 +381,7 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
       body: provider.purchases.isEmpty
           ? const Center(child: Text('No purchase records yet'))
           : ListView.builder(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
               itemCount: provider.purchases.length,
               itemBuilder: (context, index) {
                 final pur = provider.purchases[index];

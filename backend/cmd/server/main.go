@@ -49,7 +49,7 @@ func main() {
 	authMgr := auth.New(cfg.JWTSecret, cfg.BcryptCost)
 
 	// Every deployment needs the default plan + an active subscription for the
-	// legacy demo org (org-01) so existing terminals keep their entitlements.
+	// demo org (org-01) so demo terminals keep their entitlements.
 	if err := ensureDefaultTenant(st); err != nil {
 		slog.Error("default tenant setup failed", "err", err)
 		os.Exit(1)
@@ -110,47 +110,52 @@ func main() {
 func seed(st *store.Store, mgr *auth.Manager) error {
 	ctx := context.Background()
 
-	// Outlets
-	_, err := st.DB.ExecContext(ctx, `INSERT INTO outlets (id, name, address, terminal, gstin, fssai, phone, is_online)
-		VALUES ('out-01', 'Baner Outlet', 'Plot 42, High Street, Baner, Pune - 411045', 'POS-01', '27AAAAA0000A1Z5', '11521000000123', '+91 98765 43210', 1) ON CONFLICT DO NOTHING`)
+	// Outlets (explicit org scope; upsert so re-seeding repairs old rows).
+	_, err := st.DB.ExecContext(ctx, `INSERT INTO outlets (id, org_id, name, address, terminal, gstin, fssai, phone, is_online)
+		VALUES ('out-01', 'org-01', 'Baner Outlet', 'Plot 42, High Street, Baner, Pune - 411045', 'POS-01', '27AAAAA0000A1Z5', '11521000000123', '+91 98765 43210', 1)
+		ON CONFLICT (id) DO UPDATE SET org_id = EXCLUDED.org_id, name = EXCLUDED.name, address = EXCLUDED.address,
+			terminal = EXCLUDED.terminal, gstin = EXCLUDED.gstin, fssai = EXCLUDED.fssai, phone = EXCLUDED.phone,
+			is_online = EXCLUDED.is_online`)
 	if err != nil {
 		return err
 	}
-	_, err = st.DB.ExecContext(ctx, `INSERT INTO outlets (id, name, address, terminal, gstin, fssai, phone, is_online)
-		VALUES ('out-02', 'Kothrud Outlet', 'Shop 12, Paud Road, Kothrud, Pune', 'POS-02', '27AAAAA0000A1Z5', '11521000000124', '+91 98765 43211', 1) ON CONFLICT DO NOTHING`)
+	_, err = st.DB.ExecContext(ctx, `INSERT INTO outlets (id, org_id, name, address, terminal, gstin, fssai, phone, is_online)
+		VALUES ('out-02', 'org-01', 'Kothrud Outlet', 'Shop 12, Paud Road, Kothrud, Pune', 'POS-02', '27AAAAA0000A1Z5', '11521000000124', '+91 98765 43211', 1)
+		ON CONFLICT (id) DO UPDATE SET org_id = EXCLUDED.org_id, name = EXCLUDED.name, address = EXCLUDED.address,
+			terminal = EXCLUDED.terminal, gstin = EXCLUDED.gstin, fssai = EXCLUDED.fssai, phone = EXCLUDED.phone,
+			is_online = EXCLUDED.is_online`)
 	if err != nil {
 		return err
 	}
 
-	// Staff (PINs: admin 0000, manager 9999, cashier 1234, waiters 1111/2222, kitchen 5555)
-	staff := []struct{ id, name, role, pin, avatar, mobile string }{
-		{"st-01", "Rahul Sharma", "cashier", "1234", "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100", "+91 98220 11223"},
-		{"st-02", "Priya Joshi", "manager", "9999", "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100", "+91 98220 22334"},
-		{"st-03", "Vikram Singh", "admin", "0000", "https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=100", "+91 98220 33445"},
-		{"st-04", "Amit Deshmukh", "waiter", "1111", "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100", "+91 98220 44556"},
-		{"st-05", "Rohan Patil", "waiter", "2222", "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100", "+91 98220 55667"},
-		{"st-06", "Chef Sharma", "kitchen", "5555", "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100", "+91 98220 66778"},
+	// Staff (PINs: admin 0000, manager 9999, cashier 1234, waiters 1111/2222, kitchen 5555).
+	// Matches the current rules: waiter/kitchen are single-outlet bound,
+	// admin/manager/cashier are org-wide (outlet_id NULL), and st-03 is the
+	// protected owner. Upsert keeps re-seeds authoritative.
+	staff := []struct {
+		id, name, role, pin, avatar, mobile string
+		outlet                              any
+		protected                           int
+	}{
+		{"st-01", "Rahul Sharma", "cashier", "1234", "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100", "+91 98220 11223", nil, 0},
+		{"st-02", "Priya Joshi", "manager", "9999", "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100", "+91 98220 22334", nil, 0},
+		{"st-03", "Vikram Singh", "admin", "0000", "https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=100", "+91 98220 33445", nil, 1},
+		{"st-04", "Amit Deshmukh", "waiter", "1111", "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100", "+91 98220 44556", "out-01", 0},
+		{"st-05", "Rohan Patil", "waiter", "2222", "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100", "+91 98220 55667", "out-01", 0},
+		{"st-06", "Chef Sharma", "kitchen", "5555", "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100", "+91 98220 66778", "out-01", 0},
 	}
 	for _, s := range staff {
 		hash, err := mgr.HashPIN(s.pin)
 		if err != nil {
 			return err
 		}
-		prot := 0
-		if s.id == "st-03" {
-			prot = 1
-		}
-		if _, err := st.DB.ExecContext(ctx, `INSERT INTO staff (id, name, role, pin_hash, avatar_url, mobile, is_active, is_protected)
-			VALUES (?, ?, ?, ?, ?, ?, 1, ?) ON CONFLICT DO NOTHING`, s.id, s.name, s.role, hash, s.avatar, s.mobile, prot); err != nil {
+		if _, err := st.DB.ExecContext(ctx, `INSERT INTO staff (id, org_id, outlet_id, name, role, pin_hash, avatar_url, mobile, is_active, is_protected)
+			VALUES (?, 'org-01', ?, ?, ?, ?, ?, ?, 1, ?)
+			ON CONFLICT (id) DO UPDATE SET org_id = EXCLUDED.org_id, outlet_id = EXCLUDED.outlet_id, name = EXCLUDED.name,
+				role = EXCLUDED.role, pin_hash = EXCLUDED.pin_hash, avatar_url = EXCLUDED.avatar_url, mobile = EXCLUDED.mobile,
+				is_active = 1, is_protected = EXCLUDED.is_protected`,
+			s.id, s.outlet, s.name, s.role, hash, s.avatar, s.mobile, s.protected); err != nil {
 			return err
-		}
-		// Ensure the demo owner stays protected even if seeded before 007.
-		if prot == 1 {
-			_, _ = st.DB.ExecContext(ctx, `UPDATE staff SET is_protected = 1 WHERE id = ?`, s.id)
-		}
-		// Kitchen is single-outlet bound (008): pin the demo kitchen to out-01.
-		if s.id == "st-06" {
-			_, _ = st.DB.ExecContext(ctx, `UPDATE staff SET outlet_id = 'out-01' WHERE id = ? AND outlet_id IS NULL`, s.id)
 		}
 	}
 
@@ -356,7 +361,7 @@ func b2i(b bool) int {
 }
 
 // ensureDefaultTenant seeds the pro plan and guarantees org-01 has an active
-// subscription (legacy single-tenant data continues to operate as a tenant).
+// subscription (the demo org doubles as the default single-tenant dataset).
 func ensureDefaultTenant(st *store.Store) error {
 	ctx := context.Background()
 	if err := st.SeedDefaultPlans(ctx); err != nil {

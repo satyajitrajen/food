@@ -19,9 +19,9 @@ import '../auth/select_outlet_screen.dart';
 
 /// Secondary operations hub. Tiles are filtered by role — Admin sees the
 /// overall revenue area (Reports) that Manager/Cashier cannot, and back-office
-/// tiles (menu/staff/settings) are management-only. Waiters keep a minimal hub
-/// (profile + outlet switch + lock); kitchen terminals are locked to their
-/// assigned outlet (profile + lock, no outlet switch).
+/// tiles (menu/staff/settings) are management-only. Outlet-bound staff
+/// (waiters/kitchen assigned to one outlet) get a minimal hub (profile + lock,
+/// no outlet switch); org-wide floaters keep the outlet switch tile.
 class MoreHubScreen extends StatelessWidget {
   const MoreHubScreen({super.key});
 
@@ -146,8 +146,9 @@ class MoreHubScreen extends StatelessWidget {
           bgColor: AppColors.creamSubtle,
           screen: const SettingsScreen(),
         ),
-      // Kitchen terminals are locked to their assigned outlet: no switching.
-      if (role != StaffRole.kitchen)
+      // Single-outlet staff (waiters/kitchen assigned to one outlet) are
+      // locked to it: no switching tile. Org-wide floaters keep it.
+      if (provider.currentStaff?.outletId == null)
         _tile(
           context: context,
           title: 'Switch Outlet / Counter',

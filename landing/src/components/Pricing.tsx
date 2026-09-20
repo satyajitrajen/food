@@ -89,15 +89,21 @@ export const Pricing: React.FC = () => {
             </ul>
           </div>
 
-          {/* Card 2: Pro Dining (Featured with Dark Fluid Banner) */}
+          {/* Card 2: Pro Dining (Featured) */}
           <div className="p-card p-card-featured">
             <div className="p-banner">
-              <img
-                src="/images/pricing-pro-banner.jpg"
-                alt="Pro Dining dark fluid banner"
-                className="p-banner-img"
-              />
+              <svg className="p-banner-wave" viewBox="0 0 380 84" preserveAspectRatio="none" aria-hidden="true">
+                <path
+                  d="M0,48 C95,18 175,72 265,28 C315,2 350,38 380,24 L380,84 L0,84 Z"
+                  fill="rgba(255, 255, 255, 0.05)"
+                />
+                <path
+                  d="M0,64 C85,32 155,78 235,38 C295,8 340,52 380,32 L380,0 L0,0 Z"
+                  fill="rgba(255, 107, 53, 0.12)"
+                />
+              </svg>
               <h3 className="p-banner-title">Pro Dining</h3>
+              <span className="p-popular-badge">Most Popular</span>
             </div>
 
             <div className="p-card-featured-body">

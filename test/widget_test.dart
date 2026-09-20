@@ -89,7 +89,7 @@ void main() {
   group('Resto POS Unit & Widget Tests', () {
     testWidgets('App renders splash screen and transitions to PIN login', (WidgetTester tester) async {
       await tester.pumpWidget(const RestoPosApp());
-      expect(find.text('RESTO POS'), findsOneWidget);
+      expect(find.text('Syncing local catalog & offline state...'), findsOneWidget);
       await tester.pump(const Duration(milliseconds: 500));
       await tester.pumpAndSettle(const Duration(seconds: 2));
       // After splash, should transition to staff login with avatar & title

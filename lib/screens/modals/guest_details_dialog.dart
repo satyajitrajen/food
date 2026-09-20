@@ -4,6 +4,7 @@ import '../../core/theme/app_theme.dart';
 import '../../models/customer_model.dart';
 import '../../models/staff_model.dart';
 import '../../providers/pos_provider.dart';
+import '../../widgets/dialog_controller_scope.dart';
 
 class GuestDetailsDialog extends StatefulWidget {
   final VoidCallback onStartOrder;
@@ -57,7 +58,8 @@ class _GuestDetailsDialogState extends State<GuestDetailsDialog> {
     final queryC = TextEditingController();
     final selected = await showDialog<Customer>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
+      builder: (ctx) => DialogControllerScope(
+        controllers: [queryC],
         builder: (ctx, setDialogState) => AlertDialog(
           title: const Text('Select Existing Customer'),
           content: SizedBox(
@@ -104,7 +106,6 @@ class _GuestDetailsDialogState extends State<GuestDetailsDialog> {
         ),
       ),
     );
-    queryC.dispose();
     if (selected != null && mounted) {
       setState(() {
         _customerController.text = selected.name;
@@ -166,55 +167,62 @@ class _GuestDetailsDialogState extends State<GuestDetailsDialog> {
                   ],
                 ),
                 const SizedBox(height: 18),
-                // Number of Guests Stepper
+                // Number of Guests (scroll/selectable)
                 const Text('Number of Guests', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
                 const SizedBox(height: 8),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      for (int i in [1, 2, 3, 4, 6, 8])
-                        Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: ChoiceChip(
-                            label: Text('$i'),
-                            selected: _guestCount == i,
-                            selectedColor: AppColors.primaryGreen,
-                            labelStyle: TextStyle(
-                              color: _guestCount == i ? Colors.white : AppColors.textDark,
-                              fontWeight: FontWeight.w700,
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.borderLight),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<int>(
+                      value: _guestCount,
+                      isExpanded: true,
+                      icon: const Icon(Icons.expand_more, color: AppColors.textMuted),
+                      items: [
+                        // Always offer 1-20, and never drop an existing larger
+                        // party (e.g. a 24-seat banqueting table).
+                        for (int i = 1; i <= (_guestCount > 20 ? _guestCount : 20); i++)
+                          DropdownMenuItem(
+                            value: i,
+                            child: Text(
+                              i == 1 ? '1 Guest' : '$i Guests',
+                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
                             ),
-                            onSelected: (_) => setState(() => _guestCount = i),
                           ),
-                        ),
-                    ],
+                      ],
+                      onChanged: (v) {
+                        if (v != null) setState(() => _guestCount = v);
+                      },
+                    ),
                   ),
                 ),
               const SizedBox(height: 16),
-              // Customer Name & Phone
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _customerController,
-                      decoration: const InputDecoration(
-                        labelText: 'Customer Name (Optional)',
-                        prefixIcon: Icon(Icons.person_outline, size: 18),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextField(
-                      controller: _phoneController,
-                      keyboardType: TextInputType.phone,
-                      decoration: const InputDecoration(
-                        labelText: 'Mobile Number',
-                        prefixIcon: Icon(Icons.phone_outlined, size: 18),
-                      ),
-                    ),
-                  ),
-                ],
+              // Customer Name & Phone (stacked full-width for readability)
+              const Text('Customer Details', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _customerController,
+                textCapitalization: TextCapitalization.words,
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                decoration: const InputDecoration(
+                  labelText: 'Customer Name',
+                  hintText: 'Optional',
+                  prefixIcon: Icon(Icons.person_outline, size: 18),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _phoneController,
+                keyboardType: TextInputType.phone,
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                decoration: const InputDecoration(
+                  labelText: 'Mobile Number',
+                  prefixIcon: Icon(Icons.phone_outlined, size: 18),
+                ),
               ),
               if (provider.customers.isNotEmpty) ...[
                 Align(

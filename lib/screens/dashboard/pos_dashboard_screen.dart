@@ -7,12 +7,10 @@ import '../../models/app_nav.dart';
 import '../../models/table_model.dart';
 import '../../models/kot_model.dart';
 import '../../widgets/stat_kpi_card.dart';
-import '../order_flow/select_order_type_dialog.dart';
 import '../order_flow/table_selection_screen.dart';
 import '../kitchen/kitchen_board_screen.dart';
 import '../transactions/transactions_screen.dart';
 import '../expenses/expense_screen.dart';
-import '../pos_menu/pos_menu_screen.dart';
 import '../running_orders/running_order_detail_screen.dart';
 import '../modals/offline_sync_dialog.dart';
 
@@ -206,20 +204,8 @@ class PosDashboardScreen extends StatelessWidget {
                     icon: Icons.add_circle,
                     color: AppColors.primaryGreen,
                     onTap: () {
-                      SelectOrderTypeDialog.show(
-                        context,
-                        onSelectType: (type) {
-                          if (type.name == 'dineIn') {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(builder: (_) => const TableSelectionScreen()),
-                            );
-                          } else {
-                            provider.startNewOrder(type);
-                            Navigator.of(context).push(
-                              MaterialPageRoute(builder: (_) => const PosMenuScreen()),
-                            );
-                          }
-                        },
+                      Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const TableSelectionScreen()),
                       );
                     },
                   ),

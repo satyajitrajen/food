@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from '../router';
 import { ArrowRight } from 'lucide-react';
 
@@ -16,6 +16,16 @@ const NAV_LINKS = [
 
 export const Navbar: React.FC<NavbarProps> = ({ onOpenDemo }) => {
   const { currentPath, navigate } = useRouter();
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 8);
+    };
+    handleScroll();
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, targetId: string) => {
     e.preventDefault();
@@ -31,7 +41,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenDemo }) => {
   };
 
   return (
-    <header className="t-header">
+    <header className={`t-header ${isScrolled ? 'is-scrolled' : ''}`}>
       <nav className="t-header-inner" aria-label="Main">
         {/* Brand */}
         <a href="/" onClick={(e) => { e.preventDefault(); navigate('/'); }} className="t-brand" aria-label="Hishobkr Home">

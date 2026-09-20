@@ -6,10 +6,10 @@ import '../../models/order_model.dart';
 import '../../widgets/custom_badge.dart';
 import '../modals/move_table_dialog.dart';
 import '../modals/merge_tables_dialog.dart';
-import '../modals/split_bill_dialog.dart';
 import '../modals/cancel_item_dialog.dart';
 import '../billing/bill_preview_screen.dart';
 import '../pos_menu/pos_menu_screen.dart';
+import '../../widgets/system_insets.dart';
 
 class RunningOrderDetailScreen extends StatelessWidget {
   final RestaurantOrder order;
@@ -46,12 +46,6 @@ class RunningOrderDetailScreen extends StatelessWidget {
               onPressed: () => MergeTablesDialog.show(context, table),
             ),
           ],
-          if (!isClosed)
-            IconButton(
-              icon: const Icon(Icons.call_split),
-              tooltip: 'Split Bill',
-              onPressed: () => SplitBillDialog.show(context, currentOrder),
-            ),
           const SizedBox(width: 8),
         ],
       ),
@@ -90,6 +84,27 @@ class RunningOrderDetailScreen extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
+                      if ((currentOrder.customerName ?? '').isNotEmpty ||
+                          (currentOrder.customerPhone ?? '').isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            const Icon(Icons.person_outline, size: 14, color: AppColors.textMuted),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                [
+                                  if ((currentOrder.customerName ?? '').isNotEmpty) currentOrder.customerName!,
+                                  if ((currentOrder.customerPhone ?? '').isNotEmpty) currentOrder.customerPhone!,
+                                ].join(' · '),
+                                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -139,17 +154,21 @@ class RunningOrderDetailScreen extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text(
-                                  '${item.quantity} × ${item.displayName}',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 14,
-                                    decoration: item.isCancelled ? TextDecoration.lineThrough : null,
-                                    color: item.isCancelled ? AppColors.textLight : AppColors.textDark,
+                                Expanded(
+                                  child: Text(
+                                    '${item.quantity} × ${item.displayName}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 14,
+                                      decoration: item.isCancelled ? TextDecoration.lineThrough : null,
+                                      color: item.isCancelled ? AppColors.textLight : AppColors.textDark,
+                                    ),
                                   ),
                                 ),
+                                const SizedBox(width: 8),
                                 Text(
                                   '₹${item.totalPrice.toStringAsFixed(0)}',
                                   style: TextStyle(
@@ -200,9 +219,9 @@ class RunningOrderDetailScreen extends StatelessWidget {
             ),
           ),
 
-          // Bottom Primary Bar: Add Item vs Checkout (read-only for closed orders)
+          // Bottom Primary Bar: Add Item vs Checkout (explicit bottom inset).
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: BottomInsets.barAll(context, horizontal: 16, vertical: 16),
             decoration: const BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -211,6 +230,8 @@ class RunningOrderDetailScreen extends StatelessWidget {
               ],
             ),
             child: SafeArea(
+              top: false,
+              bottom: false,
               child: isClosed
                   ? Row(
                       children: [

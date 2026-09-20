@@ -34,6 +34,20 @@ class _KitchenBoardScreenState extends State<KitchenBoardScreen> with SingleTick
     super.dispose();
   }
 
+  /// Confirms a kitchen ticket transition. The messenger is passed in because
+  /// the ticket's own context can be gone the moment its card changes tab.
+  void _showMessage(ScaffoldMessengerState messenger, String message, Color color) {
+    messenger
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message, style: const TextStyle(fontWeight: FontWeight.w700)),
+          backgroundColor: color,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<PosProvider>();
@@ -231,66 +245,59 @@ class _KitchenBoardScreenState extends State<KitchenBoardScreen> with SingleTick
                     ),
                   ),
                 ],
-                const SizedBox(height: 16),
-                // Actions
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    if (kot.status == KOTStatus.newTicket)
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(backgroundColor: AppColors.saffronAmber),
-                        onPressed: () async {
-                          final ok = await showConfirmDialog(
-                            context,
-                            title: 'Start preparing?',
-                            message:
-                                'Start preparing ${kot.kotNumber}? The ticket moves to Preparing.',
-                            confirmLabel: 'Start Preparing',
-                            isDanger: false,
-                          );
-                          if (!ok || !context.mounted) return;
-                          provider.updateKOTStatus(kot.id, KOTStatus.preparing);
-                        },
-                        icon: const Icon(Icons.soup_kitchen, size: 16),
-                        label: const Text('Start Preparing'),
-                      )
-                    else if (kot.status == KOTStatus.preparing)
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(backgroundColor: AppColors.vegGreen),
-                        onPressed: () async {
-                          final ok = await showConfirmDialog(
-                            context,
-                            title: 'Mark ready?',
-                            message:
-                                'Mark ${kot.kotNumber} as Ready? This notifies the floor.',
-                            confirmLabel: 'Mark Ready',
-                            isDanger: false,
-                          );
-                          if (!ok || !context.mounted) return;
-                          provider.updateKOTStatus(kot.id, KOTStatus.ready);
-                        },
-                        icon: const Icon(Icons.check_circle_outline, size: 16),
-                        label: const Text('Mark Ready'),
-                      )
-                    else if (kot.status == KOTStatus.ready)
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(backgroundColor: AppColors.textDark),
-                        onPressed: () async {
-                          final ok = await showConfirmDialog(
-                            context,
-                            title: 'Mark served?',
-                            message:
-                                'Mark ${kot.kotNumber} as Served? This closes the kitchen ticket.',
-                            confirmLabel: 'Mark Served',
-                          );
-                          if (!ok || !context.mounted) return;
-                          provider.updateKOTStatus(kot.id, KOTStatus.served);
-                        },
-                        icon: const Icon(Icons.room_service_outlined, size: 16),
-                        label: const Text('Mark Served'),
-                      ),
-                  ],
-                ),
+                // Actions. The kitchen owns new → preparing → ready; serving is
+                // the waiter's step, done from their Ready to Serve queue.
+                if (kot.status == KOTStatus.newTicket || kot.status == KOTStatus.preparing) ...[
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      if (kot.status == KOTStatus.newTicket)
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(backgroundColor: AppColors.saffronAmber),
+                          onPressed: () async {
+                            // Capture the messenger before awaiting: once the status
+                            // changes the card leaves this tab, so its context may be
+                            // gone by the time we want to show the confirmation.
+                            final messenger = ScaffoldMessenger.of(context);
+                            final ok = await showConfirmDialog(
+                              context,
+                              title: 'Start preparing?',
+                              message:
+                                  'Start preparing ${kot.kotNumber}? The ticket moves to Preparing.',
+                              confirmLabel: 'Start Preparing',
+                              isDanger: false,
+                            );
+                            if (!ok || !context.mounted) return;
+                            provider.updateKOTStatus(kot.id, KOTStatus.preparing);
+                            _showMessage(messenger, '${kot.kotNumber} moved to Preparing', AppColors.saffronAmber);
+                          },
+                          icon: const Icon(Icons.soup_kitchen, size: 16),
+                          label: const Text('Start Preparing'),
+                        )
+                      else
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(backgroundColor: AppColors.vegGreen),
+                          onPressed: () async {
+                            final messenger = ScaffoldMessenger.of(context);
+                            final ok = await showConfirmDialog(
+                              context,
+                              title: 'Mark ready?',
+                              message:
+                                  'Mark ${kot.kotNumber} as Ready? This notifies the floor.',
+                              confirmLabel: 'Mark Ready',
+                              isDanger: false,
+                            );
+                            if (!ok || !context.mounted) return;
+                            provider.updateKOTStatus(kot.id, KOTStatus.ready);
+                            _showMessage(messenger, '${kot.kotNumber} marked Ready — floor notified', AppColors.vegGreen);
+                          },
+                          icon: const Icon(Icons.check_circle_outline, size: 16),
+                          label: const Text('Mark Ready'),
+                        ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),

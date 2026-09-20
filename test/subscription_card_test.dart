@@ -114,4 +114,34 @@ void main() {
     expect(find.text('On'), findsOneWidget);
     expect(find.text('Cancel auto-renew'), findsOneWidget);
   });
+
+  testWidgets('does not overflow on narrow mobile screen widths',
+      (tester) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final provider = _FakePosProvider()..status = _status();
+    await tester.pumpWidget(
+      ChangeNotifierProvider<PosProvider>.value(
+        value: provider,
+        child: MaterialApp(
+          home: Scaffold(
+            body: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Container(
+                padding: const EdgeInsets.all(18),
+                child: const SubscriptionCardBody(),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Pay one cycle now'), findsOneWidget);
+    expect(find.text('Enable auto-pay'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }

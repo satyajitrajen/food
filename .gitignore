@@ -44,6 +44,13 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
+# Release signing — never commit the keystore or its passwords.
+# BACK UP android/hishobkr-release.jks + android/key.properties somewhere safe
+# (losing them means you can never update the Play Store listing).
+*.jks
+*.keystore
+android/key.properties
+
 # Monorepo additions (workspace root repo)
 **/.gradle/
 /android/build/

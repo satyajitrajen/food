@@ -13,6 +13,7 @@ import '../../models/settings_model.dart';
 import '../../models/table_model.dart';
 import '../../providers/pos_provider.dart';
 import '../../widgets/confirm_dialog.dart';
+import '../../widgets/dialog_controller_scope.dart';
 import 'subscription_card.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -71,7 +72,7 @@ class SettingsScreen extends StatelessWidget {
             // Taxes & Billing Charges
             _buildSettingsSection(
               title: 'Taxes & Additional Charges',
-              subtitle: 'GST rates, Service charges, Delivery & Packaging fees',
+              subtitle: 'GST rates, Service charges & Packaging fees',
               icon: Icons.calculate_outlined,
               children: [
                 _buildSettingItem(
@@ -82,8 +83,7 @@ class SettingsScreen extends StatelessWidget {
                 ),
                 _buildSettingItem('Menu Pricing', settings.isGstInclusive ? 'Inclusive of GST' : 'Exclusive of GST (+5%)'),
                 _buildSettingItem('Service Charge', '${settings.defaultServiceChargePercent}% (Dine-In Optional)'),
-                _buildSettingItem('Parcel Packaging', '₹${settings.defaultPackagingCharge.toStringAsFixed(0)} per takeaway bill'),
-                _buildSettingItem('Delivery Charge', '₹${settings.defaultDeliveryCharge.toStringAsFixed(0)} flat rate'),
+                _buildSettingItem('Packaging Charge', '₹${settings.defaultPackagingCharge.toStringAsFixed(0)} flat rate'),
               ],
             ),
             const SizedBox(height: 16),
@@ -378,7 +378,8 @@ class SettingsScreen extends StatelessWidget {
 
     await showDialog(
       context: context,
-      builder: (ctx) => StatefulBuilder(
+      builder: (ctx) => DialogControllerScope(
+        controllers: [idC, nameC],
         builder: (ctx, setDialogState) {
           final upiId = validateUpiId(idC.text);
           final overrideUrl =
@@ -524,8 +525,6 @@ class SettingsScreen extends StatelessWidget {
         },
       ),
     );
-    idC.dispose();
-    nameC.dispose();
   }
 
   /// Sections to edit against: the configured list when present, otherwise

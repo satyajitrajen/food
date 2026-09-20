@@ -2150,9 +2150,13 @@ class PosProvider extends ChangeNotifier {
     // Check if same item with same variant and modifiers exists.
     // itemNote participates in the identity so different cooking notes
     // don't merge into one line (and lose a note).
+    // Never merge into a line already fired to the kitchen: the added quantity
+    // must stay unsent so it shows up for the next KOT instead of silently
+    // riding along on an item the kitchen already cooked.
     final existingIndex = _activeOrder!.items.indexWhere(
       (i) =>
           !i.isCancelled &&
+          !i.isKOTSent &&
           i.menuItem.id == item.id &&
           i.itemNote == note &&
           i.selectedVariant?.id == variant?.id &&
@@ -2332,6 +2336,11 @@ class PosProvider extends ChangeNotifier {
     if (kot.outletId.isNotEmpty && kot.outletId != _currentOutlet.id) return;
     final prevStatus = kot.status;
     kot.status = newStatus;
+    // Serving closes the floor's interest in this ticket — drop its ready
+    // banner so the waiter's alert list matches the KOT board.
+    if (newStatus == KOTStatus.served) {
+      _readyAlerts.removeWhere((k) => k.id == kotId);
+    }
     notifyListeners();
     _sync?.push('kot.status', {
       'kot_id': kotId,
@@ -2362,6 +2371,19 @@ class PosProvider extends ChangeNotifier {
     if (_readyAlerts.isEmpty) return;
     _readyAlerts.clear();
     notifyListeners();
+  }
+
+  /// Cooked tickets waiting to be carried to the table. Waiters see only their
+  /// own tickets (never another waiter's); manager/cashier/admin see the whole
+  /// outlet so they can cover any table. Outlet isolation is already applied
+  /// by [kots].
+  List<KitchenOrderTicket> get readyToServe {
+    final ready = kots.where((k) => k.status == KOTStatus.ready);
+    final me = _currentStaff;
+    if (me != null && me.role == StaffRole.waiter) {
+      return ready.where((k) => k.waiterName == me.name).toList();
+    }
+    return ready.toList();
   }
 
   void _maybeFireReadyAlert({required KOTStatus? previous, required KitchenOrderTicket kot}) {
@@ -3056,7 +3078,7 @@ class PosProvider extends ChangeNotifier {
     });
   }
 
-  bool updateStaff(String id, {String? name, StaffRole? role, String? outletId, bool? isActive, String? pin}) {
+  bool updateStaff(String id, {String? name, StaffRole? role, String? outletId, bool? isActive, String? pin, String? mobile}) {
     final idx = _staffList.indexWhere((s) => s.id == id);
     if (idx == -1) return false;
     final s = _staffList[idx];
@@ -3078,17 +3100,22 @@ class PosProvider extends ChangeNotifier {
       }
     }
     final effectiveRole = role ?? s.role;
-    final effectiveOutlet = effectiveRole == StaffRole.waiter || effectiveRole == StaffRole.kitchen
-        ? (outletId ?? s.outletId ?? _currentOutlet.id)
-        : (outletId ?? s.outletId);
+    // outletId == '' means "unassign / org-wide floater" for non
+    // waiter/kitchen roles (backend clears on empty string).
+    final outletCleared = outletId != null && outletId.isEmpty;
+    final effectiveOutlet = outletCleared
+        ? null
+        : (effectiveRole == StaffRole.waiter || effectiveRole == StaffRole.kitchen
+            ? (outletId ?? s.outletId ?? _currentOutlet.id)
+            : (outletId ?? s.outletId));
     _staffList[idx] = Staff(
       id: s.id,
       outletId: effectiveOutlet,
-      name: name ?? s.name,
+      name: (name != null && name.trim().isNotEmpty) ? name.trim() : s.name,
       role: effectiveRole,
       pin: (pin != null && pin.isNotEmpty) ? pin : s.pin,
       avatarUrl: s.avatarUrl,
-      mobile: s.mobile,
+      mobile: (mobile != null) ? mobile.trim() : s.mobile,
       isActive: isActive ?? s.isActive,
       isProtected: s.isProtected,
     );
@@ -3097,9 +3124,12 @@ class PosProvider extends ChangeNotifier {
       'staff_id': id,
       'name': ?name,
       if (role != null) 'role': role.name,
-      'outlet_id': ?effectiveOutlet,
+      // Send '' to clear outlet (backend treats '' as NULL); omit when unchanged.
+      if (outletCleared) 'outlet_id': '',
+      if (!outletCleared) 'outlet_id': ?effectiveOutlet,
       'is_active': ?isActive,
       'pin': ?((pin != null && pin.isNotEmpty) ? pin : null),
+      'mobile': ?mobile,
     });
     return true;
   }
@@ -3251,10 +3281,12 @@ class PosProvider extends ChangeNotifier {
   }
 
   void _switchOutlet(Outlet outlet) {
-    // Kitchen terminals are locked to their assigned outlet (single-outlet
-    // binding, like waiters): switching is disabled at the UI layer and
-    // rejected here as a backstop.
-    if (_currentStaff?.role == StaffRole.kitchen) return;
+    // Single-outlet binding (waiters + kitchen): staff assigned to one outlet
+    // cannot operate another. Switching is hidden at the UI layer and rejected
+    // here as a backstop.
+    if (_currentStaff != null && !_currentStaff!.canAccessOutlet(outlet.id)) {
+      return;
+    }
     final previousOutletId = _currentOutlet.id;
     _currentOutlet = outlet;
     _rebuildCategories();

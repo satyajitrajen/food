@@ -37,7 +37,7 @@ export const FloorManagement: React.FC = () => {
 
   return (
     <section id="floors" className="section" style={{ backgroundColor: 'var(--bg-porcelain-warm)' }}>
-      <div className="container">
+      <div className="t-container">
         <div className="section-header">
           <span className="section-eyebrow">Table & Floor Architecture</span>
           <h2 className="section-title">Visual Dining Sections & Fast Table Operations</h2>

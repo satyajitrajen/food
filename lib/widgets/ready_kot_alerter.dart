@@ -2,10 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../core/theme/app_theme.dart';
-import '../models/app_nav.dart';
 import '../models/kot_model.dart';
 import '../providers/pos_provider.dart';
-import '../screens/running_orders/running_order_detail_screen.dart';
+import '../screens/running_orders/ready_to_serve_screen.dart';
 
 /// App-level navigator key — lets the ready-alert overlay push routes from
 /// above the Navigator (MaterialApp.builder context).
@@ -72,16 +71,10 @@ class _ReadyBanner extends StatelessWidget {
 
   const _ReadyBanner({required this.alerts, required this.provider});
 
-  void _view(BuildContext context, KitchenOrderTicket kot) {
-    final order =
-        provider.orders.where((o) => o.id == kot.orderId).firstOrNull;
-    if (order != null) {
-      appNavigatorKey.currentState?.push(
-        MaterialPageRoute(builder: (_) => RunningOrderDetailScreen(order: order)),
-      );
-    } else {
-      provider.goToDest(AppDest.tables);
-    }
+  void _openReadyList() {
+    appNavigatorKey.currentState?.push(
+      MaterialPageRoute(builder: (_) => const ReadyToServeScreen()),
+    );
   }
 
   @override
@@ -142,9 +135,9 @@ class _ReadyBanner extends StatelessWidget {
                   child: const Text('Dismiss all'),
                 ),
               FilledButton.icon(
-                onPressed: () => _view(context, kot),
-                icon: const Icon(Icons.restaurant, size: 16),
-                label: const Text('View Order'),
+                onPressed: _openReadyList,
+                icon: const Icon(Icons.room_service, size: 16),
+                label: const Text('View List'),
               ),
             ],
           ),

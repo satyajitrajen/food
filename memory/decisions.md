@@ -109,3 +109,13 @@ bridge — alternatives (WebView checkout, UPI intent URLs) lose subscriptions
 support/DPR compliance. lib/core/payments/razorpay_checkout.dart wraps the
 event emitter into a single Future; its result is UI feedback only — server
 webhooks remain the sole source of truth for subscription state.
+
+## D-020 - 2026-09-18 - KOT `served` belongs to the waiter, not the kitchen
+The KDS originally owned the whole KOT FSM (new→preparing→ready→served), but
+serving is a floor action: the assigned waiter carries the food and confirms it.
+Kitchen now stops at `ready`; the waiter marks `served` from a new Ready to
+Serve queue that lists only their own ready tickets (manager/cashier/admin see
+the whole outlet). The ready alert banner opens that queue. Supersedes the
+kitchen-owns-served reading of PRD FR-K2 / ARCHITECTURE §2.3 for the client UI;
+the backend FSM and `PATCH /kots/{id}` are unchanged (still accepts served).
+

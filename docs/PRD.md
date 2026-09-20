@@ -22,7 +22,7 @@ close the bill with GST, and reconcile the drawer — in under 90 seconds, offli
 | Manager | Shift open/close, refunds, discounts > threshold, table ops, reports |
 | Cashier | Orders, billing, payments, cash in/out, KOT |
 | Waiter | Orders, KOT, table status, guest details |
-| Kitchen (display only) | KOT board — accept, prepare, ready, served |
+| Kitchen (display only) | KOT board — accept, prepare, ready (served is the waiter's step) |
 
 Login is PIN-based per terminal; a manager PIN gate guards privileged actions.
 
@@ -62,7 +62,10 @@ Login is PIN-based per terminal; a manager PIN gate guards privileged actions.
 - **FR-K1** "Send to kitchen" fires only un-sent, un-cancelled items; increments
   KOT counter; items flip `isKOTSent`.
 - **FR-K2** KOT board shows live status: `new → preparing → ready → served`
-  (+ `cancelled`). Status transitions enforced by the backend state machine.
+  (+ `cancelled`). Role split: the kitchen drives `new → preparing → ready`;
+  the assigned waiter marks the ticket `served` from their Ready to Serve
+  queue, which lists only their own tickets. Status transitions enforced by
+  the backend state machine.
 - **FR-K3** KOT updates push to all terminals via WebSocket.
 
 ### 3.6 Payments & Receipt

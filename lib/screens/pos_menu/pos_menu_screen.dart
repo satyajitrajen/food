@@ -7,6 +7,7 @@ import '../../models/menu_model.dart';
 import '../../widgets/custom_badge.dart';
 import '../modals/variant_and_modifiers_dialog.dart';
 import '../../widgets/confirm_dialog.dart';
+import '../../widgets/system_insets.dart';
 import '../cart/cart_view.dart';
 import '../order_flow/table_selection_screen.dart';
 
@@ -27,26 +28,24 @@ class _PosMenuScreenState extends State<PosMenuScreen> {
   }
 
   void _handleItemTap(BuildContext context, MenuItem item, PosProvider provider) {
-    if (item.hasVariants || item.hasModifiers) {
-      // Open Customization Modal
-      VariantAndModifiersDialog.show(
-        context,
-        item: item,
-        onConfirm: (variant, modifiers, note, qty) {
-          for (int i = 0; i < qty; i++) {
-            provider.addToCart(
-              item,
-              variant: variant,
-              modifiers: modifiers,
-              note: note,
-            );
-          }
-        },
-      );
-    } else {
-      // Simple direct add to cart
-      provider.addToCart(item);
-    }
+    // Always ask: every add (simple dish, variant dish, spice/add-on dish)
+    // goes through the customization dialog so each quantity/variant gets
+    // its own variant + modifiers + note choice. addToCart merges identical
+    // picks and splits differing ones into separate lines.
+    VariantAndModifiersDialog.show(
+      context,
+      item: item,
+      onConfirm: (variant, modifiers, note, qty) {
+        for (int i = 0; i < qty; i++) {
+          provider.addToCart(
+            item,
+            variant: variant,
+            modifiers: modifiers,
+            note: note,
+          );
+        }
+      },
+    );
   }
 
   @override
@@ -215,10 +214,11 @@ class _PosMenuScreenState extends State<PosMenuScreen> {
           ),
         ],
       ),
-      // Bottom Floating Cart Bar
+      // Bottom Floating Cart Bar (explicit bottom inset: bare SafeArea inside
+      // bottomSheet slides under the opaque system nav on some devices).
       bottomSheet: (activeOrder != null && activeOrder.items.isNotEmpty)
           ? Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+              padding: BottomInsets.barAll(context),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
@@ -231,6 +231,8 @@ class _PosMenuScreenState extends State<PosMenuScreen> {
                 ],
               ),
               child: SafeArea(
+                top: false,
+                bottom: false,
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -440,16 +442,29 @@ class _PosMenuScreenState extends State<PosMenuScreen> {
                             children: [
                               InkWell(
                                 onTap: () async {
-                                  final orderItem = provider.activeOrder?.items
-                                      .where((i) => !i.isCancelled && i.menuItem.id == item.id)
-                                      .firstOrNull;
-                                  if (orderItem == null) return;
+                                  final matching = provider.activeOrder?.items
+                                          .where((i) => !i.isCancelled && i.menuItem.id == item.id)
+                                          .toList() ??
+                                      [];
+                                  if (matching.isEmpty) return;
+                                  // Per-variant safety: with multiple distinct lines
+                                  // (e.g. Half vs Full), don't guess — let the user
+                                  // pick the exact line in the cart.
+                                  if (matching.length > 1) {
+                                    if (!context.mounted) return;
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                          builder: (_) => const CartViewScreen()),
+                                    );
+                                    return;
+                                  }
+                                  final orderItem = matching.first;
                                   if (orderItem.quantity <= 1) {
                                     final ok = await showConfirmDialog(
                                       context,
                                       title: 'Remove item?',
                                       message:
-                                          'Remove "${item.name}" from the cart?',
+                                          'Remove "${orderItem.displayName}" from the cart?',
                                       confirmLabel: 'Remove Item',
                                     );
                                     if (!ok || !context.mounted) return;
