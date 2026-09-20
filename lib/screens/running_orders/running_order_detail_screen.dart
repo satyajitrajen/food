@@ -269,7 +269,7 @@ class RunningOrderDetailScreen extends StatelessWidget {
                               );
                             },
                             icon: const Icon(Icons.add, size: 18),
-                            label: const Text('+ Add Item'),
+                            label: const Text('+ Add'),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -283,7 +283,7 @@ class RunningOrderDetailScreen extends StatelessWidget {
                               );
                             },
                             icon: const Icon(Icons.receipt, size: 18),
-                            label: const Text('Checkout Bill'),
+                            label: const Text('Checkout'),
                           ),
                         ),
                       ],

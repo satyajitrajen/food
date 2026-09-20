@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/validation.dart';
 import '../../models/staff_model.dart';
 import '../../providers/pos_provider.dart';
 import '../../widgets/confirm_dialog.dart';
@@ -192,76 +193,78 @@ class StaffAdminScreen extends StatelessWidget {
                             ],
                           ),
                         ),
-                        if (canManage) ...[
-                          Tooltip(
-                            message: roleTooltip,
-                            child: DropdownButton<StaffRole>(
-                              value: s.role,
-                              underline: const SizedBox.shrink(),
-                              items: StaffRole.values
-                                  .map((r) => DropdownMenuItem(
-                                      value: r,
-                                      child: Text(r.name,
-                                          style: const TextStyle(fontSize: 12))))
-                                  .toList(),
-                              onChanged: roleEnabled
-                                  ? (r) {
-                                      if (r != null && r != s.role) {
-                                        _confirmRoleChange(
-                                            context, provider, s, r);
-                                      }
-                                    }
-                                  : null,
-                            ),
+                        if (canManage)
+                          PopupMenuButton<String>(
+                            tooltip: 'Manage staff account',
+                            icon: const Icon(Icons.more_vert, size: 20),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            onSelected: (action) {
+                              switch (action) {
+                                case 'role':
+                                  _pickRoleChange(context, provider, s);
+                                  break;
+                                case 'status':
+                                  _confirmStatusChange(context, provider, s);
+                                  break;
+                                case 'pin':
+                                  _showPinResetDialog(context, provider, s);
+                                  break;
+                                case 'edit':
+                                  _showEditDialog(context, provider, s);
+                                  break;
+                              }
+                            },
+                            itemBuilder: (_) => [
+                              PopupMenuItem(
+                                value: 'role',
+                                enabled: roleEnabled,
+                                child: Row(children: [
+                                  const Icon(Icons.swap_horiz, size: 18),
+                                  const SizedBox(width: 10),
+                                  Expanded(child: Text(roleTooltip)),
+                                ]),
+                              ),
+                              PopupMenuItem(
+                                value: 'status',
+                                enabled: statusEnabled,
+                                child: Row(children: [
+                                  Icon(
+                                    s.isActive ? Icons.block_outlined : Icons.check_circle_outline,
+                                    size: 18,
+                                    color: s.isActive ? AppColors.nonVegRed : AppColors.vegGreen,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(child: Text(statusTooltip)),
+                                ]),
+                              ),
+                              PopupMenuItem(
+                                value: 'pin',
+                                enabled: pinEnabled,
+                                child: Row(children: [
+                                  const Icon(Icons.password, size: 18),
+                                  const SizedBox(width: 10),
+                                  Expanded(child: Text(ownerBlocked
+                                      ? 'Main admin (owner) — only the owner can reset this PIN'
+                                      : (managerBlocked
+                                          ? 'Only admins can reset admin PINs'
+                                          : 'Reset PIN'))),
+                                ]),
+                              ),
+                              PopupMenuItem(
+                                value: 'edit',
+                                enabled: pinEnabled,
+                                child: Row(children: [
+                                  const Icon(Icons.edit_outlined, size: 18),
+                                  const SizedBox(width: 10),
+                                  Expanded(child: Text(ownerBlocked
+                                      ? 'Main admin (owner) — only the owner can edit this account'
+                                      : (managerBlocked
+                                          ? 'Only admins can edit admin staff'
+                                          : 'Edit name, mobile, role & outlet'))),
+                                ]),
+                              ),
+                            ],
                           ),
-                          IconButton(
-                            tooltip: statusTooltip,
-                            icon: Icon(
-                              s.isActive ? Icons.block_outlined : Icons.check_circle_outline,
-                              size: 18,
-                              color: statusEnabled
-                                  ? (s.isActive
-                                      ? AppColors.nonVegRed
-                                      : AppColors.vegGreen)
-                                  : AppColors.textLight,
-                            ),
-                            onPressed: statusEnabled
-                                ? () => _confirmStatusChange(
-                                    context, provider, s)
-                                : null,
-                          ),
-                          IconButton(
-                            tooltip: ownerBlocked
-                                ? 'Main admin (owner) — only the owner can reset this PIN'
-                                : (managerBlocked
-                                    ? 'Only admins can reset admin PINs'
-                                    : 'Reset PIN'),
-                            icon: Icon(Icons.password,
-                                size: 18,
-                                color: pinEnabled
-                                    ? AppColors.primaryGreen
-                                    : AppColors.textLight),
-                            onPressed: pinEnabled
-                                ? () =>
-                                    _showPinResetDialog(context, provider, s)
-                                : null,
-                          ),
-                          IconButton(
-                            tooltip: ownerBlocked
-                                ? 'Main admin (owner) — only the owner can edit this account'
-                                : (managerBlocked
-                                    ? 'Only admins can edit admin staff'
-                                    : 'Edit name, mobile, role & outlet'),
-                            icon: Icon(Icons.edit_outlined,
-                                size: 18,
-                                color: pinEnabled
-                                    ? AppColors.infoBlue
-                                    : AppColors.textLight),
-                            onPressed: pinEnabled
-                                ? () => _showEditDialog(context, provider, s)
-                                : null,
-                          ),
-                        ],
                       ],
                     ),
                   );
@@ -272,6 +275,42 @@ class StaffAdminScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// Role picker (replaces the cramped inline dropdown): same confirmations
+  /// and rules as before.
+  Future<void> _pickRoleChange(
+      BuildContext context, PosProvider provider, Staff s) async {
+    final r = await showDialog<StaffRole>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: Text('Change role — ${s.name}'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        children: StaffRole.values
+            .map((r) => SimpleDialogOption(
+                  onPressed: () => Navigator.of(ctx).pop(r),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Row(
+                      children: [
+                        Icon(
+                          r == s.role ? Icons.radio_button_checked : Icons.radio_button_off,
+                          size: 20,
+                          color: AppColors.primaryGreen,
+                        ),
+                        const SizedBox(width: 12),
+                        Text(r.name,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w600, fontSize: 15)),
+                      ],
+                    ),
+                  ),
+                ))
+            .toList(),
+      ),
+    );
+    if (r == null || r == s.role || !context.mounted) return;
+    await _confirmRoleChange(context, provider, s, r);
   }
 
   Future<void> _confirmRoleChange(BuildContext context, PosProvider provider,
@@ -351,7 +390,13 @@ class StaffAdminScreen extends StatelessWidget {
                     decoration: const InputDecoration(labelText: 'Login PIN (4-6 digits)', counterText: ''),
                   ),
                   const SizedBox(height: 10),
-                  TextField(controller: mobileC, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'Mobile (optional)')),
+                  TextField(
+                    controller: mobileC,
+                    keyboardType: TextInputType.phone,
+                    decoration: const InputDecoration(
+                        labelText: 'Mobile (10-digit, optional)',
+                        hintText: '98XXXXXXXX'),
+                  ),
                   const SizedBox(height: 10),
                   DropdownButtonFormField<StaffRole>(
                     initialValue: role,
@@ -414,6 +459,16 @@ class StaffAdminScreen extends StatelessWidget {
               onPressed: () {
                 final name = nameC.text.trim();
                 final pin = pinC.text.trim();
+                final mobileErr = validateMobile(mobileC.text);
+                if (mobileErr != null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(mobileErr),
+                      backgroundColor: AppColors.nonVegRed,
+                    ),
+                  );
+                  return;
+                }
                 if (name.isEmpty || pin.length < 4 || pin.length > 6 || !RegExp(r'^\d+$').hasMatch(pin)) return;
                 if ((role == StaffRole.waiter || role == StaffRole.kitchen) &&
                     (selectedOutletId == null || selectedOutletId!.isEmpty)) {
@@ -584,6 +639,16 @@ class StaffAdminScreen extends StatelessWidget {
                 onPressed: () {
                   final name = nameC.text.trim();
                   final mobile = mobileC.text.trim();
+                  final mobileErr = validateMobile(mobile);
+                  if (mobileErr != null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(mobileErr),
+                        backgroundColor: AppColors.nonVegRed,
+                      ),
+                    );
+                    return;
+                  }
                   if (name.isEmpty) return;
                   if (needsOutlet &&
                       (selectedOutletId == null ||

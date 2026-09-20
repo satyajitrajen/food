@@ -1344,6 +1344,40 @@ class PosProvider extends ChangeNotifier {
     setNavIndex(i);
   }
 
+  // ---- Attendance (W3): who clocked in when, on this terminal ----
+
+  final List<AttendanceEntry> _attendance = [];
+  List<AttendanceEntry> get attendanceLog => List.unmodifiable(_attendance);
+
+  AttendanceEntry? _openAttendanceFor(String staffId) =>
+      _attendance
+          .where((a) => a.staffId == staffId && a.clockOut == null)
+          .firstOrNull;
+
+  void _markClockIn(String staffId, String name) {
+    if (_openAttendanceFor(staffId) != null) return;
+    _attendance.insert(
+      0,
+      AttendanceEntry(
+        id: 'att-${DateTime.now().millisecondsSinceEpoch}',
+        staffId: staffId,
+        staffName: name,
+        clockIn: DateTime.now(),
+      ),
+    );
+  }
+
+  void _markClockOut(String staffId) {
+    final open = _openAttendanceFor(staffId);
+    if (open == null) return;
+    open.clockOut = DateTime.now();
+  }
+
+  /// Total worked minutes across all closed sessions for a staff member.
+  int workedMinutesFor(String staffId) => _attendance
+      .where((a) => a.staffId == staffId)
+      .fold(0, (sum, a) => sum + a.minutesWorked);
+
   // Active User / Session
   Staff? _currentStaff;
   Staff? get currentStaff => _currentStaff;
@@ -1553,6 +1587,7 @@ class PosProvider extends ChangeNotifier {
         ));
         final matched = _staffList.where((s) => s.id == staffId).firstOrNull;
         _currentStaff = matched ?? staffFromApi(serverStaff ?? {});
+        _markClockIn(staffId, _currentStaff!.name);
         _applyLoginEntitlement(resp);
         _isOfflineMode = false;
         _lastSyncError = null;
@@ -1572,6 +1607,7 @@ class PosProvider extends ChangeNotifier {
       final cached = await _pinVault!.verifyStaff(staffId, pin);
       if (cached != null) {
         _currentStaff = cached;
+        _markClockIn(staffId, cached.name);
         notifyListeners();
         unawaited(_saveLoginSnapshot());
         unawaited(_postLoginSync());
@@ -1584,6 +1620,7 @@ class PosProvider extends ChangeNotifier {
         (s) => s.id == staffId && s.pin == pin && s.isActive,
       );
       _currentStaff = staff;
+      _markClockIn(staffId, staff.name);
       notifyListeners();
       unawaited(_saveLoginSnapshot());
       unawaited(_postLoginSync());
@@ -1606,6 +1643,7 @@ class PosProvider extends ChangeNotifier {
   }
 
   void logout() {
+    final leaving = _currentStaff;
     if (apiEnabled && _api != null) {
       unawaited(_api!.logout());
       unawaited(_realtime?.dispose());
@@ -1614,6 +1652,9 @@ class PosProvider extends ChangeNotifier {
       _persistSession(null);
     }
     unawaited(_sessionStore?.clear());
+    if (leaving != null) {
+      _markClockOut(leaving.id);
+    }
     _currentStaff = null;
     // Forget pending "order ready" alerts and home position for the next
     // staff member on this terminal.
@@ -1722,19 +1763,25 @@ class PosProvider extends ChangeNotifier {
   final List<CashTransaction> _cashTransactions = [];
   List<CashTransaction> get cashTransactions => _cashTransactions;
 
-  void addCashIn({required double amount, required String reason, String? reference}) {
+  void addCashIn({required double amount, required String reason, String? reference, DateTime? at}) {
     if (amount <= 0) return;
+    final when = at ?? DateTime.now();
     final tx = CashTransaction(
       id: 'CIN-${DateTime.now().millisecondsSinceEpoch}',
       type: CashFlowType.cashIn,
       amount: amount,
       reason: reason,
       reference: reference,
-      timestamp: DateTime.now(),
+      timestamp: when,
       staffName: _currentStaff?.name ?? 'Staff',
     );
     _cashTransactions.insert(0, tx);
-    _currentShift?.cashIn += amount;
+    // Only live entries move the running drawer math; backdated entries
+    // stay in the ledger for audit without corrupting the current shift.
+    final shift = _currentShift;
+    if (shift != null && !when.isBefore(shift.startedAt)) {
+      shift.cashIn += amount;
+    }
     notifyListeners();
     _sync?.push('cash.move', {
       'type': 'cash_in',
@@ -1744,19 +1791,23 @@ class PosProvider extends ChangeNotifier {
     });
   }
 
-  void addCashOut({required double amount, required String reason, String? reference}) {
+  void addCashOut({required double amount, required String reason, String? reference, DateTime? at}) {
     if (amount <= 0) return;
+    final when = at ?? DateTime.now();
     final tx = CashTransaction(
       id: 'COUT-${DateTime.now().millisecondsSinceEpoch}',
       type: CashFlowType.cashOut,
       amount: amount,
       reason: reason,
       reference: reference,
-      timestamp: DateTime.now(),
+      timestamp: when,
       staffName: _currentStaff?.name ?? 'Staff',
     );
     _cashTransactions.insert(0, tx);
-    _currentShift?.cashOut += amount;
+    final shift = _currentShift;
+    if (shift != null && !when.isBefore(shift.startedAt)) {
+      shift.cashOut += amount;
+    }
     notifyListeners();
     _sync?.push('cash.move', {
       'type': 'cash_out',
@@ -2254,10 +2305,12 @@ class PosProvider extends ChangeNotifier {
     ProductVariant? variant,
     List<ModifierItem> modifiers = const [],
     String? note,
+    int quantity = 1,
   }) {
     if (_activeOrder == null) {
       startNewOrder(OrderType.dineIn);
     }
+    if (quantity <= 0) return;
 
     // Check if same item with same variant and modifiers exists.
     // itemNote participates in the identity so different cooking notes
@@ -2276,7 +2329,7 @@ class PosProvider extends ChangeNotifier {
     );
 
     if (existingIndex != -1) {
-      _activeOrder!.items[existingIndex].quantity += 1;
+      _activeOrder!.items[existingIndex].quantity += quantity;
       _pushItemQty(_activeOrder!, _activeOrder!.items[existingIndex]);
     } else {
       final newItem = OrderItem(
@@ -2284,7 +2337,7 @@ class PosProvider extends ChangeNotifier {
         menuItem: item,
         selectedVariant: variant,
         selectedModifiers: modifiers.map((m) => m.copy()).toList(),
-        quantity: 1,
+        quantity: quantity,
         itemNote: note,
         isKOTSent: false,
       );
@@ -3256,6 +3309,12 @@ class PosProvider extends ChangeNotifier {
       'stock': item.availableStock,
       'min_stock': item.minStock,
       'cost_paise': toPaise(item.costPerUnit),
+      // Purchase provenance — server op ignores unknown keys for now; the
+      // ledger keeps them locally for the stock log & item card.
+      if (item.batchNo != null && item.batchNo!.isNotEmpty) 'batch_no': item.batchNo,
+      if (item.rackNo != null && item.rackNo!.isNotEmpty) 'rack_no': item.rackNo,
+      if (item.purchasedAt != null)
+        'purchased_at': item.purchasedAt!.toUtc().toIso8601String(),
     });
   }
 
@@ -3271,23 +3330,87 @@ class PosProvider extends ChangeNotifier {
     });
   }
 
+  // ---- Supplier payment ledger (W5): pay dues, track history by date ----
+
+  final List<SupplierPayment> _supplierPayments = [];
+  List<SupplierPayment> get supplierPayments => List.unmodifiable(_supplierPayments);
+
+  List<SupplierPayment> supplierPaymentsFor(String supplierId) =>
+      List.unmodifiable(
+          _supplierPayments.where((p) => p.supplierId == supplierId));
+
+  /// Records a payment against [supplierId]'s outstanding due and reduces it.
+  /// Returns false when the payment exceeds the outstanding amount.
+  bool paySupplier({
+    required String supplierId,
+    required double amount,
+    required String method,
+    DateTime? at,
+    String? reference,
+  }) {
+    final sup = _suppliers.where((s) => s.id == supplierId).firstOrNull;
+    if (sup == null || amount <= 0) return false;
+    if (amount > sup.outstanding + 0.005) return false;
+    sup.outstanding = (sup.outstanding - amount).clamp(0.0, double.infinity);
+    _supplierPayments.insert(
+      0,
+      SupplierPayment(
+        id: 'pay-${DateTime.now().millisecondsSinceEpoch}',
+        supplierId: supplierId,
+        supplierName: sup.name,
+        amount: amount,
+        method: method,
+        paidAt: at ?? DateTime.now(),
+        reference: reference,
+        staffName: _currentStaff?.name ?? 'Staff',
+      ),
+    );
+    notifyListeners();
+    // A direct supplier payout reduces the physical drawer for cash modes.
+    if (method == 'Cash' && _currentShift != null) {
+      _currentShift!.expenses += amount;
+    }
+    // Reuse the expense op so back-office server truth stays consistent.
+    _sync?.push('expense.create', {
+      'local_id': 'sup-$supplierId-${DateTime.now().millisecondsSinceEpoch}',
+      'title': 'Supplier payment — ${sup.name}',
+      'category': 'raw_materials',
+      'amount_paise': toPaise(amount),
+      'method': method,
+      if (reference != null && reference.isNotEmpty) 'reference': reference,
+      'note': 'Supplier payment (${sup.name})',
+      'vendor': sup.name,
+    });
+    return true;
+  }
+
   void createPurchase({
     required String invoiceNo,
     String? supplierId,
     required String status,
     required double totalAmount,
     required List<Map<String, dynamic>> lines,
+    DateTime? purchasedAt,
   }) {
     final record = PurchaseRecord(
       id: 'pur-${DateTime.now().millisecondsSinceEpoch}',
       invoiceNumber: invoiceNo,
       supplierName: _suppliers.where((s) => s.id == supplierId).firstOrNull?.name ?? '',
-      date: DateTime.now(),
+      date: purchasedAt ?? DateTime.now(),
       totalAmount: totalAmount,
       paymentStatus: status == 'pending' ? 'Pending' : 'Paid',
       itemsSummary: lines.map((l) => '${l['name']} ×${l['qty']}').join(', '),
     );
     _purchases.insert(0, record);
+    // Credit purchases increase the supplier's outstanding due; the existing
+    // markPurchasePaid settle clears it (mirrors server truth).
+    if (status == 'pending' && supplierId != null && supplierId.isNotEmpty) {
+      final sup = _suppliers.where((s) => s.id == supplierId).firstOrNull;
+      if (sup != null) {
+        sup.outstanding += totalAmount;
+        sup.lastPurchase = record.date;
+      }
+    }
     notifyListeners();
     _sync?.push('purchase.create', {
       'local_id': record.id,
@@ -3295,6 +3418,7 @@ class PosProvider extends ChangeNotifier {
       if (supplierId != null && supplierId.isNotEmpty) 'supplier_id': supplierId,
       'status': status,
       'total_paise': toPaise(totalAmount),
+      'purchased_at': record.date.toUtc().toIso8601String(),
       'items': lines,
     });
   }
@@ -3456,6 +3580,27 @@ class PosProvider extends ChangeNotifier {
 
   PrinterAdapter get _effectivePrinter =>
       _printer ?? printerFromSetting(_settings.billingPrinter);
+
+  /// The resolved printer for the current settings (None when unconfigured) —
+  /// surfaced on the dashboard + printer status screen.
+  PrinterAdapter? get printer {
+    final p = _effectivePrinter;
+    return p is NullPrinter ? null : p;
+  }
+
+  /// Sends a small test page so staff can verify the printer connection.
+  Future<bool> printTestPage() async {
+    try {
+      await _effectivePrinter.send(buildTestPageBytes());
+      _printerError = null;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _printerError = 'Printer "${_effectivePrinter.name}": $e';
+      notifyListeners();
+      return false;
+    }
+  }
 
   void _printReceipt(RestaurantOrder order) {
     if (!apiEnabled) return;

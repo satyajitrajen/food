@@ -119,11 +119,27 @@ class CashDrawerScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
 
-            // Cash Movements Log
-            const Text('Cash In / Out History', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+            // Cash Movements Log — full ledger (not just this shift) so
+            // managers can audit cash movement across shifts, newest first.
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Cash In / Out Log', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                Text(
+                  provider.cashTransactions.isEmpty
+                      ? ''
+                      : '${provider.cashTransactions.length} entries',
+                  style: const TextStyle(color: AppColors.textMuted, fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'All manual cash movements, newest first. Shift-scoped entries count toward the current drawer math above.',
+              style: TextStyle(color: AppColors.textLight, fontSize: 11),
+            ),
             const SizedBox(height: 12),
-            // Cash movements recorded during the current shift only.
-            if (provider.cashTransactions.where((tx) => !tx.timestamp.isBefore(shift.startedAt)).isEmpty)
+            if (provider.cashTransactions.isEmpty)
               Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
@@ -131,21 +147,18 @@ class CashDrawerScreen extends StatelessWidget {
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: AppColors.borderLight),
                 ),
-                child: const Center(child: Text('No manual cash transactions logged in this shift.')),
+                child: const Center(child: Text('No cash movements logged yet.')),
               )
             else
-              Builder(builder: (context) {
-                final shiftTxs = provider.cashTransactions
-                    .where((tx) => !tx.timestamp.isBefore(shift.startedAt))
-                    .toList();
-                return ListView.builder(
+              ListView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                itemCount: shiftTxs.length,
+                itemCount: provider.cashTransactions.length,
                 itemBuilder: (context, index) {
-                  final tx = shiftTxs[index];
+                  final tx = provider.cashTransactions[index];
                   final isCashIn = tx.type == CashFlowType.cashIn;
-                  final timeStr = DateFormat('hh:mm a').format(tx.timestamp);
+                  final inCurrentShift = !tx.timestamp.isBefore(shift.startedAt);
+                  final timeStr = DateFormat('dd MMM, hh:mm a').format(tx.timestamp);
 
                   return Container(
                     margin: const EdgeInsets.only(bottom: 10),
@@ -153,7 +166,9 @@ class CashDrawerScreen extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: AppColors.borderLight),
+                      border: Border.all(
+                        color: inCurrentShift ? AppColors.primaryGreen.withValues(alpha: 0.4) : AppColors.borderLight,
+                      ),
                     ),
                     child: Row(
                       children: [
@@ -179,6 +194,11 @@ class CashDrawerScreen extends StatelessWidget {
                                 '${tx.staffName} · $timeStr ${tx.reference != null ? "· Ref: ${tx.reference}" : ""}',
                                 style: const TextStyle(color: AppColors.textLight, fontSize: 11),
                               ),
+                              if (!inCurrentShift)
+                                const Text(
+                                  'Earlier shift',
+                                  style: TextStyle(color: AppColors.textMuted, fontSize: 10, fontWeight: FontWeight.w700),
+                                ),
                             ],
                           ),
                         ),
@@ -194,8 +214,7 @@ class CashDrawerScreen extends StatelessWidget {
                     ),
                   );
                 },
-                );
-              }),
+              ),
           ],
         ),
       ),

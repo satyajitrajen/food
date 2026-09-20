@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/validation.dart';
 import '../../providers/pos_provider.dart';
 import '../../models/customer_model.dart';
 import '../../widgets/confirm_dialog.dart';
@@ -39,7 +40,10 @@ class _CustomerScreenState extends State<CustomerScreen> {
                 TextField(
                   controller: phoneCtrl,
                   keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(labelText: 'Mobile Number', prefixIcon: Icon(Icons.phone_outlined)),
+                  decoration: const InputDecoration(
+                      labelText: 'Mobile Number (10-digit)',
+                      hintText: '98XXXXXXXX',
+                      prefixIcon: Icon(Icons.phone_outlined)),
                 ),
                 const SizedBox(height: 12),
                 TextField(
@@ -60,7 +64,17 @@ class _CustomerScreenState extends State<CustomerScreen> {
           TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () {
-              if (nameCtrl.text.isEmpty || phoneCtrl.text.isEmpty) return;
+              final phoneErr = validateMobile(phoneCtrl.text, required: true);
+              if (phoneErr != null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(phoneErr),
+                    backgroundColor: AppColors.nonVegRed,
+                  ),
+                );
+                return;
+              }
+              if (nameCtrl.text.isEmpty) return;
               provider.addCustomer(
                 Customer(
                   id: 'c-${DateTime.now().millisecondsSinceEpoch}',

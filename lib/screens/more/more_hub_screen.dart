@@ -16,6 +16,9 @@ import '../settings/menu_admin_screen.dart';
 import '../settings/staff_admin_screen.dart';
 import '../auth/pin_login_screen.dart';
 import '../auth/select_outlet_screen.dart';
+import '../printer/printer_status_screen.dart';
+import 'attendance_screen.dart';
+import 'customer_menu_qr_screen.dart';
 
 /// Secondary operations hub. Tiles are filtered by role — Admin sees the
 /// overall revenue area (Reports) that Manager/Cashier cannot, and back-office
@@ -103,6 +106,36 @@ class MoreHubScreen extends StatelessWidget {
           color: AppColors.infoBlue,
           bgColor: AppColors.infoBlueBg,
           screen: const InventoryScreen(),
+        ),
+      if (canManage)
+        _tile(
+          context: context,
+          title: 'Staff Attendance',
+          subtitle: 'Who clocked in today, hours worked & full log',
+          icon: Icons.fact_check_outlined,
+          color: AppColors.primaryGreen,
+          bgColor: AppColors.primaryGreenLight,
+          screen: const AttendanceScreen(),
+        ),
+      if (isOps)
+        _tile(
+          context: context,
+          title: 'Customer Menu QR',
+          subtitle: 'Print a scan-QR so guests can browse the live menu',
+          icon: Icons.qr_code_2,
+          color: AppColors.primaryGreen,
+          bgColor: AppColors.primaryGreenLight,
+          screen: const CustomerMenuQrScreen(),
+        ),
+      if (isOps)
+        _tile(
+          context: context,
+          title: 'Printer Status & Test',
+          subtitle: 'Connected printer name, connection test & sample print',
+          icon: Icons.print_outlined,
+          color: AppColors.textDark,
+          bgColor: AppColors.creamSubtle,
+          screen: const PrinterStatusScreen(),
         ),
       // Overall revenue analytics — Admin only.
       if (isAdmin)

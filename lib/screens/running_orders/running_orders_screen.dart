@@ -99,10 +99,11 @@ class _RunningOrdersScreenState extends State<RunningOrdersScreen> with SingleTi
         bottom: TabBar(
           controller: _tabController,
           labelColor: AppColors.primaryGreen,
-          unselectedLabelColor: AppColors.textMuted,
+          unselectedLabelColor: AppColors.textDark,
           indicatorColor: AppColors.primaryGreen,
           indicatorWeight: 3,
           labelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
           tabs: [
             Tab(text: 'All (${runningOrders.length})'),
             Tab(text: 'Dine-In (${dineInOrders.length})'),
@@ -178,11 +179,12 @@ class _RunningOrdersScreenState extends State<RunningOrdersScreen> with SingleTi
             ),
             if (!searching) ...[
               const SizedBox(height: 16),
-              ElevatedButton(
+              ElevatedButton.icon(
                 onPressed: () {
                   provider.goToDest(isWaiter ? AppDest.tables : AppDest.pos);
                 },
-                child: const Text('Start New Order'),
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('New Order'),
               ),
             ],
           ],
@@ -289,18 +291,19 @@ class _RunningOrdersScreenState extends State<RunningOrdersScreen> with SingleTi
                           );
                         },
                         icon: const Icon(Icons.add, size: 16),
-                        label: const Text('Add Items'),
+                        label: const Text('+ Add'),
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: ElevatedButton(
+                      child: ElevatedButton.icon(
                         onPressed: () {
                           Navigator.of(context).push(
                             MaterialPageRoute(builder: (_) => RunningOrderDetailScreen(order: order)),
                           );
                         },
-                        child: const Text('Open Order'),
+                        icon: const Icon(Icons.receipt_long_outlined, size: 16),
+                        label: const Text('View'),
                       ),
                     ),
                   ],

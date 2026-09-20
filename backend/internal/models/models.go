@@ -277,6 +277,7 @@ type KOTItem struct {
 	OrderItemID string `json:"order_item_id"`
 	Name        string `json:"name"`
 	Quantity    int    `json:"quantity"`
+	IsVeg       bool   `json:"is_veg"`
 }
 
 // ---- Payments ----

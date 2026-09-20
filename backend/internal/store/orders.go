@@ -502,8 +502,12 @@ func (s *Store) InsertKOT(ctx context.Context, k *models.KOT) error {
 		return err
 	}
 	for _, it := range k.Items {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO kot_items (kot_id, order_item_id, name, quantity) VALUES (?, ?, ?, ?)`,
-			k.ID, it.OrderItemID, it.Name, it.Quantity); err != nil {
+		veg := 0
+		if it.IsVeg {
+			veg = 1
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO kot_items (kot_id, order_item_id, name, quantity, is_veg) VALUES (?, ?, ?, ?, ?)`,
+			k.ID, it.OrderItemID, it.Name, it.Quantity, veg); err != nil {
 			return err
 		}
 	}
@@ -562,16 +566,18 @@ func (s *Store) GetKOT(ctx context.Context, id string) (*models.KOT, error) {
 	k.Note = nullIfEmpty(note)
 	k.CreatedAt = ParseTime(createdAt)
 	k.Items = []models.KOTItem{}
-	rows, err := s.DB.QueryContext(ctx, `SELECT order_item_id, name, quantity FROM kot_items WHERE kot_id = ?`, id)
+	rows, err := s.DB.QueryContext(ctx, `SELECT order_item_id, name, quantity, COALESCE(is_veg, 1) FROM kot_items WHERE kot_id = ?`, id)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var it models.KOTItem
-		if err := rows.Scan(&it.OrderItemID, &it.Name, &it.Quantity); err != nil {
+		var veg int
+		if err := rows.Scan(&it.OrderItemID, &it.Name, &it.Quantity, &veg); err != nil {
 			return nil, err
 		}
+		it.IsVeg = veg == 1
 		k.Items = append(k.Items, it)
 	}
 	return k, rows.Err()

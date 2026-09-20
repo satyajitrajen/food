@@ -17,11 +17,67 @@ class TransactionsScreen extends StatefulWidget {
 class _TransactionsScreenState extends State<TransactionsScreen> {
   String _selectedPaymentFilter = 'All';
   final TextEditingController _searchController = TextEditingController();
+  // Period filter: 'Today' | '7D' | '30D' | 'All' | 'Custom'
+  String _period = 'All';
+  DateTimeRange? _customRange;
 
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  bool _inPeriod(RestaurantOrder tx) {
+    final paid = tx.paidAt;
+    if (paid == null) return _period == 'All';
+    switch (_period) {
+      case 'Today':
+        final now = DateTime.now();
+        return paid.year == now.year && paid.month == now.month && paid.day == now.day;
+      case '7D':
+        return paid.isAfter(DateTime.now().subtract(const Duration(days: 7)));
+      case '30D':
+        return paid.isAfter(DateTime.now().subtract(const Duration(days: 30)));
+      case 'Custom':
+        final r = _customRange;
+        if (r == null) return true;
+        final start = DateTime(r.start.year, r.start.month, r.start.day);
+        final end = DateTime(r.end.year, r.end.month, r.end.day, 23, 59, 59);
+        return !paid.isBefore(start) && !paid.isAfter(end);
+      default:
+        return true;
+    }
+  }
+
+  String _periodLabel(String p) {
+    switch (p) {
+      case '7D':
+        return 'Last 7 days';
+      case '30D':
+        return 'Last 30 days';
+      default:
+        return p;
+    }
+  }
+
+  Future<void> _pickCustomRange() async {
+    final now = DateTime.now();
+    final picked = await showDateRangePicker(
+      context: context,
+      initialDateRange: _customRange ??
+          DateTimeRange(
+            start: now.subtract(const Duration(days: 7)),
+            end: now,
+          ),
+      firstDate: DateTime(now.year - 2),
+      lastDate: now,
+    );
+    if (picked != null) {
+      setState(() {
+        _customRange = picked;
+        _period = 'Custom';
+      });
+    }
   }
 
   @override
@@ -33,6 +89,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       if (_selectedPaymentFilter != 'All' && tx.paymentMethod != _selectedPaymentFilter) {
         return false;
       }
+      if (!_inPeriod(tx)) return false;
       if (_searchController.text.isNotEmpty) {
         final q = _searchController.text.toLowerCase();
         final matchInv = (tx.invoiceNumber ?? '').toLowerCase().contains(q);
@@ -77,6 +134,45 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                     fillColor: AppColors.creamSubtle,
                     filled: true,
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // Date period filter with custom range
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      for (final p in ['Today', '7D', '30D', 'All'])
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: ChoiceChip(
+                            label: Text(_periodLabel(p)),
+                            selected: _period == p,
+                            selectedColor: AppColors.primaryGreen,
+                            labelStyle: TextStyle(
+                              color: _period == p ? Colors.white : AppColors.textDark,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                            ),
+                            onSelected: (_) => setState(() => _period = p),
+                          ),
+                        ),
+                      ChoiceChip(
+                        label: Text(
+                          _period == 'Custom' && _customRange != null
+                              ? '${DateFormat('dd MMM').format(_customRange!.start)} – ${DateFormat('dd MMM').format(_customRange!.end)}'
+                              : 'Custom range',
+                        ),
+                        selected: _period == 'Custom',
+                        selectedColor: AppColors.primaryGreen,
+                        labelStyle: TextStyle(
+                          color: _period == 'Custom' ? Colors.white : AppColors.textDark,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
+                        onSelected: (_) => _pickCustomRange(),
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 12),

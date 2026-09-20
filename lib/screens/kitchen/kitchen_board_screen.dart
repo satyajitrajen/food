@@ -82,10 +82,11 @@ class _KitchenBoardScreenState extends State<KitchenBoardScreen> with SingleTick
         bottom: TabBar(
           controller: _tabController,
           labelColor: AppColors.primaryGreen,
-          unselectedLabelColor: AppColors.textMuted,
+          unselectedLabelColor: AppColors.textDark,
           indicatorColor: AppColors.primaryGreen,
           indicatorWeight: 3,
           labelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
           tabs: [
             Tab(text: 'New (${newKots.length})'),
             Tab(text: 'Preparing (${preparingKots.length})'),

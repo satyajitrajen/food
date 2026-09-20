@@ -72,6 +72,9 @@ func (s *Server) Routes() http.Handler {
 	// Marketing lead capture from the landing page (public, rate-limited).
 	r.With(registerLimit).Post("/api/v1/leads", s.handleCreateLead)
 
+	// Customer digital menu (public): the page a table QR opens.
+	r.Get("/m/{outletID}", s.handleCustomerMenu)
+
 	// Legacy terminal bootstrap (org_code optional; defaults to the demo org).
 	r.Get("/api/v1/outlets", s.handleListOutlets)
 	r.Get("/api/v1/staff", s.handleListStaff)

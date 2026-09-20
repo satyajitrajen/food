@@ -533,7 +533,11 @@ func (s *Server) handleFireKOT(w http.ResponseWriter, r *http.Request) {
 			CreatedAt:   store.Now(),
 		}
 		for _, it := range unsent {
-			kot.Items = append(kot.Items, models.KOTItem{OrderItemID: it.ID, Name: it.Name, Quantity: it.Quantity})
+			veg := true
+			if mi, merr := s.Store.GetMenuItem(r.Context(), it.MenuItemID); merr == nil {
+				veg = mi.IsVeg
+			}
+			kot.Items = append(kot.Items, models.KOTItem{OrderItemID: it.ID, Name: it.Name, Quantity: it.Quantity, IsVeg: veg})
 		}
 		if err := s.Store.InsertKOT(r.Context(), kot); err != nil {
 			return 0, nil, err

@@ -27,25 +27,30 @@ class _PosMenuScreenState extends State<PosMenuScreen> {
     super.dispose();
   }
 
+  bool _adding = false;
+
   void _handleItemTap(BuildContext context, MenuItem item, PosProvider provider) {
+    // Debounce: a double-fire on the ADD button must not insert the same
+    // dish twice (each tap goes through one dialog round-trip).
+    if (_adding) return;
     // Always ask: every add (simple dish, variant dish, spice/add-on dish)
     // goes through the customization dialog so each quantity/variant gets
     // its own variant + modifiers + note choice. addToCart merges identical
-    // picks and splits differing ones into separate lines.
+    // picks into one line with the chosen quantity.
+    _adding = true;
     VariantAndModifiersDialog.show(
       context,
       item: item,
       onConfirm: (variant, modifiers, note, qty) {
-        for (int i = 0; i < qty; i++) {
-          provider.addToCart(
-            item,
-            variant: variant,
-            modifiers: modifiers,
-            note: note,
-          );
-        }
+        provider.addToCart(
+          item,
+          variant: variant,
+          modifiers: modifiers,
+          note: note,
+          quantity: qty,
+        );
       },
-    );
+    ).whenComplete(() => _adding = false);
   }
 
   @override

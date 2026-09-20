@@ -342,6 +342,9 @@ class CartViewScreen extends StatelessWidget {
                           child: ElevatedButton.icon(
                             style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryGreen),
                             onPressed: () {
+                              // Capture the order before the dialog: the
+                              // callback must not depend on live state.
+                              final order = provider.activeOrder;
                               KOTPreviewDialog.show(
                                 context,
                                 onSendKOT: () {
@@ -350,22 +353,22 @@ class CartViewScreen extends StatelessWidget {
                                     KOTSentDialog.show(
                                       context,
                                       kot: kot,
-                                      onAddMoreItems: () => Navigator.of(context).pop(),
+                                      // The dialog pops itself; callbacks must
+                                      // not pop again (they navigate instead).
+                                      onAddMoreItems: () {},
                                       onViewOrder: () {
-                                        final nav = Navigator.of(context);
-                                        final order = provider.activeOrder;
-                                        nav.pop();
-                                        if (order != null) {
-                                          nav.push(
-                                            MaterialPageRoute(
-                                              builder: (_) => RunningOrderDetailScreen(order: order),
-                                            ),
-                                          );
-                                        }
+                                        if (order == null) return;
+                                        // Replace the cart with the order
+                                        // details screen (status + items).
+                                        Navigator.of(context).pushReplacement(
+                                          MaterialPageRoute(
+                                            builder: (_) => RunningOrderDetailScreen(order: order),
+                                          ),
+                                        );
                                       },
                                       onGoToTables: () {
-                                        // Return to the shell so the Tables tab is
-                                        // actually visible, then switch to it.
+                                        // Return to the shell so the Tables tab
+                                        // is actually visible, then switch to it.
                                         Navigator.of(context).popUntil((r) => r.isFirst);
                                         provider.goToDest(AppDest.tables);
                                       },
@@ -381,18 +384,38 @@ class CartViewScreen extends StatelessWidget {
                       else
                         Expanded(
                           child: ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(backgroundColor: AppColors.vegGreen),
+                            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryGreen),
                             onPressed: () {
                               Navigator.of(context).push(
-                                MaterialPageRoute(builder: (_) => const BillPreviewScreen()),
+                                MaterialPageRoute(
+                                  builder: (_) => RunningOrderDetailScreen(order: activeOrder),
+                                ),
                               );
                             },
-                            icon: const Icon(Icons.receipt_long, size: 16),
-                            label: const Text('Checkout Bill'),
+                            icon: const Icon(Icons.receipt_long_outlined, size: 16),
+                            label: const Text('View Order'),
                           ),
                         ),
                     ],
                   ),
+                  // Explicit checkout: never automatic (waiter taps it when
+                  // the table is ready to pay).
+                  if (!hasUnsentItems) ...[
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(backgroundColor: AppColors.vegGreen),
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) => const BillPreviewScreen()),
+                          );
+                        },
+                        icon: const Icon(Icons.point_of_sale, size: 16),
+                        label: const Text('Checkout'),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),

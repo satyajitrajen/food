@@ -122,6 +122,14 @@ class TableSelectionScreen extends StatelessWidget {
     Color borderColor = AppColors.borderLight;
     if (table.status == TableStatus.occupied) borderColor = AppColors.primaryGreen.withValues(alpha: 0.5);
     if (table.status == TableStatus.billing) borderColor = AppColors.saffronAmber;
+    // Guest info lives on the table's running order — surface it on the card.
+    final guestOrder = table.activeOrderId == null
+        ? null
+        : provider.orders.where((o) => o.id == table.activeOrderId).firstOrNull;
+    final customerLine = [
+      if ((guestOrder?.customerName ?? '').isNotEmpty) guestOrder!.customerName!,
+      if ((guestOrder?.customerPhone ?? '').isNotEmpty) guestOrder!.customerPhone!,
+    ].join(' · ');
 
     return InkWell(
       onTap: () async {
@@ -216,13 +224,29 @@ class TableSelectionScreen extends StatelessWidget {
                 const SizedBox(width: 4),
                 Expanded(
                   child: Text(
-                    '${table.seats} Seats · ${table.floor.split(" ").first}',
+                    '${table.seats} Seats · ${table.guestCount > 0 ? "${table.guestCount} Guests · " : ""}${table.floor.split(" ").first}',
                     style: const TextStyle(color: AppColors.textMuted, fontSize: 11, fontWeight: FontWeight.w500),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
             ),
+            if (customerLine.isNotEmpty)
+              Row(
+                children: [
+                  const Icon(Icons.person_outline, size: 12, color: AppColors.primaryGreen),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      customerLine,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          color: AppColors.textDark, fontSize: 11, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ],
+              ),
             const Divider(height: 8, color: AppColors.borderLight),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,

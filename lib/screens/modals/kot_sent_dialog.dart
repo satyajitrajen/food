@@ -72,7 +72,8 @@ class KOTSentDialog extends StatelessWidget {
                 style: const TextStyle(color: AppColors.textMuted, fontSize: 13),
               ),
               const SizedBox(height: 24),
-              // Action Buttons
+              // Action buttons — the dialog pops itself; each callback
+              // navigates distinctly (order details vs floor tables).
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -80,7 +81,20 @@ class KOTSentDialog extends StatelessWidget {
                     Navigator.of(context).pop();
                     onAddMoreItems();
                   },
-                  child: const Text('Add More Items'),
+                  child: const Text('Add More', style: TextStyle(fontWeight: FontWeight.w700)),
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  style: FilledButton.styleFrom(backgroundColor: AppColors.primaryGreen),
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    onViewOrder();
+                  },
+                  icon: const Icon(Icons.receipt_long, size: 18),
+                  label: const Text('View Order'),
                 ),
               ),
               const SizedBox(height: 10),
@@ -89,18 +103,10 @@ class KOTSentDialog extends StatelessWidget {
                 child: OutlinedButton(
                   onPressed: () {
                     Navigator.of(context).pop();
-                    onViewOrder();
+                    onGoToTables();
                   },
-                  child: const Text('View Order Status'),
+                  child: const Text('Floor Tables'),
                 ),
-              ),
-              const SizedBox(height: 10),
-              TextButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  onGoToTables();
-                },
-                child: const Text('Go to Floor Tables', style: TextStyle(color: AppColors.textMuted)),
               ),
             ],
           ),

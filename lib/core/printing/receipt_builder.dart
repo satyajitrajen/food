@@ -107,3 +107,21 @@ String _typeLabel(dynamic type) {
   if (name.contains('delivery')) return 'DELIVERY';
   return 'DINE-IN';
 }
+
+/// Small connectivity test page (printer status screen).
+List<int> buildTestPageBytes() {
+  final b = EscPosBuilder();
+  b
+    ..align(1)
+    ..doubleSize(true)
+    ..bold(true)
+    ..text('Hishobkr POS')
+    ..doubleSize(false)
+    ..bold(false)
+    ..divider()
+    ..text('Printer test — connection OK')
+    ..text('Printed: ${DateTime.now()}')
+    ..feed(3)
+    ..cut();
+  return b.build();
+}

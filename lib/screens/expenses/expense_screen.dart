@@ -16,6 +16,61 @@ class ExpenseScreen extends StatefulWidget {
 }
 
 class _ExpenseScreenState extends State<ExpenseScreen> {
+  // Period filter: 'Today' | '7D' | '30D' | 'All' | 'Custom'
+  String _period = 'All';
+  DateTimeRange? _customRange;
+
+  bool _inPeriod(DateTime d) {
+    switch (_period) {
+      case 'Today':
+        final now = DateTime.now();
+        return d.year == now.year && d.month == now.month && d.day == now.day;
+      case '7D':
+        return d.isAfter(DateTime.now().subtract(const Duration(days: 7)));
+      case '30D':
+        return d.isAfter(DateTime.now().subtract(const Duration(days: 30)));
+      case 'Custom':
+        final r = _customRange;
+        if (r == null) return true;
+        final start = DateTime(r.start.year, r.start.month, r.start.day);
+        final end = DateTime(r.end.year, r.end.month, r.end.day, 23, 59, 59);
+        return !d.isBefore(start) && !d.isAfter(end);
+      default:
+        return true;
+    }
+  }
+
+  String _periodLabel(String p) {
+    switch (p) {
+      case '7D':
+        return 'Last 7 days';
+      case '30D':
+        return 'Last 30 days';
+      default:
+        return p;
+    }
+  }
+
+  Future<void> _pickCustomRange() async {
+    final now = DateTime.now();
+    final picked = await showDateRangePicker(
+      context: context,
+      initialDateRange: _customRange ??
+          DateTimeRange(
+            start: now.subtract(const Duration(days: 7)),
+            end: now,
+          ),
+      firstDate: DateTime(now.year - 2),
+      lastDate: now,
+    );
+    if (picked != null) {
+      setState(() {
+        _customRange = picked;
+        _period = 'Custom';
+      });
+    }
+  }
+
   void _showAddExpenseDialog(BuildContext context, PosProvider provider) {
     final titleCtrl = TextEditingController();
     final amountCtrl = TextEditingController();
@@ -122,7 +177,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<PosProvider>();
-    final expenses = provider.expenses;
+    final expenses = provider.expenses.where((e) => _inPeriod(e.date)).toList();
 
     return Scaffold(
       backgroundColor: AppColors.creamBg,
@@ -172,6 +227,46 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
               ],
             ),
             const SizedBox(height: 24),
+
+            // Date period filter with custom range
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (final p in ['Today', '7D', '30D', 'All'])
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: ChoiceChip(
+                        label: Text(_periodLabel(p)),
+                        selected: _period == p,
+                        selectedColor: AppColors.primaryGreen,
+                        labelStyle: TextStyle(
+                          color: _period == p ? Colors.white : AppColors.textDark,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
+                        onSelected: (_) => setState(() => _period = p),
+                      ),
+                    ),
+                  ChoiceChip(
+                    label: Text(
+                      _period == 'Custom' && _customRange != null
+                          ? '${DateFormat('dd MMM').format(_customRange!.start)} – ${DateFormat('dd MMM').format(_customRange!.end)}'
+                          : 'Custom range',
+                    ),
+                    selected: _period == 'Custom',
+                    selectedColor: AppColors.primaryGreen,
+                    labelStyle: TextStyle(
+                      color: _period == 'Custom' ? Colors.white : AppColors.textDark,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                    ),
+                    onSelected: (_) => _pickCustomRange(),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
 
             // Expense List Section
             const Text('Logged Expenses', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),

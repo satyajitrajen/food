@@ -18,15 +18,9 @@ class PaymentScreen extends StatefulWidget {
 }
 
 class _PaymentScreenState extends State<PaymentScreen> {
-  String _selectedPaymentMode = 'Cash'; // 'Cash', 'UPI', 'Card', 'Wallet', 'Credit'
+  String _selectedPaymentMode = 'Cash'; // 'Cash', 'UPI', 'Card', 'Credit'
   final TextEditingController _cashReceivedController = TextEditingController();
   final TextEditingController _cardRefController = TextEditingController();
-  // Split-tender state
-  bool _splitMode = false;
-  final TextEditingController _splitCashC = TextEditingController();
-  final TextEditingController _splitUpiC = TextEditingController();
-  final TextEditingController _splitCardC = TextEditingController();
-  final TextEditingController _splitTenderedC = TextEditingController();
 
   @override
   void initState() {
@@ -40,135 +34,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
   void dispose() {
     _cashReceivedController.dispose();
     _cardRefController.dispose();
-    _splitCashC.dispose();
-    _splitUpiC.dispose();
-    _splitCardC.dispose();
-    _splitTenderedC.dispose();
     super.dispose();
-  }
-
-  Widget _buildSplitPanel(BuildContext context, PosProvider provider, RestaurantOrder order, double grandTotal) {
-    double amt(TextEditingController c) => double.tryParse(c.text) ?? 0.0;
-    final cashAmt = amt(_splitCashC);
-    final upiAmt = amt(_splitUpiC);
-    final cardAmt = amt(_splitCardC);
-    final allocated = cashAmt + upiAmt + cardAmt;
-    final remaining = grandTotal - allocated;
-    final tendered = amt(_splitTenderedC);
-    final cashChange = (tendered - cashAmt).clamp(0.0, double.infinity);
-
-    Widget legField(TextEditingController c, String label, IconData icon) => TextField(
-          controller: c,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          onChanged: (_) => setState(() {}),
-          decoration: InputDecoration(
-            prefixIcon: Icon(icon, size: 18),
-            labelText: label,
-          ),
-        );
-
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.borderLight),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Allocate the bill across methods',
-              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-          const SizedBox(height: 12),
-          legField(_splitCashC, 'Cash amount (₹)', Icons.currency_rupee),
-          const SizedBox(height: 10),
-          legField(_splitUpiC, 'UPI amount (₹)', Icons.qr_code_2),
-          const SizedBox(height: 10),
-          legField(_splitCardC, 'Card amount (₹)', Icons.credit_card),
-          const SizedBox(height: 10),
-          if (cashAmt > 0) ...[
-            legField(_splitTenderedC, 'Cash received (₹)', Icons.payments_outlined),
-            if (tendered >= cashAmt && cashAmt > 0)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text('Cash change: ₹${cashChange.toStringAsFixed(0)}',
-                    style: const TextStyle(color: AppColors.vegGreen, fontWeight: FontWeight.w700, fontSize: 13)),
-              ),
-          ],
-          const Divider(height: 24, color: AppColors.borderLight),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(remaining.abs() > 0.005 ? 'Still to allocate:' : 'Fully allocated ✓',
-                  style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 13,
-                      color: remaining.abs() > 0.005 ? AppColors.nonVegRed : AppColors.vegGreen)),
-              Text('₹${remaining.abs().toStringAsFixed(0)}',
-                  style: TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 16,
-                      color: remaining.abs() > 0.005 ? AppColors.nonVegRed : AppColors.vegGreen)),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _paySplit(BuildContext context, PosProvider provider, double grandTotal) async {
-    double amt(TextEditingController c) => double.tryParse(c.text) ?? 0.0;
-    final cashAmt = amt(_splitCashC);
-    final upiAmt = amt(_splitUpiC);
-    final cardAmt = amt(_splitCardC);
-    final allocated = cashAmt + upiAmt + cardAmt;
-    final messenger = ScaffoldMessenger.of(context);
-    if ((allocated - grandTotal).abs() > 0.005 || allocated <= 0) {
-      messenger.showSnackBar(SnackBar(
-        content: Text('Allocate exactly ₹${grandTotal.toStringAsFixed(0)} across the methods'),
-        backgroundColor: AppColors.nonVegRed,
-      ));
-      return;
-    }
-    final tendered = amt(_splitTenderedC);
-    if (cashAmt > 0 && tendered + 0.005 < cashAmt) {
-      messenger.showSnackBar(const SnackBar(
-        content: Text('Cash received is short of the cash allocation'),
-        backgroundColor: AppColors.nonVegRed,
-      ));
-      return;
-    }
-    final ok = await showConfirmDialog(
-      context,
-      title: 'Complete split payment?',
-      message:
-          'Collect ₹${grandTotal.toStringAsFixed(0)} as split (Cash ₹${cashAmt.toStringAsFixed(0)} + UPI ₹${upiAmt.toStringAsFixed(0)} + Card ₹${cardAmt.toStringAsFixed(0)})? The order will close and this cannot be undone.',
-      confirmLabel: 'Collect Payment',
-      isDanger: false,
-    );
-    if (!ok || !context.mounted) return;
-    final legs = <({String method, double amount})>[
-      if (cashAmt > 0) (method: 'Cash', amount: cashAmt),
-      if (upiAmt > 0) (method: 'UPI', amount: upiAmt),
-      if (cardAmt > 0) (method: 'Card', amount: cardAmt),
-    ];
-    final collected = (cashAmt > 0 && tendered > allocated) ? tendered : allocated;
-    final completed = provider.completePayment(
-      paymentMethod: 'Split',
-      amountPaid: collected,
-      splits: legs,
-      cashTendered: cashAmt > 0 ? tendered : null,
-    );
-    if (completed == null) {
-      messenger.showSnackBar(const SnackBar(
-        content: Text('Payment not recorded — check the allocation'),
-        backgroundColor: AppColors.nonVegRed,
-      ));
-      return;
-    }
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => PaymentSuccessScreen(order: completed)),
-    );
   }
 
   void _finishPayment(BuildContext context, PosProvider provider, String method, double amount) {
@@ -297,39 +163,6 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 ),
                 const SizedBox(height: 20),
 
-                // Split-tender toggle
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: _splitMode ? AppColors.primaryGreenLight : Colors.white,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppColors.borderLight),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.call_split, size: 20, color: AppColors.primaryGreen),
-                      const SizedBox(width: 10),
-                      const Expanded(
-                        child: Text('Split across Cash + UPI + Card',
-                            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                      ),
-                      Switch(
-                        value: _splitMode,
-                        activeThumbColor: AppColors.primaryGreen,
-                        onChanged: (v) => setState(() {
-                          _splitMode = v;
-                          if (v) {
-                            final total = provider.activeOrder?.grandTotal ?? 0.0;
-                            _splitCashC.text = total.toStringAsFixed(0);
-                            _splitUpiC.text = '';
-                            _splitCardC.text = '';
-                            _splitTenderedC.text = total.toStringAsFixed(0);
-                          }
-                        }),
-                      ),
-                    ],
-                  ),
-                ),
                 const SizedBox(height: 16),
 
                 // Payment Modes Grid
@@ -346,9 +179,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 const SizedBox(height: 20),
 
                 // Mode Specific Content
-                if (_splitMode) ...[
-                  _buildSplitPanel(context, provider, activeOrder, grandTotal),
-                ] else if (_selectedPaymentMode == 'Cash') ...[
+                if (_selectedPaymentMode == 'Cash') ...[
                   Container(
                     padding: const EdgeInsets.all(18),
                     decoration: BoxDecoration(
@@ -460,10 +291,6 @@ class _PaymentScreenState extends State<PaymentScreen> {
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(backgroundColor: AppColors.vegGreen),
                     onPressed: () async {
-                      if (_splitMode) {
-                        _paySplit(context, provider, grandTotal);
-                        return;
-                      }
                       if (_selectedPaymentMode == 'Credit / Pay Later') {
                         final managerPin = await ManagerPinDialog.show(
                           context,
@@ -500,9 +327,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                       );
                     },
                     child: Text(
-                      _splitMode
-                          ? 'Complete Split Payment'
-                          : 'Complete ${_selectedPaymentMode.toUpperCase()} Payment',
+                      'Complete ${_selectedPaymentMode.toUpperCase()} Payment',
                       style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
                     ),
                   ),
