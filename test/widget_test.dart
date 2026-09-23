@@ -95,8 +95,10 @@ void main() {
       expect(find.text('Syncing local catalog & offline state...'), findsOneWidget);
       await tester.pump(const Duration(milliseconds: 500));
       await tester.pumpAndSettle(const Duration(seconds: 2));
-      // After splash, should transition to staff login with avatar & title
-      expect(find.text('Rahul Sharma'), findsOneWidget);
+      // After splash, should transition to staff login. Profiles arrive from
+      // the backend after org bootstrap — never hardcoded — so the picker
+      // shows its neutral "Staff Login" placeholder until real staff hydrate.
+      expect(find.text('Staff Login'), findsOneWidget);
     });
 
     testWidgets('POS Dashboard displays operational KPIs and floor glance', (WidgetTester tester) async {

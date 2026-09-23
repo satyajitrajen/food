@@ -84,13 +84,21 @@ class PosProvider extends ChangeNotifier {
       _registerOps();
       _readyFuture = _bootstrap();
     }
-    if (!kDebugMode) {
-      // Release binaries ship without the demo dataset (fake staff, plaintext
-      // demo PINs, fabricated GSTINs); real data arrives via hydration.
+    if (apiEnabled || !kDebugMode) {
+      // Server-first: connected builds (debug included) start with zero
+      // fabricated rows — outlets, staff, tables, menu, expenses, customers,
+      // inventory, suppliers and purchases all arrive via hydration. Release
+      // builds additionally ship without the demo dataset (fake staff,
+      // plaintext demo PINs, fabricated GSTINs).
       _outlets.clear();
       _staffList.clear();
       _tables.clear();
       _menuItems.clear();
+      _expenses.clear();
+      _customers.clear();
+      _inventory.clear();
+      _suppliers.clear();
+      _purchases.clear();
     }
     _seedData();
   }
@@ -1442,13 +1450,13 @@ class PosProvider extends ChangeNotifier {
 
   Outlet _currentOutlet = Outlet(
     id: 'out-01',
-    name: 'Baner Outlet',
-    address: 'Plot 42, High Street, Baner, Pune - 411045',
+    name: 'Outlet',
+    address: '',
     terminal: 'POS-01',
     isOnline: true,
-    gstin: '27AAAAA0000A1Z5',
-    fssai: '11521000000123',
-    phone: '+91 98765 43210',
+    gstin: '',
+    fssai: '',
+    phone: '',
   );
   Outlet get currentOutlet => _currentOutlet;
 
@@ -3837,7 +3845,23 @@ class PosProvider extends ChangeNotifier {
 
   // Seed sample initial transactions - completely empty so there is no demo or dummy data.
   void _seedData() {
-    // Pure production state: no demo orders, dummy shifts, or fake KOTs.
-    // All transactions, shifts, and orders are created by real users or hydrated from the server.
+    if (apiEnabled) {
+      // Connected builds stay pure: no demo outlet identity, no fabricated
+      // rows — hydration provides everything.
+      return;
+    }
+    // Demo dataset (apiEnabled=false, debug): sample outlet identity so
+    // receipts and settings look complete without a backend. The demo rows on
+    // the seed lists above stay alive only in this mode.
+    _currentOutlet = Outlet(
+      id: 'out-01',
+      name: 'Baner Outlet',
+      address: 'Plot 42, High Street, Baner, Pune - 411045',
+      terminal: 'POS-01',
+      isOnline: true,
+      gstin: '27AAAAA0000A1Z5',
+      fssai: '11521000000123',
+      phone: '+91 98765 43210',
+    );
   }
 }
