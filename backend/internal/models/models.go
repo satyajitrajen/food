@@ -356,10 +356,11 @@ type ShiftCloseReq struct {
 }
 
 type CashMoveReq struct {
-	Type      string  `json:"type"` // cash_in|cash_out
-	Amount    int64   `json:"amount_paise"`
-	Reason    string  `json:"reason"`
-	Reference *string `json:"reference,omitempty"`
+	Type      string     `json:"type"` // cash_in|cash_out
+	Amount    int64      `json:"amount_paise"`
+	Reason    string     `json:"reason"`
+	Reference *string    `json:"reference,omitempty"`
+	At        *time.Time `json:"at,omitempty"` // ledger timestamp (defaults to now)
 }
 
 type CashTransaction struct {
@@ -421,13 +422,16 @@ type CustomerCreate struct {
 }
 
 type InventoryItem struct {
-	ID        string  `json:"id"`
-	OutletID  string  `json:"outlet_id"`
-	Name      string  `json:"name"`
-	Unit      string  `json:"unit"`
-	Stock     float64 `json:"stock"`
-	MinStock  float64 `json:"min_stock"`
-	CostPaise int64   `json:"cost_paise"`
+	ID        string     `json:"id"`
+	OutletID  string     `json:"outlet_id"`
+	Name      string     `json:"name"`
+	Unit      string     `json:"unit"`
+	Stock     float64    `json:"stock"`
+	MinStock  float64    `json:"min_stock"`
+	CostPaise int64      `json:"cost_paise"`
+	BatchNo   *string    `json:"batch_no,omitempty"`
+	RackNo    *string    `json:"rack_no,omitempty"`
+	PurchasedAt *time.Time `json:"purchased_at,omitempty"`
 }
 
 type StockAdjust struct {
@@ -457,7 +461,6 @@ type Supplier struct {
 	Category    *string `json:"category"`
 	Outstanding int64   `json:"outstanding_paise"`
 }
-
 type SupplierCreate struct {
 	Name     string  `json:"name"`
 	Mobile   string  `json:"mobile"`
@@ -473,11 +476,12 @@ type PurchaseLine struct {
 }
 
 type PurchaseCreate struct {
-	InvoiceNo  string         `json:"invoice_no"`
-	SupplierID *string        `json:"supplier_id,omitempty"`
-	Status     string         `json:"status"` // paid|pending
-	TotalPaise int64          `json:"total_paise"`
-	Items      []PurchaseLine `json:"items,omitempty"`
+	InvoiceNo   string         `json:"invoice_no"`
+	SupplierID  *string        `json:"supplier_id,omitempty"`
+	Status      string         `json:"status"` // paid|pending
+	TotalPaise  int64          `json:"total_paise"`
+	PurchasedAt *time.Time     `json:"purchased_at,omitempty"` // when the goods arrived (defaults to now)
+	Items       []PurchaseLine `json:"items,omitempty"`
 }
 
 type Purchase struct {
@@ -491,6 +495,40 @@ type Purchase struct {
 	Status       string         `json:"status"`
 	Summary      string         `json:"summary"`
 	Items        []PurchaseLine `json:"items,omitempty"`
+}
+
+// ---- Supplier payments (direct payouts against outstanding dues) ----
+
+type SupplierPayment struct {
+	ID           string     `json:"id"`
+	OutletID     string     `json:"outlet_id"`
+	SupplierID   string     `json:"supplier_id"`
+	SupplierName string     `json:"supplier_name"`
+	Amount       int64      `json:"amount_paise"`
+	Method       string     `json:"method"` // cash|upi|bank_transfer
+	Reference    *string    `json:"reference"`
+	StaffID      *string    `json:"staff_id"`
+	StaffName    *string    `json:"staff_name"`
+	Ts           time.Time  `json:"ts"`
+}
+
+type SupplierPaymentCreate struct {
+	Amount    int64      `json:"amount_paise"`
+	Method    string     `json:"method"` // cash|upi|bank_transfer
+	Reference *string    `json:"reference,omitempty"`
+	At        *time.Time `json:"at,omitempty"`
+}
+
+// ---- Staff attendance (auto clock-in on login, clock-out on logout) ----
+
+type AttendanceEntry struct {
+	ID        string     `json:"id"`
+	OrgID     string     `json:"org_id"`
+	OutletID  string     `json:"outlet_id"`
+	StaffID   string     `json:"staff_id"`
+	StaffName string     `json:"staff_name"`
+	ClockIn   time.Time  `json:"clock_in"`
+	ClockOut  *time.Time `json:"clock_out"`
 }
 
 // ---- Customer credit (FR-C1) ----

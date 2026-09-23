@@ -11,6 +11,7 @@ import '../../models/shift_model.dart';
 import '../../models/staff_model.dart';
 import '../../models/subscription_model.dart';
 import '../../models/table_model.dart';
+import '../../models/cash_model.dart';
 
 /// Money convention: the Go API speaks INTEGER PAISE; the Flutter models
 /// speak DOUBLE RUPEES. Conversion happens only here, at the API edge.
@@ -483,6 +484,10 @@ InventoryItem inventoryItemFromApi(Map<String, dynamic> j) => InventoryItem(
       minStock: _double(j['min_stock']),
       unit: _str(j['unit'], 'KG'),
       costPerUnit: toRupees(_int(j['cost_paise'])),
+      // Purchase provenance (W5) — server persists and echoes these.
+      batchNo: _optStr(j['batch_no']),
+      rackNo: _optStr(j['rack_no']),
+      purchasedAt: _dt(j['purchased_at']),
     );
 
 Supplier supplierFromApi(Map<String, dynamic> j) => Supplier(
@@ -502,6 +507,62 @@ PurchaseRecord purchaseFromApi(Map<String, dynamic> j) => PurchaseRecord(
       totalAmount: toRupees(_int(j['total_paise'])),
       paymentStatus: _str(j['status']) == 'pending' ? 'Pending' : 'Paid',
       itemsSummary: _str(j['summary']),
+    );
+
+// ---- Server-truth ledgers (attendance / supplier payments / cash moves) ----
+
+/// Server attendance row → local model (clock_out null = still on duty).
+AttendanceEntry attendanceFromApi(Map<String, dynamic> j) => AttendanceEntry(
+      id: _str(j['id']),
+      staffId: _str(j['staff_id']),
+      staffName: _str(j['staff_name'], 'Staff'),
+      clockIn: _dtOrNow(j['clock_in']),
+      clockOut: _dt(j['clock_out']),
+    );
+
+/// Supplier payout: server speaks paise; method arrives snake_case.
+SupplierPayment supplierPaymentFromApi(Map<String, dynamic> j) => SupplierPayment(
+      id: _str(j['id']),
+      supplierId: _str(j['supplier_id']),
+      supplierName: _str(j['supplier_name']),
+      amount: toRupees(_int(j['amount_paise'])),
+      method: supplierMethodFromApi(_str(j['method'])),
+      paidAt: _dtOrNow(j['ts']),
+      reference: _optStr(j['reference']),
+      staffName: _str(j['staff_name'], 'Staff'),
+    );
+
+String supplierMethodFromApi(String s) {
+  switch (s) {
+    case 'upi':
+      return 'UPI';
+    case 'bank_transfer':
+      return 'Bank Transfer';
+    default:
+      return 'Cash';
+  }
+}
+
+String supplierMethodToApi(String label) {
+  switch (label) {
+    case 'UPI':
+      return 'upi';
+    case 'Bank Transfer':
+      return 'bank_transfer';
+    default:
+      return 'cash';
+  }
+}
+
+/// Cash-move ledger row (server truth across all shifts).
+CashTransaction cashMoveFromApi(Map<String, dynamic> j) => CashTransaction(
+      id: _str(j['id']),
+      type: _str(j['type']) == 'cash_in' ? CashFlowType.cashIn : CashFlowType.cashOut,
+      amount: toRupees(_int(j['amount_paise'])),
+      reason: _str(j['reason']),
+      reference: _optStr(j['reference']),
+      timestamp: _dtOrNow(j['ts']),
+      staffName: _str(j['staff_name'], 'Staff'),
     );
 
 DashboardStats dashboardReportFromApi(Map<String, dynamic> j) => DashboardStats(
@@ -624,7 +685,6 @@ RazorpaySubscriptionStart razorpayStartFromApi(Map<String, dynamic> j) =>
       planName: _str(j['plan_name']),
       amountPaise: _int(j['amount_paise']),
       currency: _str(j['currency']),
-      registrationPaise: _int(j['registration_paise']),
       trial: j['trial'] == true,
       trialEndsAt: _dt(j['trial_ends_at']),
       firstChargeAt: _dt(j['first_charge_at']),

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -362,8 +364,11 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
                             child: OutlinedButton.icon(
                               icon: const Icon(Icons.payments_outlined, size: 16),
                               label: const Text('Make Payment'),
-                              onPressed: () =>
-                                  _showSupplierPaymentDialog(context, provider, sup),
+                              onPressed: () async {
+                                await provider.fetchSupplierPayments(sup.id);
+                                if (!context.mounted) return;
+                                _showSupplierPaymentDialog(context, provider, sup);
+                              },
                             ),
                           ),
                         ],
@@ -527,6 +532,7 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
                     backgroundColor: applied ? AppColors.vegGreen : AppColors.nonVegRed,
                   ),
                 );
+                if (applied) unawaited(provider.fetchSupplierPayments(sup.id));
               },
               child: const Text('Pay'),
             ),

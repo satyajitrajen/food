@@ -29,8 +29,8 @@ class StatusBadge extends StatelessWidget {
       case TableStatus.occupied:
         return const StatusBadge(
           label: 'Occupied',
-          textColor: AppColors.primaryGreen,
-          bgColor: AppColors.primaryGreenLight,
+          textColor: AppColors.nonVegRed,
+          bgColor: AppColors.nonVegRedBg,
           icon: Icons.people_outline,
         );
       case TableStatus.reserved:

@@ -231,16 +231,15 @@ type ExtendReq struct {
 // free trial, FirstChargeAt/TrialEndsAt carry the scheduled start_at (the
 // mandate is authorized now, the first debit happens on day 8).
 type RazorpaySubscriptionStart struct {
-	SubscriptionID    string `json:"subscription_id"`
-	KeyID             string `json:"key_id"`
-	PlanCode          string `json:"plan_code"`
-	PlanName          string `json:"plan_name"`
-	AmountPaise       int64  `json:"amount_paise"` // gross per cycle (base + GST)
-	Currency          string `json:"currency"`
-	RegistrationPaise int64  `json:"registration_paise"` // one-time fee charged with cycle 1 (0 = none)
-	Trial             bool   `json:"trial"`
-	TrialEndsAt       *time.Time `json:"trial_ends_at,omitempty"`
-	FirstChargeAt     *time.Time `json:"first_charge_at,omitempty"`
+	SubscriptionID string     `json:"subscription_id"`
+	KeyID          string     `json:"key_id"`
+	PlanCode       string     `json:"plan_code"`
+	PlanName       string     `json:"plan_name"`
+	AmountPaise    int64      `json:"amount_paise"` // gross per cycle (base + GST)
+	Currency       string     `json:"currency"`
+	Trial          bool       `json:"trial"`
+	TrialEndsAt    *time.Time `json:"trial_ends_at,omitempty"`
+	FirstChargeAt  *time.Time `json:"first_charge_at,omitempty"`
 }
 
 // SubscriptionAppStatus is the staff-scoped read behind the POS app's

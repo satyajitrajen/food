@@ -184,7 +184,6 @@ void main() {
       final start = razorpayStartFromApi({
         'subscription_id': 'sub_1', 'key_id': 'rzp_test_1', 'plan_code': 'pro',
         'plan_name': 'Pro', 'amount_paise': 235882, 'currency': 'INR',
-        'registration_paise': 10100,
       });
       expect(start.subscriptionId, 'sub_1');
       expect(start.keyId, 'rzp_test_1');
@@ -192,7 +191,6 @@ void main() {
       expect(start.planName, 'Pro');
       expect(start.amountPaise, 235882);
       expect(start.currency, 'INR');
-      expect(start.registrationPaise, 10100);
       expect(start.trial, isFalse);
     });
 
@@ -200,7 +198,7 @@ void main() {
       final start = razorpayStartFromApi({
         'subscription_id': 'sub_1', 'key_id': 'rzp_test_1', 'plan_code': 'pro',
         'plan_name': 'Pro', 'amount_paise': 235882, 'currency': 'INR',
-        'registration_paise': 10100, 'trial': true,
+        'trial': true,
         'trial_ends_at': '2026-09-27T00:00:00Z',
         'first_charge_at': '2026-09-27T00:00:00Z',
       });

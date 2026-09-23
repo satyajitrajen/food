@@ -47,7 +47,6 @@ class RazorpaySubscriptionStart {
   final String planName;
   final int amountPaise;
   final String currency;
-  final int registrationPaise;
 
   /// True when the mandate is authorized during the free trial with the
   /// first charge scheduled at trial end (Razorpay start_at).
@@ -62,7 +61,6 @@ class RazorpaySubscriptionStart {
     required this.planName,
     required this.amountPaise,
     required this.currency,
-    required this.registrationPaise,
     this.trial = false,
     this.trialEndsAt,
     this.firstChargeAt,

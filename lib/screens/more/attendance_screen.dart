@@ -5,17 +5,23 @@ import 'package:provider/provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/pos_provider.dart';
 
-/// Attendance board (manager view): on-duty staff first, then the full
-/// clock-in/out log with hours. Entries are recorded on this terminal when
-/// staff sign in and out.
-class AttendanceScreen extends StatelessWidget {
+/// Attendance board: server truth when online (auto clock-in on login /
+/// clock-out on logout), local ledger as offline fallback. Managers/admins
+/// see everyone; staff-scoped roles get only their own entries server-side.
+class AttendanceScreen extends StatefulWidget {
   const AttendanceScreen({super.key});
 
-  String _hours(int minutes) {
-    final h = minutes ~/ 60;
-    final m = minutes % 60;
-    if (h <= 0) return '$m min';
-    return '${h}h ${m}m';
+  @override
+  State<AttendanceScreen> createState() => _AttendanceScreenState();
+}
+
+class _AttendanceScreenState extends State<AttendanceScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<PosProvider>().fetchAttendance();
+    });
   }
 
   @override
@@ -48,7 +54,7 @@ class AttendanceScreen extends StatelessWidget {
                           style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
                       SizedBox(height: 6),
                       Text(
-                        'Entries appear automatically when staff sign in and out on this device.',
+                        'Entries appear automatically when staff sign in and out.',
                         textAlign: TextAlign.center,
                         style: TextStyle(color: AppColors.textMuted, fontSize: 13),
                       ),
@@ -56,41 +62,51 @@ class AttendanceScreen extends StatelessWidget {
                   ),
                 ),
               )
-            : ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  const Text('On duty now',
-                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
-                  const SizedBox(height: 8),
-                  if (onDuty.isEmpty)
-                    const Text('Nobody is clocked in right now.',
-                        style: TextStyle(color: AppColors.textMuted, fontSize: 13))
-                  else
-                    ...onDuty.map((a) => _card(
+            : RefreshIndicator(
+                onRefresh: () => provider.fetchAttendance(),
+                child: ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    const Text('On duty now',
+                        style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                    const SizedBox(height: 8),
+                    if (onDuty.isEmpty)
+                      const Text('Nobody is clocked in right now.',
+                          style: TextStyle(color: AppColors.textMuted, fontSize: 13))
+                    else
+                      ...onDuty.map((a) => _card(
+                            context,
+                            a.staffName,
+                            'In ${DateFormat('hh:mm a').format(a.clockIn)}',
+                            'On duty · ${hours(a.minutesWorked)}',
+                            AppColors.vegGreen,
+                            Icons.circle,
+                          )),
+                    const SizedBox(height: 18),
+                    const Text('Full log',
+                        style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                    const SizedBox(height: 8),
+                    ...offDuty.map((a) => _card(
                           context,
                           a.staffName,
-                          'In ${DateFormat('hh:mm a').format(a.clockIn)}',
-                          'On duty · ${_hours(a.minutesWorked)}',
-                          AppColors.vegGreen,
-                          Icons.circle,
+                          '${DateFormat('dd MMM, hh:mm a').format(a.clockIn)} → '
+                              '${a.clockOut == null ? '' : DateFormat('hh:mm a').format(a.clockOut!)}',
+                          'Clocked out · ${hours(a.minutesWorked)}',
+                          AppColors.textMuted,
+                          Icons.check_circle_outline,
                         )),
-                  const SizedBox(height: 18),
-                  const Text('Full log',
-                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
-                  const SizedBox(height: 8),
-                  ...offDuty.map((a) => _card(
-                        context,
-                        a.staffName,
-                        '${DateFormat('dd MMM, hh:mm a').format(a.clockIn)} → '
-                            '${a.clockOut == null ? '' : DateFormat('hh:mm a').format(a.clockOut!)}',
-                        'Clocked out · ${_hours(a.minutesWorked)}',
-                        AppColors.textMuted,
-                        Icons.check_circle_outline,
-                      )),
-                ],
+                  ],
+                ),
               ),
       ),
     );
+  }
+
+  String hours(int minutes) {
+    final h = minutes ~/ 60;
+    final m = minutes % 60;
+    if (h <= 0) return '$m min';
+    return '${h}h ${m}m';
   }
 
   Widget _card(BuildContext context, String name, String timeLine,

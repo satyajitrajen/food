@@ -50,7 +50,7 @@ export const TermsPage: React.FC = () => {
 
         <h2>5. Subscription, Billing & Renewals</h2>
         <p>
-          Paid plans are billed in advance on a monthly or annual cycle in Indian Rupees (INR). Unless cancelled before the renewal date, subscriptions automatically renew. Tax invoices with proper input tax credit (ITC) are issued upon payment.
+          The FoodPOS Pro Dining plan is billed annually in advance in Indian Rupees (INR). Unless cancelled before the renewal date, subscriptions automatically renew. Tax invoices with proper input tax credit (ITC) are issued upon payment.
         </p>
 
         <h2>6. Limitation of Liability</h2>

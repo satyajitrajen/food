@@ -26,7 +26,7 @@ export const RefundPolicyPage: React.FC = () => {
 
         <h2>1. 14-Day Money-Back Guarantee (New Outlets)</h2>
         <p>
-          If you are a new merchant subscribing to any paid FoodPOS plan (Starter or Pro) and find that our software does not suit your operational requirements, you may request a <strong>100% full refund within 14 calendar days</strong> of your initial activation date.
+          If you are a new merchant subscribing to the FoodPOS Pro Dining plan and find that our software does not suit your operational requirements, you may request a <strong>100% full refund within 14 calendar days</strong> of your initial activation date.
         </p>
         <p>
           No questions asked. The full subscription fee will be credited back to your original source account (UPI, Netbanking, or Card) within 5 to 7 business days.

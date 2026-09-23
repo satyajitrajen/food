@@ -73,6 +73,9 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ent, _ := s.Store.GetEntitlement(r.Context(), row.OrgID)
+	// Attendance: a fresh login opens (or idempotently reuses) the clock-in
+	// session. Best-effort — never blocks the login.
+	_, _ = s.Store.ClockInStaff(r.Context(), row.OrgID, req.OutletID, row.ID, row.Name)
 	httpx.JSON(w, http.StatusOK, tokenResp{
 		Token: token, RefreshToken: refresh, TokenType: "Bearer",
 		ExpiresAt: time.Now().Add(auth.AccessTTL), Staff: row.Staff,
@@ -138,6 +141,10 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if sess, err := s.Store.GetSession(r.Context(), auth.HashToken(req.RefreshToken)); err == nil {
+		// Attendance: logout closes the staff member's open clock-in session.
+		if sess.Scope == auth.ScopeStaff {
+			_, _ = s.Store.ClockOutStaff(r.Context(), sess.ActorID)
+		}
 		_ = s.Store.RevokeSession(r.Context(), sess.ID)
 	}
 	httpx.JSON(w, http.StatusOK, map[string]any{"revoked": true})

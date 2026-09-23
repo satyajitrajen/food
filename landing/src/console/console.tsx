@@ -158,12 +158,7 @@ const LoginPage: React.FC = () => {
 
 // Must match the backend plan catalog (store/saas.go) and landing Pricing.
 const PLAN_LABELS: Record<string, string> = {
-  starter: 'Starter Café · ₹999/mo',
-  'starter-annual': 'Starter Café · ₹799/mo billed yearly',
-  pro: 'Pro Dining · ₹1,999/mo',
-  'pro-annual': 'Pro Dining · ₹1,599/mo billed yearly',
-  chain: 'Multi-Outlet Chain · ₹3,999/mo',
-  'chain-annual': 'Multi-Outlet Chain · ₹3,199/mo billed yearly',
+  pro: 'Pro Dining (Annual) · ₹1,999/year',
 };
 
 const RegisterPage: React.FC = () => {

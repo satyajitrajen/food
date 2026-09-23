@@ -1,7 +1,9 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
+	"time"
 
 	"foodpos/backend/internal/auth"
 	"foodpos/backend/internal/httpx"
@@ -128,7 +130,7 @@ func (s *Server) handleCashMove(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	claims, _ := claimsFrom(r)
-	tx, err := s.Store.AddCashMove(r.Context(), shift.ID, claims.ActorID, claims.Name, req.Type, req.Amount, req.Reason, req.Reference)
+	tx, err := s.Store.AddCashMove(r.Context(), shift.ID, claims.ActorID, claims.Name, req.Type, req.Amount, req.Reason, req.Reference, req.At)
 	if err != nil {
 		httpx.ErrorJSON(w, r, err)
 		return
@@ -425,6 +427,38 @@ func (s *Server) handleListCreditLog(w http.ResponseWriter, r *http.Request) {
 
 // ---- Reports (all derived from real data — PRD FR-R1..R3) ----
 
+// parseReportRange accepts "YYYY-MM-DD" or RFC3339 timestamps. A date-only
+// `to` bound is widened to that day's last second so the range is inclusive.
+func parseReportRange(fromStr, toStr string) (time.Time, time.Time, error) {
+	parse := func(s string, isEnd bool) (time.Time, error) {
+		if s == "" {
+			if isEnd {
+				return time.Date(9999, 12, 31, 23, 59, 59, 0, time.UTC), nil
+			}
+			return time.Time{}, nil
+		}
+		if t, err := time.Parse(time.RFC3339Nano, s); err == nil {
+			return t.UTC(), nil
+		}
+		if t, err := time.Parse("2006-01-02", s); err == nil {
+			if isEnd {
+				t = t.Add(24*time.Hour - time.Second)
+			}
+			return t.UTC(), nil
+		}
+		return time.Time{}, fmt.Errorf("invalid timestamp %q", s)
+	}
+	from, err := parse(fromStr, false)
+	if err != nil {
+		return time.Time{}, time.Time{}, err
+	}
+	to, err := parse(toStr, true)
+	if err != nil {
+		return time.Time{}, time.Time{}, err
+	}
+	return from, to, nil
+}
+
 func (s *Server) handleDashboardReport(w http.ResponseWriter, r *http.Request) {
 	outletID := outletScope(r)
 	if outletID == "" {
@@ -437,52 +471,106 @@ func (s *Server) handleDashboardReport(w http.ResponseWriter, r *http.Request) {
 		TopCategories: []models.CategorySales{},
 	}
 
+	// Optional from/to range: when present the report is computed over orders
+	// paid within [from, to] and expenses dated in that window, instead of the
+	// default current-shift scope. Accepts YYYY-MM-DD or RFC3339.
+	fromStr, toStr := r.URL.Query().Get("from"), r.URL.Query().Get("to")
+	hasRange := fromStr != "" || toStr != ""
+	var fromT, toT time.Time
+	if hasRange {
+		var err error
+		fromT, toT, err = parseReportRange(fromStr, toStr)
+		if err != nil {
+			httpx.ErrorJSON(w, r, httpx.NewError(400, "bad_range", "invalid from/to — use YYYY-MM-DD or RFC3339"))
+			return
+		}
+	}
+
 	shift, _ := s.Store.GetCurrentShift(r.Context(), outletID)
 	if shift != nil {
-		rep.SalesPaise = shift.TotalSales()
 		rep.CashDrawerPaise = shift.ExpectedCash()
 	}
-	completed, err := s.Store.ListOrders(r.Context(), outletID, "completed", "", 500)
+	orderLimit := 500
+	if hasRange {
+		// Wide ranges pull more history for accurate aggregates.
+		orderLimit = 2000
+	}
+	completed, err := s.Store.ListOrders(r.Context(), outletID, "completed", "", orderLimit)
 	if err != nil {
 		httpx.ErrorJSON(w, r, err)
 		return
 	}
-	// Only orders paid during this shift count toward the shift AOV.
-	shiftStart := "0000-01-01"
-	if shift != nil {
-		shiftStart = store.TimeStr(shift.StartedAt)
-	}
-	var shiftSales int64
-	shiftOrders := 0
 	revenue := map[string]int64{}
 	qty := map[string]int{}
-	for i := range completed {
-		o := &completed[i]
-		if o.PaidAt != nil && store.TimeStr(*o.PaidAt) >= shiftStart {
-			shiftOrders++
-			shiftSales += o.GrandTotalPaise
-		}
-		rep.SalesByType[o.Type] += o.GrandTotalPaise
-		if o.PaymentMethod != nil {
-			rep.SalesByTender[*o.PaymentMethod] += o.GrandTotalPaise
-		}
-		for _, it := range o.Items {
-			if it.IsCancelled {
+	if hasRange {
+		var rangeSales int64
+		rangeOrders := 0
+		for i := range completed {
+			o := &completed[i]
+			if o.PaidAt == nil {
 				continue
 			}
-			revenue[it.Name] += it.TotalPaise
-			qty[it.Name] += it.Quantity
+			t := *o.PaidAt
+			if t.Before(fromT) || t.After(toT) {
+				continue
+			}
+			rangeOrders++
+			rangeSales += o.GrandTotalPaise
+			rep.SalesByType[o.Type] += o.GrandTotalPaise
+			if o.PaymentMethod != nil {
+				rep.SalesByTender[*o.PaymentMethod] += o.GrandTotalPaise
+			}
+			for _, it := range o.Items {
+				if it.IsCancelled {
+					continue
+				}
+				revenue[it.Name] += it.TotalPaise
+				qty[it.Name] += it.Quantity
+			}
 		}
+		rep.SalesPaise = rangeSales
+		rep.OrderCount = rangeOrders
+		if rangeOrders > 0 {
+			rep.AOVPaise = rangeSales / int64(rangeOrders)
+		}
+		exp, _ := s.Store.SumExpensesBetween(r.Context(), outletID, store.TimeStr(fromT), store.TimeStr(toT))
+		rep.ExpensesPaise = exp
+	} else {
+		// Only orders paid during this shift count toward the shift AOV.
+		shiftStart := "0000-01-01"
+		if shift != nil {
+			shiftStart = store.TimeStr(shift.StartedAt)
+		}
+		var shiftSales int64
+		shiftOrders := 0
+		for i := range completed {
+			o := &completed[i]
+			if o.PaidAt != nil && store.TimeStr(*o.PaidAt) >= shiftStart {
+				shiftOrders++
+				shiftSales += o.GrandTotalPaise
+			}
+			rep.SalesByType[o.Type] += o.GrandTotalPaise
+			if o.PaymentMethod != nil {
+				rep.SalesByTender[*o.PaymentMethod] += o.GrandTotalPaise
+			}
+			for _, it := range o.Items {
+				if it.IsCancelled {
+					continue
+				}
+				revenue[it.Name] += it.TotalPaise
+				qty[it.Name] += it.Quantity
+			}
+		}
+		if shift != nil {
+			rep.SalesPaise = shiftSales
+		}
+		rep.OrderCount = shiftOrders
+		if rep.OrderCount > 0 {
+			rep.AOVPaise = rep.SalesPaise / int64(rep.OrderCount)
+		}
+		exp, _ := s.Store.SumExpenses(r.Context(), outletID, "today")
+		rep.ExpensesPaise = exp
 	}
-	if shift != nil {
-		rep.SalesPaise = shiftSales
-	}
-	rep.OrderCount = shiftOrders
-	if rep.OrderCount > 0 {
-		rep.AOVPaise = rep.SalesPaise / int64(rep.OrderCount)
-	}
-	exp, _ := s.Store.SumExpenses(r.Context(), outletID, "today")
-	rep.ExpensesPaise = exp
 
 	tables, _ := s.Store.ListTables(r.Context(), outletID, "")
 	for _, t := range tables {
