@@ -5,6 +5,10 @@ class InventoryItem {
   final double minStock;
   final String unit; // 'KG', 'Litre', 'Pcs'
   final double costPerUnit;
+  // Purchase provenance (W5): where the current stock came from.
+  final String? batchNo;
+  final String? rackNo;
+  final DateTime? purchasedAt;
 
   InventoryItem({
     required this.id,
@@ -13,6 +17,9 @@ class InventoryItem {
     required this.minStock,
     required this.unit,
     required this.costPerUnit,
+    this.batchNo,
+    this.rackNo,
+    this.purchasedAt,
   });
 
   bool get isLowStock => availableStock <= minStock;
@@ -54,6 +61,29 @@ class Supplier {
     required this.category,
     this.outstanding = 0.0,
     this.lastPurchase,
+  });
+}
+
+/// Payment recorded against a supplier's outstanding due (W5).
+class SupplierPayment {
+  final String id;
+  final String supplierId;
+  final String supplierName;
+  final double amount;
+  final String method; // Cash / UPI / Card / Bank Transfer
+  final DateTime paidAt;
+  final String? reference;
+  final String staffName;
+
+  SupplierPayment({
+    required this.id,
+    required this.supplierId,
+    required this.supplierName,
+    required this.amount,
+    required this.method,
+    required this.paidAt,
+    this.reference,
+    required this.staffName,
   });
 }
 

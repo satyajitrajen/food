@@ -74,7 +74,17 @@ func (s *Server) handleOwnerStartSubscription(w http.ResponseWriter, r *http.Req
 	if plan.IntervalDays > 31 {
 		totalCount = 5
 	}
-	rs, err := gw.CreateSubscription(r.Context(), planID, c.OrgID, totalCount)
+	// Trial-aware start: when the org is still inside its 7-day free trial,
+	// authorize the mandate now but schedule the first charge at trial end
+	// (Razorpay start_at). Otherwise charge immediately (nil start).
+	var startAt *time.Time
+	trial := false
+	if sub.Status == models.SubTrial && sub.TrialEndsAt != nil && sub.TrialEndsAt.After(time.Now()) {
+		t := *sub.TrialEndsAt
+		startAt = &t
+		trial = true
+	}
+	rs, err := gw.CreateSubscription(r.Context(), planID, c.OrgID, totalCount, startAt)
 	if err != nil {
 		httpx.ErrorJSON(w, r, httpx.NewError(502, "gateway_error", err.Error()))
 		return
@@ -92,6 +102,7 @@ func (s *Server) handleOwnerStartSubscription(w http.ResponseWriter, r *http.Req
 		store.MetaJSON(map[string]any{
 			"gateway_sub_id": rs.ID, "plan_code": plan.Code,
 			"amount_paise": gross, "registration_paise": regPaise, "total_count": totalCount,
+			"trial": trial, "start_at": startAt,
 		}))
 	httpx.JSON(w, http.StatusOK, models.RazorpaySubscriptionStart{
 		SubscriptionID:    rs.ID,
@@ -101,6 +112,9 @@ func (s *Server) handleOwnerStartSubscription(w http.ResponseWriter, r *http.Req
 		AmountPaise:       gross,
 		Currency:          currency,
 		RegistrationPaise: regPaise,
+		Trial:             trial,
+		TrialEndsAt:       sub.TrialEndsAt,
+		FirstChargeAt:     startAt,
 	})
 }
 
@@ -124,6 +138,15 @@ func (s *Server) handleSubscriptionAppStatus(w http.ResponseWriter, r *http.Requ
 		httpx.ErrorJSON(w, r, httpx.NewError(404, "no_plan", "Organization has no plan"))
 		return
 	}
+	trialDaysLeft := 0
+	var firstCharge *time.Time
+	if sub.Status == models.SubTrial && sub.TrialEndsAt != nil {
+		if sub.TrialEndsAt.After(time.Now()) {
+			d := sub.TrialEndsAt.Sub(time.Now())
+			trialDaysLeft = int(d.Hours()/24) + 1
+			firstCharge = sub.TrialEndsAt
+		}
+	}
 	httpx.JSON(w, http.StatusOK, models.SubscriptionAppStatus{
 		PlanCode:      plan.Code,
 		PlanName:      plan.Name,
@@ -131,6 +154,9 @@ func (s *Server) handleSubscriptionAppStatus(w http.ResponseWriter, r *http.Requ
 		GatewayStatus: sub.GatewayStatus,
 		PeriodEnd:     sub.CurrentPeriodEnd,
 		PricePaise:    plan.PricePaise,
+		TrialEndsAt:   sub.TrialEndsAt,
+		TrialDaysLeft: trialDaysLeft,
+		FirstChargeAt: firstCharge,
 	})
 }
 

@@ -309,12 +309,13 @@ MenuItem menuItemFromApi(Map<String, dynamic> j) => MenuItem(
           .toList(),
     );
 
-MenuItem _menuItemForLookup(String id, String name, double price) => MenuItem(
+MenuItem _menuItemForLookup(String id, String name, double price,
+    {bool isVeg = true}) => MenuItem(
       id: id,
       name: name,
       category: '',
       price: price,
-      isVeg: true,
+      isVeg: isVeg,
       imageUrl: '',
     );
 
@@ -417,6 +418,9 @@ KitchenOrderTicket kotFromApi(Map<String, dynamic> j) => KitchenOrderTicket(
                   _str(i['order_item_id']),
                   _str(i['name']),
                   0,
+                  // Server truth: the veg flag is snapshotted onto the
+                  // ticket line at fire time (kot_items.is_veg).
+                  isVeg: i['is_veg'] == null || i['is_veg'] == true || i['is_veg'] == 1,
                 ),
                 quantity: _int(i['quantity']),
                 isKOTSent: true,
@@ -607,6 +611,9 @@ SubscriptionStatus subscriptionStatusFromApi(Map<String, dynamic> j) =>
       gatewayStatus: _str(j['gateway_status']),
       periodEnd: _dt(j['period_end']),
       priceRupees: toRupees(_int(j['price_paise'])),
+      trialEndsAt: _dt(j['trial_ends_at']),
+      trialDaysLeft: _int(j['trial_days_left']),
+      firstChargeAt: _dt(j['first_charge_at']),
     );
 
 RazorpaySubscriptionStart razorpayStartFromApi(Map<String, dynamic> j) =>
@@ -618,7 +625,22 @@ RazorpaySubscriptionStart razorpayStartFromApi(Map<String, dynamic> j) =>
       amountPaise: _int(j['amount_paise']),
       currency: _str(j['currency']),
       registrationPaise: _int(j['registration_paise']),
+      trial: j['trial'] == true,
+      trialEndsAt: _dt(j['trial_ends_at']),
+      firstChargeAt: _dt(j['first_charge_at']),
     );
+
+RegisterOrgResult registerOrgResultFromApi(Map<String, dynamic> j) {
+  final org = j['org'] is Map ? (j['org'] as Map).cast<String, dynamic>() : <String, dynamic>{};
+  final sub = j['subscription'] is Map ? (j['subscription'] as Map).cast<String, dynamic>() : <String, dynamic>{};
+  return RegisterOrgResult(
+    orgCode: _str(j['org_code']),
+    orgId: _str(org['id']),
+    orgName: _str(org['name']),
+    adminPin: _str(j['admin_pin']),
+    trialEndsAt: _dt(sub['trial_ends_at']),
+  );
+}
 
 RazorpayManualOrder razorpayManualOrderFromApi(Map<String, dynamic> j) =>
     RazorpayManualOrder(

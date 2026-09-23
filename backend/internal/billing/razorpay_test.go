@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
 
 // fakeRazorpay records request bodies for the subscription endpoints and
@@ -73,7 +74,7 @@ func TestRazorpaySubscriptionFlow(t *testing.T) {
 		t.Fatalf("365-day plan should map to yearly, got %s", annualReq.Period)
 	}
 
-	sub, err := gw.CreateSubscription(ctx, "plan_fake1", "org-1", 12)
+	sub, err := gw.CreateSubscription(ctx, "plan_fake1", "org-1", 12, nil)
 	if err != nil || sub.ID != "sub_fake1" || sub.Status != "created" {
 		t.Fatalf("CreateSubscription = %+v, %v", sub, err)
 	}
@@ -82,6 +83,7 @@ func TestRazorpaySubscriptionFlow(t *testing.T) {
 		TotalCount     int               `json:"total_count"`
 		CustomerNotify int               `json:"customer_notify"`
 		Notes          map[string]string `json:"notes"`
+		StartAt        *int64            `json:"start_at"`
 	}
 	if err := json.Unmarshal([]byte(got["/v1/subscriptions|POST"]), &subReq); err != nil {
 		t.Fatal(err)
@@ -89,6 +91,24 @@ func TestRazorpaySubscriptionFlow(t *testing.T) {
 	if subReq.PlanID != "plan_fake1" || subReq.TotalCount != 12 || subReq.CustomerNotify != 0 ||
 		subReq.Notes["org_id"] != "org-1" {
 		t.Fatalf("unexpected subscription payload: %+v", subReq)
+	}
+	if subReq.StartAt != nil {
+		t.Fatalf("immediate subscription should omit start_at, got %d", *subReq.StartAt)
+	}
+
+	// Trial subscription: start_at schedules the first charge at trial end.
+	trialEnd := time.Now().AddDate(0, 0, 7)
+	if _, err := gw.CreateSubscription(ctx, "plan_fake1", "org-1", 12, &trialEnd); err != nil {
+		t.Fatalf("trial CreateSubscription: %v", err)
+	}
+	var trialReq struct {
+		StartAt *int64 `json:"start_at"`
+	}
+	if err := json.Unmarshal([]byte(got["/v1/subscriptions|POST"]), &trialReq); err != nil {
+		t.Fatal(err)
+	}
+	if trialReq.StartAt == nil || *trialReq.StartAt != trialEnd.Unix() {
+		t.Fatalf("trial subscription should carry start_at=%d, got %+v", trialEnd.Unix(), trialReq.StartAt)
 	}
 
 	if err := gw.CreateSubscriptionAddon(ctx, "sub_fake1", "FoodPOS registration fee", 10100, "INR"); err != nil {

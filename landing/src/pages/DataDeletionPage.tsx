@@ -52,13 +52,13 @@ export const DataDeletionPage: React.FC = () => {
         <div className="policy-box">
           <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Trash2 size={20} style={{ color: 'var(--terracotta)' }} />
-            Method B: In-App Terminal Erasure
+            Method B: In-App Data Erasure
           </h3>
           <p style={{ fontSize: '0.9rem', color: 'var(--text-body)' }}>
-            1. Sign in to your FoodPOS terminal with the <strong>Admin Role</strong>.<br />
+            1. Sign in to your FoodPOS app with the <strong>Admin Role</strong>.<br />
             2. Navigate to <strong>Settings &rarr; System & Data Governance</strong>.<br />
             3. Click <strong>&ldquo;Request Account & Data Erasure&rdquo;</strong> and enter your Admin master PIN.<br />
-            4. Confirm the prompt to unbind your terminal and queue your cloud tenant for deletion.
+            4. Confirm the prompt to unbind your device and queue your cloud tenant for deletion.
           </p>
         </div>
 

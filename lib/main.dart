@@ -20,14 +20,21 @@ void main() async {
   } catch (e) {
     debugPrint('Firebase init note: $e');
   }
+  // Draw edge-to-edge on all Android versions (Android 15+ enforces it for
+  // targetSdk 35): transparent system bars + no contrast scrim, so layout
+  // insets are deterministic and every screen must honor them explicitly
+  // (see BottomInsets). Relying on the system nav color alone leaves
+  // bottom-docked bars sliding under the opaque nav bar on some devices.
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
+      systemNavigationBarColor: Colors.transparent,
       statusBarIconBrightness: Brightness.dark,
       statusBarBrightness: Brightness.light,
-      systemNavigationBarColor: Colors.white,
       systemNavigationBarIconBrightness: Brightness.dark,
       systemNavigationBarDividerColor: Colors.transparent,
+      systemNavigationBarContrastEnforced: false,
     ),
   );
   runApp(const RestoPosApp());

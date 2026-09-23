@@ -4,7 +4,7 @@ import { Tablet, Monitor, Printer, QrCode } from 'lucide-react';
 export const PlayStoreBanner: React.FC = () => {
   return (
     <section className="section" style={{ padding: '40px 0' }}>
-      <div className="container">
+      <div className="t-container">
         <div className="playstore-banner">
           <div className="playstore-grid">
             <div>

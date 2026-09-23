@@ -26,7 +26,7 @@ export const TermsPage: React.FC = () => {
 
         <h2>1. License & Scope of Service</h2>
         <p>
-          Subject to your subscription tier, FoodPOS grants you a non-exclusive, non-transferable, revocable license to install and operate the FoodPOS application on authorized terminals (Android tablets, Windows desktop devices, or kitchen displays) within the specified restaurant outlets.
+          Subject to your subscription tier, FoodPOS grants you a non-exclusive, non-transferable, revocable license to install and operate the FoodPOS application on authorized devices (Android tablets, Windows desktop devices, or kitchen displays) within the specified restaurant outlets.
         </p>
 
         <h2>2. Merchant Responsibilities</h2>
@@ -40,7 +40,7 @@ export const TermsPage: React.FC = () => {
 
         <h2>3. Offline Durability & Cloud Synchronization</h2>
         <p>
-          FoodPOS is engineered to operate seamlessly during network failures using a local outbox. However, Merchants are responsible for ensuring that terminals are periodically connected to a functional internet connection to synchronize offline transaction queues, update tax catalogs, and maintain cloud backups.
+          FoodPOS is engineered to operate seamlessly during network failures using a local outbox. However, Merchants are responsible for ensuring that devices are periodically connected to a functional internet connection to synchronize offline transaction queues, update tax catalogs, and maintain cloud backups.
         </p>
 
         <h2>4. Hardware Compatibility</h2>

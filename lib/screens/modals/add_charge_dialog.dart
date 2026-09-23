@@ -21,7 +21,6 @@ class AddChargeDialog extends StatefulWidget {
 class _AddChargeDialogState extends State<AddChargeDialog> {
   late TextEditingController _serviceController;
   late TextEditingController _packagingController;
-  late TextEditingController _deliveryController;
 
   @override
   void initState() {
@@ -33,16 +32,12 @@ class _AddChargeDialogState extends State<AddChargeDialog> {
     _packagingController = TextEditingController(
       text: provider.activeOrder?.packagingCharge.toStringAsFixed(0) ?? '0',
     );
-    _deliveryController = TextEditingController(
-      text: provider.activeOrder?.deliveryCharge.toStringAsFixed(0) ?? '0',
-    );
   }
 
   @override
   void dispose() {
     _serviceController.dispose();
     _packagingController.dispose();
-    _deliveryController.dispose();
     super.dispose();
   }
 
@@ -90,15 +85,6 @@ class _AddChargeDialogState extends State<AddChargeDialog> {
                   prefixIcon: Icon(Icons.takeout_dining_outlined, size: 18),
                 ),
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _deliveryController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Delivery Charge (₹)',
-                  prefixIcon: Icon(Icons.delivery_dining_outlined, size: 18),
-                ),
-              ),
               const SizedBox(height: 24),
               Row(
                 children: [
@@ -114,9 +100,8 @@ class _AddChargeDialogState extends State<AddChargeDialog> {
                     onPressed: () async {
                       final sc = double.tryParse(_serviceController.text) ?? 0.0;
                       final pk = double.tryParse(_packagingController.text) ?? 0.0;
-                      final dl = double.tryParse(_deliveryController.text) ?? 0.0;
 
-                      if (sc < 0 || pk < 0 || dl < 0) {
+                      if (sc < 0 || pk < 0) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text('Charges cannot be negative'),
@@ -129,7 +114,7 @@ class _AddChargeDialogState extends State<AddChargeDialog> {
                         context,
                         title: 'Update charges?',
                         message:
-                            'Set charges to Service ₹${sc.toStringAsFixed(0)} + Packaging ₹${pk.toStringAsFixed(0)} + Delivery ₹${dl.toStringAsFixed(0)}?',
+                            'Set charges to Service ₹${sc.toStringAsFixed(0)} + Packaging ₹${pk.toStringAsFixed(0)}?',
                         confirmLabel: 'Update Charges',
                         isDanger: false,
                       );
@@ -138,7 +123,6 @@ class _AddChargeDialogState extends State<AddChargeDialog> {
                       provider.addCharges(
                         serviceCharge: sc,
                         packaging: pk,
-                        delivery: dl,
                       );
                       Navigator.of(context).pop();
                     },

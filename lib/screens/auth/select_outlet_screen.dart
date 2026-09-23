@@ -14,7 +14,7 @@ class SelectOutletScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.creamBg,
       appBar: AppBar(
-        title: const Text('Select Outlet & Terminal', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+        title: const Text('Select Outlet & Counter', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
@@ -36,7 +36,7 @@ class SelectOutletScreen extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               const Text(
-                'Select which outlet and billing counter terminal this device is operating on.',
+                'Select which outlet and billing counter this device will use.',
                 style: TextStyle(color: AppColors.textMuted, fontSize: 13),
               ),
               const SizedBox(height: 20),
@@ -63,11 +63,31 @@ class SelectOutletScreen extends StatelessWidget {
                       ),
                       child: InkWell(
                         onTap: () {
+                          // Single-outlet staff (waiter/kitchen) are locked to
+                          // their assigned outlet: block the switch with an
+                          // explanation instead of leaking another outlet.
+                          final staff = provider.currentStaff;
+                          if (staff != null &&
+                              !staff.canAccessOutlet(outlet.id)) {
+                            final home = provider.outlets
+                                    .where((o) => o.id == staff.outletId)
+                                    .firstOrNull
+                                    ?.name ??
+                                'your assigned outlet';
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                    'Locked: ${staff.name} works at $home and cannot switch outlets.'),
+                                backgroundColor: AppColors.nonVegRed,
+                              ),
+                            );
+                            return;
+                          }
                           provider.selectOutlet(outlet);
                           Navigator.of(context).pop();
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text('✓ Switched to ${outlet.name} (${outlet.terminal})'),
+                              content: Text('✓ Switched to ${outlet.name} · Counter ${outlet.terminal}'),
                               backgroundColor: AppColors.vegGreen,
                             ),
                           );
@@ -120,7 +140,7 @@ class SelectOutletScreen extends StatelessWidget {
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
-                                      'Terminal ${outlet.terminal} · GST: ${outlet.gstin}',
+                                      'Counter ${outlet.terminal} · GST: ${outlet.gstin}',
                                       style: const TextStyle(color: AppColors.primaryGreen, fontWeight: FontWeight.w600, fontSize: 12),
                                     ),
                                     const SizedBox(height: 2),

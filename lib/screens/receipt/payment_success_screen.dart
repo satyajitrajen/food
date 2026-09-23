@@ -6,6 +6,7 @@ import '../../core/share/whatsapp_bill.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/order_model.dart';
 import '../../providers/pos_provider.dart';
+import '../../widgets/dialog_controller_scope.dart';
 import '../shell/main_adaptive_shell.dart';
 
 class PaymentSuccessScreen extends StatelessWidget {
@@ -42,41 +43,43 @@ class PaymentSuccessScreen extends StatelessWidget {
     final c = TextEditingController();
     final phone = await showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Send Bill on WhatsApp'),
-        content: SizedBox(
-          width: 420,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Customer mobile for ${order.customerName ?? 'this order'}?',
-                style: const TextStyle(color: AppColors.textMuted, fontSize: 13),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: c,
-                autofocus: true,
-                keyboardType: TextInputType.phone,
-                decoration: const InputDecoration(
-                  prefixIcon: Icon(Icons.phone_outlined, size: 18),
-                  hintText: '10-digit mobile number',
+      builder: (ctx) => DialogControllerScope(
+        controllers: [c],
+        builder: (ctx, _) => AlertDialog(
+          title: const Text('Send Bill on WhatsApp'),
+          content: SizedBox(
+            width: 420,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Customer mobile for ${order.customerName ?? 'this order'}?',
+                  style: const TextStyle(color: AppColors.textMuted, fontSize: 13),
                 ),
-              ),
-            ],
+                const SizedBox(height: 12),
+                TextField(
+                  controller: c,
+                  autofocus: true,
+                  keyboardType: TextInputType.phone,
+                  decoration: const InputDecoration(
+                    prefixIcon: Icon(Icons.phone_outlined, size: 18),
+                    hintText: '10-digit mobile number',
+                  ),
+                ),
+              ],
+            ),
           ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: () => Navigator.of(ctx).pop(c.text.trim()),
+              child: const Text('Send'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () => Navigator.of(ctx).pop(c.text.trim()),
-            child: const Text('Send'),
-          ),
-        ],
       ),
     );
-    c.dispose();
     return phone;
   }
 

@@ -125,7 +125,7 @@ class ShiftDashboardScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Started: $startTimeFormatted · Terminal: ${provider.currentOutlet.terminal}',
+                          'Started: $startTimeFormatted · Counter: ${provider.currentOutlet.terminal}',
                           style: const TextStyle(color: Colors.white70, fontSize: 12),
                         ),
                       ],

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../core/api/api_client.dart';
 import '../core/api/dto.dart';
 import '../core/auth/pin_vault.dart';
+import '../core/auth/session_store.dart';
 import '../core/auth/tenant.dart';
 import '../core/notifications/push_notification_service.dart';
 import '../core/printing/printing.dart';
@@ -42,6 +43,7 @@ class PosProvider extends ChangeNotifier {
   PrinterAdapter? _printer;
   PinVault? _pinVault;
   TenantStore? _tenantStore;
+  SessionStore? _sessionStore;
   TenantInfo? _tenant;
   EntitlementSnapshot? _entitlement;
   bool _hydrating = false;
@@ -49,12 +51,22 @@ class PosProvider extends ChangeNotifier {
   DateTime? _lastSyncAt;
   String? _printerError;
 
+  /// Completes once boot hydration + saved-login restore finish. Screens
+  /// (e.g. Splash) await this instead of guessing with a fixed delay.
+  Future<void>? _readyFuture;
+  Future<void> get ready => _readyFuture ?? Future.value();
+  bool _bootstrapped = false;
+  bool get bootstrapDone => _bootstrapped;
+
   String? get lastSyncError => _lastSyncError;
   DateTime? get lastSyncAt => _lastSyncAt;
   String? get printerError => _printerError;
 
   PosProvider({this.apiEnabled = false, PrinterAdapter? printer}) {
     _printer = printer;
+    // No secrets: only the staff/outlet snapshot (tokens stay in OutboxStore,
+    // PINs only as salted vault hashes), so this is kept in every mode.
+    _sessionStore = SessionStore();
     if (apiEnabled) {
       _api = ApiClient(baseUrl: kDefaultApiBaseUrl, onSessionChanged: _persistSession);
       _pinVault = PinVault();
@@ -70,7 +82,7 @@ class PosProvider extends ChangeNotifier {
         },
       );
       _registerOps();
-      unawaited(_bootstrap());
+      _readyFuture = _bootstrap();
     }
     if (!kDebugMode) {
       // Release binaries ship without the demo dataset (fake staff, plaintext
@@ -87,21 +99,39 @@ class PosProvider extends ChangeNotifier {
     unawaited(OutboxStore().saveSession(session?.accessToken, session?.refreshToken));
   }
 
+  /// Runs a boot phase with a hard cap so startup can never hang forever on
+  /// a stalled read (storage or network). A timed-out phase behaves as if it
+  /// returned nothing — boot continues offline toward PIN login.
+  Future<T?> _bootPhase<T>(Future<T> phase, {int seconds = 5}) async {
+    try {
+      return await phase.timeout(Duration(seconds: seconds));
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> _bootstrap() async {
     // Restore the bound tenant + last entitlement before any network calls so
     // hydrations are org-scoped and offline grace survives restarts.
     if (_tenantStore != null) {
-      _tenant = await _tenantStore!.load();
-      _entitlement = await _tenantStore!.loadEntitlement();
+      _tenant = await _bootPhase<TenantInfo?>(_tenantStore!.load());
+      _entitlement =
+          await _bootPhase<EntitlementSnapshot?>(_tenantStore!.loadEntitlement());
     }
-    await _sync!.initialize();
-    await _sync!.probe();
-    if (_sync!.online && _tenant != null) {
-      await hydratePublic();
+    try {
+      await _sync!.initialize().timeout(const Duration(seconds: 5));
+      await _sync!.probe().timeout(const Duration(seconds: 8));
+    } catch (_) {
+      // Boot continues offline; the PIN screen stays available.
     }
-    if (_currentStaff != null) {
-      unawaited(_postLoginSync());
+    if ((_sync?.online ?? false) && _tenant != null) {
+      await _bootPhase(hydratePublic(), seconds: 10);
     }
+    // Stay signed in across restarts: whoever was logged in keeps working
+    // until an explicit logout. Only then is the PIN screen shown.
+    await _bootPhase(restoreSavedLogin(), seconds: 15);
+    _bootstrapped = true;
+    notifyListeners();
     PushNotificationService.instance.onMessage.listen((msg) {
       final type = msg.data['type'] as String?;
       if (type != null) {
@@ -163,14 +193,17 @@ class PosProvider extends ChangeNotifier {
       _menuItems.where((m) => m.id == id).firstOrNull;
 
   /// Re-binds this terminal to a different org (change-code flow): clears the
-  /// previous tenant + entitlement, then bootstraps the new code.
+  /// previous tenant + entitlement + signed-in staff, then bootstraps the
+  /// new code.
   Future<void> rebindOrg(String code) async {
     _tenant = null;
     _entitlement = null;
+    _currentStaff = null;
     _staffList.clear();
     _outlets.clear();
     await _tenantStore?.clear();
     await _tenantStore?.clearEntitlement();
+    await _sessionStore?.clear();
     notifyListeners();
     await bootstrapOrg(code);
   }
@@ -488,6 +521,16 @@ class PosProvider extends ChangeNotifier {
   bool get canTakeOrders => licenseActive;
   int get licenseDaysLeft => _entitlement?.daysLeft ?? 0;
   bool get licenseTokenVerified => _entitlement?.tokenVerified ?? false;
+  bool get isTrial => _entitlement?.status == 'trial';
+
+  /// Trial countdown prefers the subscription card (server truth with
+  /// trial_ends_at) and falls back to the cached entitlement window.
+  int get trialDaysLeft {
+    final fromCard = _subscriptionStatus?.trialDaysLeft ?? 0;
+    if (fromCard > 0) return fromCard;
+    if (isTrial) return licenseDaysLeft;
+    return 0;
+  }
 
   // ---- Subscription card (Settings, admins) ----
 
@@ -632,6 +675,59 @@ class PosProvider extends ChangeNotifier {
       _currentOutlet = _outlets.first;
     }
     notifyListeners();
+  }
+
+  /// Self-service organization onboarding (SaaS): creates the org + owner
+  /// account + 7-day Pro trial + first outlet + admin staff via
+  /// POST /api/v1/auth/register, then binds this terminal to the new org
+  /// (same hydration as [bootstrapOrg]) so PIN login works immediately.
+  /// Returns the org code + one-time admin PIN for the success screen.
+  /// Throws ApiException/NetworkException/FormatException on failure.
+  Future<RegisterOrgResult> registerOrg({
+    required String orgName,
+    required String ownerName,
+    required String email,
+    required String password,
+    required String outletName,
+    String terminal = 'Counter 1',
+  }) async {
+    if (!apiEnabled || _api == null) {
+      throw NetworkException('Registration requires the server connection');
+    }
+    final org = orgName.trim();
+    final owner = ownerName.trim();
+    final mail = email.trim();
+    final outlet = outletName.trim();
+    final term = terminal.trim().isEmpty ? 'Counter 1' : terminal.trim();
+    if (org.isEmpty || owner.isEmpty || mail.isEmpty || outlet.isEmpty) {
+      throw const FormatException(
+          'Restaurant, owner, email and outlet names are required');
+    }
+    if (password.length < 8) {
+      throw const FormatException('Password must be at least 8 characters');
+    }
+    final resp = await _api!.request('POST', '/api/v1/auth/register',
+        body: {
+          'org_name': org,
+          'owner_name': owner,
+          'email': mail,
+          'password': password,
+          'outlet_name': outlet,
+          'terminal': term,
+          'plan_code': 'pro',
+        },
+        auth: false);
+    if (resp is! Map) {
+      throw const FormatException('Unexpected server response');
+    }
+    final result =
+        registerOrgResultFromApi(resp.cast<String, dynamic>());
+    if (result.orgCode.isEmpty || result.orgId.isEmpty) {
+      throw const FormatException('Registration failed. Try again.');
+    }
+    // Bind the terminal to the freshly provisioned org.
+    await bootstrapOrg(result.orgCode);
+    return result;
   }
 
   void _applyLoginEntitlement(Map<String, dynamic> resp) {
@@ -1248,6 +1344,40 @@ class PosProvider extends ChangeNotifier {
     setNavIndex(i);
   }
 
+  // ---- Attendance (W3): who clocked in when, on this terminal ----
+
+  final List<AttendanceEntry> _attendance = [];
+  List<AttendanceEntry> get attendanceLog => List.unmodifiable(_attendance);
+
+  AttendanceEntry? _openAttendanceFor(String staffId) =>
+      _attendance
+          .where((a) => a.staffId == staffId && a.clockOut == null)
+          .firstOrNull;
+
+  void _markClockIn(String staffId, String name) {
+    if (_openAttendanceFor(staffId) != null) return;
+    _attendance.insert(
+      0,
+      AttendanceEntry(
+        id: 'att-${DateTime.now().millisecondsSinceEpoch}',
+        staffId: staffId,
+        staffName: name,
+        clockIn: DateTime.now(),
+      ),
+    );
+  }
+
+  void _markClockOut(String staffId) {
+    final open = _openAttendanceFor(staffId);
+    if (open == null) return;
+    open.clockOut = DateTime.now();
+  }
+
+  /// Total worked minutes across all closed sessions for a staff member.
+  int workedMinutesFor(String staffId) => _attendance
+      .where((a) => a.staffId == staffId)
+      .fold(0, (sum, a) => sum + a.minutesWorked);
+
   // Active User / Session
   Staff? _currentStaff;
   Staff? get currentStaff => _currentStaff;
@@ -1390,6 +1520,81 @@ class PosProvider extends ChangeNotifier {
           s.isActive &&
           s.canAccessOutlet(_currentOutlet.id)));
 
+  /// Remembers who is signed in (and on which outlet) so the login survives
+  /// app restarts. Cleared only on explicit logout / org rebind. No secrets:
+  /// tokens live in OutboxStore, PINs never leave the vault as hashes.
+  Future<void> _saveLoginSnapshot() async {
+    final staff = _currentStaff;
+    if (staff == null) return;
+    await _sessionStore?.save(StaffSessionSnapshot(
+      staffId: staff.id,
+      outletId: _currentOutlet.id,
+      outletName: _currentOutlet.name,
+      outletTerminal: _currentOutlet.terminal,
+    ));
+  }
+
+  /// Silent re-login after an app restart. Online: rotates the saved refresh
+  /// token and restores the authoritative staff + entitlement from the
+  /// server. Offline: restores the previously server-verified identity from
+  /// the vault. Returns true when a session was restored; false (no snapshot
+  /// or rejected session) means the PIN screen stays.
+  Future<bool> restoreSavedLogin() async {
+    if (!apiEnabled || _api == null) return false;
+    final snap = await _sessionStore?.load();
+    if (snap == null) return false;
+    final outletMatch =
+        _outlets.where((o) => o.id == snap.outletId).firstOrNull;
+    if (outletMatch != null) {
+      _currentOutlet = outletMatch;
+    } else if (snap.outletId.isNotEmpty) {
+      _currentOutlet = Outlet(
+        id: snap.outletId,
+        name: snap.outletName.isEmpty ? _currentOutlet.name : snap.outletName,
+        address: '',
+        terminal: snap.outletTerminal,
+        gstin: '',
+        fssai: '',
+        phone: '',
+      );
+    }
+    if (_sync?.online ?? false) {
+      try {
+        final data = await _api!.refreshSessionWithPayload();
+        final staffMap = data?['staff'] is Map
+            ? (data!['staff'] as Map).cast<String, dynamic>()
+            : null;
+        if (data == null || staffMap == null) {
+          await _sessionStore?.clear();
+          return false;
+        }
+        final serverStaff = staffFromApi(staffMap);
+        _currentStaff =
+            _staffList.where((s) => s.id == serverStaff.id).firstOrNull ??
+                serverStaff;
+        _applyLoginEntitlement(data);
+        _isOfflineMode = false;
+        _lastSyncError = null;
+      } catch (_) {
+        await _sessionStore?.clear();
+        return false;
+      }
+    } else {
+      Staff? match =
+          _staffList.where((s) => s.id == snap.staffId).firstOrNull;
+      match ??= await _pinVault?.lookup(snap.staffId);
+      if (match == null || !match.isActive) {
+        await _sessionStore?.clear();
+        return false;
+      }
+      _currentStaff = match;
+      _isOfflineMode = true;
+    }
+    notifyListeners();
+    unawaited(_postLoginSync());
+    return true;
+  }
+
   /// Server-first login. On success the PIN is cached as a salted hash
   /// (PinVault) so THIS terminal can authenticate that staff offline. When
   /// the server is unreachable, verification falls back to the vault —
@@ -1412,10 +1617,12 @@ class PosProvider extends ChangeNotifier {
         ));
         final matched = _staffList.where((s) => s.id == staffId).firstOrNull;
         _currentStaff = matched ?? staffFromApi(serverStaff ?? {});
+        _markClockIn(staffId, _currentStaff!.name);
         _applyLoginEntitlement(resp);
         _isOfflineMode = false;
         _lastSyncError = null;
         notifyListeners();
+        unawaited(_saveLoginSnapshot());
         unawaited(_postLoginSync());
         return true;
       } on ApiException {
@@ -1430,7 +1637,9 @@ class PosProvider extends ChangeNotifier {
       final cached = await _pinVault!.verifyStaff(staffId, pin);
       if (cached != null) {
         _currentStaff = cached;
+        _markClockIn(staffId, cached.name);
         notifyListeners();
+        unawaited(_saveLoginSnapshot());
         unawaited(_postLoginSync());
         return true;
       }
@@ -1441,7 +1650,9 @@ class PosProvider extends ChangeNotifier {
         (s) => s.id == staffId && s.pin == pin && s.isActive,
       );
       _currentStaff = staff;
+      _markClockIn(staffId, staff.name);
       notifyListeners();
+      unawaited(_saveLoginSnapshot());
       unawaited(_postLoginSync());
       return true;
     } catch (_) {
@@ -1462,12 +1673,17 @@ class PosProvider extends ChangeNotifier {
   }
 
   void logout() {
+    final leaving = _currentStaff;
     if (apiEnabled && _api != null) {
       unawaited(_api!.logout());
       unawaited(_realtime?.dispose());
       _realtime = null;
       _api!.session = null;
       _persistSession(null);
+    }
+    unawaited(_sessionStore?.clear());
+    if (leaving != null) {
+      _markClockOut(leaving.id);
     }
     _currentStaff = null;
     // Forget pending "order ready" alerts and home position for the next
@@ -1577,19 +1793,25 @@ class PosProvider extends ChangeNotifier {
   final List<CashTransaction> _cashTransactions = [];
   List<CashTransaction> get cashTransactions => _cashTransactions;
 
-  void addCashIn({required double amount, required String reason, String? reference}) {
+  void addCashIn({required double amount, required String reason, String? reference, DateTime? at}) {
     if (amount <= 0) return;
+    final when = at ?? DateTime.now();
     final tx = CashTransaction(
       id: 'CIN-${DateTime.now().millisecondsSinceEpoch}',
       type: CashFlowType.cashIn,
       amount: amount,
       reason: reason,
       reference: reference,
-      timestamp: DateTime.now(),
+      timestamp: when,
       staffName: _currentStaff?.name ?? 'Staff',
     );
     _cashTransactions.insert(0, tx);
-    _currentShift?.cashIn += amount;
+    // Only live entries move the running drawer math; backdated entries
+    // stay in the ledger for audit without corrupting the current shift.
+    final shift = _currentShift;
+    if (shift != null && !when.isBefore(shift.startedAt)) {
+      shift.cashIn += amount;
+    }
     notifyListeners();
     _sync?.push('cash.move', {
       'type': 'cash_in',
@@ -1599,19 +1821,23 @@ class PosProvider extends ChangeNotifier {
     });
   }
 
-  void addCashOut({required double amount, required String reason, String? reference}) {
+  void addCashOut({required double amount, required String reason, String? reference, DateTime? at}) {
     if (amount <= 0) return;
+    final when = at ?? DateTime.now();
     final tx = CashTransaction(
       id: 'COUT-${DateTime.now().millisecondsSinceEpoch}',
       type: CashFlowType.cashOut,
       amount: amount,
       reason: reason,
       reference: reference,
-      timestamp: DateTime.now(),
+      timestamp: when,
       staffName: _currentStaff?.name ?? 'Staff',
     );
     _cashTransactions.insert(0, tx);
-    _currentShift?.cashOut += amount;
+    final shift = _currentShift;
+    if (shift != null && !when.isBefore(shift.startedAt)) {
+      shift.cashOut += amount;
+    }
     notifyListeners();
     _sync?.push('cash.move', {
       'type': 'cash_out',
@@ -2109,17 +2335,23 @@ class PosProvider extends ChangeNotifier {
     ProductVariant? variant,
     List<ModifierItem> modifiers = const [],
     String? note,
+    int quantity = 1,
   }) {
     if (_activeOrder == null) {
       startNewOrder(OrderType.dineIn);
     }
+    if (quantity <= 0) return;
 
     // Check if same item with same variant and modifiers exists.
     // itemNote participates in the identity so different cooking notes
     // don't merge into one line (and lose a note).
+    // Never merge into a line already fired to the kitchen: the added quantity
+    // must stay unsent so it shows up for the next KOT instead of silently
+    // riding along on an item the kitchen already cooked.
     final existingIndex = _activeOrder!.items.indexWhere(
       (i) =>
           !i.isCancelled &&
+          !i.isKOTSent &&
           i.menuItem.id == item.id &&
           i.itemNote == note &&
           i.selectedVariant?.id == variant?.id &&
@@ -2127,7 +2359,7 @@ class PosProvider extends ChangeNotifier {
     );
 
     if (existingIndex != -1) {
-      _activeOrder!.items[existingIndex].quantity += 1;
+      _activeOrder!.items[existingIndex].quantity += quantity;
       _pushItemQty(_activeOrder!, _activeOrder!.items[existingIndex]);
     } else {
       final newItem = OrderItem(
@@ -2135,7 +2367,7 @@ class PosProvider extends ChangeNotifier {
         menuItem: item,
         selectedVariant: variant,
         selectedModifiers: modifiers.map((m) => m.copy()).toList(),
-        quantity: 1,
+        quantity: quantity,
         itemNote: note,
         isKOTSent: false,
       );
@@ -2299,6 +2531,11 @@ class PosProvider extends ChangeNotifier {
     if (kot.outletId.isNotEmpty && kot.outletId != _currentOutlet.id) return;
     final prevStatus = kot.status;
     kot.status = newStatus;
+    // Serving closes the floor's interest in this ticket — drop its ready
+    // banner so the waiter's alert list matches the KOT board.
+    if (newStatus == KOTStatus.served) {
+      _readyAlerts.removeWhere((k) => k.id == kotId);
+    }
     notifyListeners();
     _sync?.push('kot.status', {
       'kot_id': kotId,
@@ -2329,6 +2566,19 @@ class PosProvider extends ChangeNotifier {
     if (_readyAlerts.isEmpty) return;
     _readyAlerts.clear();
     notifyListeners();
+  }
+
+  /// Cooked tickets waiting to be carried to the table. Waiters see only their
+  /// own tickets (never another waiter's); manager/cashier/admin see the whole
+  /// outlet so they can cover any table. Outlet isolation is already applied
+  /// by [kots].
+  List<KitchenOrderTicket> get readyToServe {
+    final ready = kots.where((k) => k.status == KOTStatus.ready);
+    final me = _currentStaff;
+    if (me != null && me.role == StaffRole.waiter) {
+      return ready.where((k) => k.waiterName == me.name).toList();
+    }
+    return ready.toList();
   }
 
   void _maybeFireReadyAlert({required KOTStatus? previous, required KitchenOrderTicket kot}) {
@@ -3023,7 +3273,7 @@ class PosProvider extends ChangeNotifier {
     });
   }
 
-  bool updateStaff(String id, {String? name, StaffRole? role, String? outletId, bool? isActive, String? pin}) {
+  bool updateStaff(String id, {String? name, StaffRole? role, String? outletId, bool? isActive, String? pin, String? mobile}) {
     final idx = _staffList.indexWhere((s) => s.id == id);
     if (idx == -1) return false;
     final s = _staffList[idx];
@@ -3045,17 +3295,22 @@ class PosProvider extends ChangeNotifier {
       }
     }
     final effectiveRole = role ?? s.role;
-    final effectiveOutlet = effectiveRole == StaffRole.waiter || effectiveRole == StaffRole.kitchen
-        ? (outletId ?? s.outletId ?? _currentOutlet.id)
-        : (outletId ?? s.outletId);
+    // outletId == '' means "unassign / org-wide floater" for non
+    // waiter/kitchen roles (backend clears on empty string).
+    final outletCleared = outletId != null && outletId.isEmpty;
+    final effectiveOutlet = outletCleared
+        ? null
+        : (effectiveRole == StaffRole.waiter || effectiveRole == StaffRole.kitchen
+            ? (outletId ?? s.outletId ?? _currentOutlet.id)
+            : (outletId ?? s.outletId));
     _staffList[idx] = Staff(
       id: s.id,
       outletId: effectiveOutlet,
-      name: name ?? s.name,
+      name: (name != null && name.trim().isNotEmpty) ? name.trim() : s.name,
       role: effectiveRole,
       pin: (pin != null && pin.isNotEmpty) ? pin : s.pin,
       avatarUrl: s.avatarUrl,
-      mobile: s.mobile,
+      mobile: (mobile != null) ? mobile.trim() : s.mobile,
       isActive: isActive ?? s.isActive,
       isProtected: s.isProtected,
     );
@@ -3064,9 +3319,12 @@ class PosProvider extends ChangeNotifier {
       'staff_id': id,
       'name': ?name,
       if (role != null) 'role': role.name,
-      'outlet_id': ?effectiveOutlet,
+      // Send '' to clear outlet (backend treats '' as NULL); omit when unchanged.
+      if (outletCleared) 'outlet_id': '',
+      if (!outletCleared) 'outlet_id': ?effectiveOutlet,
       'is_active': ?isActive,
       'pin': ?((pin != null && pin.isNotEmpty) ? pin : null),
+      'mobile': ?mobile,
     });
     return true;
   }
@@ -3081,6 +3339,12 @@ class PosProvider extends ChangeNotifier {
       'stock': item.availableStock,
       'min_stock': item.minStock,
       'cost_paise': toPaise(item.costPerUnit),
+      // Purchase provenance — server op ignores unknown keys for now; the
+      // ledger keeps them locally for the stock log & item card.
+      if (item.batchNo != null && item.batchNo!.isNotEmpty) 'batch_no': item.batchNo,
+      if (item.rackNo != null && item.rackNo!.isNotEmpty) 'rack_no': item.rackNo,
+      if (item.purchasedAt != null)
+        'purchased_at': item.purchasedAt!.toUtc().toIso8601String(),
     });
   }
 
@@ -3096,23 +3360,87 @@ class PosProvider extends ChangeNotifier {
     });
   }
 
+  // ---- Supplier payment ledger (W5): pay dues, track history by date ----
+
+  final List<SupplierPayment> _supplierPayments = [];
+  List<SupplierPayment> get supplierPayments => List.unmodifiable(_supplierPayments);
+
+  List<SupplierPayment> supplierPaymentsFor(String supplierId) =>
+      List.unmodifiable(
+          _supplierPayments.where((p) => p.supplierId == supplierId));
+
+  /// Records a payment against [supplierId]'s outstanding due and reduces it.
+  /// Returns false when the payment exceeds the outstanding amount.
+  bool paySupplier({
+    required String supplierId,
+    required double amount,
+    required String method,
+    DateTime? at,
+    String? reference,
+  }) {
+    final sup = _suppliers.where((s) => s.id == supplierId).firstOrNull;
+    if (sup == null || amount <= 0) return false;
+    if (amount > sup.outstanding + 0.005) return false;
+    sup.outstanding = (sup.outstanding - amount).clamp(0.0, double.infinity);
+    _supplierPayments.insert(
+      0,
+      SupplierPayment(
+        id: 'pay-${DateTime.now().millisecondsSinceEpoch}',
+        supplierId: supplierId,
+        supplierName: sup.name,
+        amount: amount,
+        method: method,
+        paidAt: at ?? DateTime.now(),
+        reference: reference,
+        staffName: _currentStaff?.name ?? 'Staff',
+      ),
+    );
+    notifyListeners();
+    // A direct supplier payout reduces the physical drawer for cash modes.
+    if (method == 'Cash' && _currentShift != null) {
+      _currentShift!.expenses += amount;
+    }
+    // Reuse the expense op so back-office server truth stays consistent.
+    _sync?.push('expense.create', {
+      'local_id': 'sup-$supplierId-${DateTime.now().millisecondsSinceEpoch}',
+      'title': 'Supplier payment — ${sup.name}',
+      'category': 'raw_materials',
+      'amount_paise': toPaise(amount),
+      'method': method,
+      if (reference != null && reference.isNotEmpty) 'reference': reference,
+      'note': 'Supplier payment (${sup.name})',
+      'vendor': sup.name,
+    });
+    return true;
+  }
+
   void createPurchase({
     required String invoiceNo,
     String? supplierId,
     required String status,
     required double totalAmount,
     required List<Map<String, dynamic>> lines,
+    DateTime? purchasedAt,
   }) {
     final record = PurchaseRecord(
       id: 'pur-${DateTime.now().millisecondsSinceEpoch}',
       invoiceNumber: invoiceNo,
       supplierName: _suppliers.where((s) => s.id == supplierId).firstOrNull?.name ?? '',
-      date: DateTime.now(),
+      date: purchasedAt ?? DateTime.now(),
       totalAmount: totalAmount,
       paymentStatus: status == 'pending' ? 'Pending' : 'Paid',
       itemsSummary: lines.map((l) => '${l['name']} ×${l['qty']}').join(', '),
     );
     _purchases.insert(0, record);
+    // Credit purchases increase the supplier's outstanding due; the existing
+    // markPurchasePaid settle clears it (mirrors server truth).
+    if (status == 'pending' && supplierId != null && supplierId.isNotEmpty) {
+      final sup = _suppliers.where((s) => s.id == supplierId).firstOrNull;
+      if (sup != null) {
+        sup.outstanding += totalAmount;
+        sup.lastPurchase = record.date;
+      }
+    }
     notifyListeners();
     _sync?.push('purchase.create', {
       'local_id': record.id,
@@ -3120,6 +3448,7 @@ class PosProvider extends ChangeNotifier {
       if (supplierId != null && supplierId.isNotEmpty) 'supplier_id': supplierId,
       'status': status,
       'total_paise': toPaise(totalAmount),
+      'purchased_at': record.date.toUtc().toIso8601String(),
       'items': lines,
     });
   }
@@ -3218,13 +3547,17 @@ class PosProvider extends ChangeNotifier {
   }
 
   void _switchOutlet(Outlet outlet) {
-    // Kitchen terminals are locked to their assigned outlet (single-outlet
-    // binding, like waiters): switching is disabled at the UI layer and
-    // rejected here as a backstop.
-    if (_currentStaff?.role == StaffRole.kitchen) return;
+    // Single-outlet binding (waiters + kitchen): staff assigned to one outlet
+    // cannot operate another. Switching is hidden at the UI layer and rejected
+    // here as a backstop.
+    if (_currentStaff != null && !_currentStaff!.canAccessOutlet(outlet.id)) {
+      return;
+    }
     final previousOutletId = _currentOutlet.id;
     _currentOutlet = outlet;
     _rebuildCategories();
+    // The saved login follows the counter: a restart must land back here.
+    unawaited(_saveLoginSnapshot());
     // Strict outlet isolation: drop the previous outlet's board immediately so
     // no stale cross-outlet ticket is ever visible, then rehydrate.
     _kots.clear();
@@ -3277,6 +3610,27 @@ class PosProvider extends ChangeNotifier {
 
   PrinterAdapter get _effectivePrinter =>
       _printer ?? printerFromSetting(_settings.billingPrinter);
+
+  /// The resolved printer for the current settings (None when unconfigured) —
+  /// surfaced on the dashboard + printer status screen.
+  PrinterAdapter? get printer {
+    final p = _effectivePrinter;
+    return p is NullPrinter ? null : p;
+  }
+
+  /// Sends a small test page so staff can verify the printer connection.
+  Future<bool> printTestPage() async {
+    try {
+      await _effectivePrinter.send(buildTestPageBytes());
+      _printerError = null;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _printerError = 'Printer "${_effectivePrinter.name}": $e';
+      notifyListeners();
+      return false;
+    }
+  }
 
   void _printReceipt(RestaurantOrder order) {
     if (!apiEnabled) return;

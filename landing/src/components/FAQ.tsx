@@ -11,7 +11,7 @@ export const FAQ: React.FC = () => {
 
   return (
     <section id="faq" className="section" style={{ backgroundColor: 'var(--bg-porcelain-warm)' }}>
-      <div className="container">
+      <div className="t-container">
         <div className="section-header">
           <span className="section-eyebrow">Clear Answers</span>
           <h2 className="section-title">Frequently Asked Questions</h2>

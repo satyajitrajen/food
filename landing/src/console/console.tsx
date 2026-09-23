@@ -197,9 +197,9 @@ const RegisterPage: React.FC = () => {
       <div className="console-login-wrap">
         <div className="console-login-card">
           <h2>Welcome to FoodPOS 🎉</h2>
-          <p className="hint">Your 14-day trial is live. Keep these safe:</p>
+          <p className="hint">Your 7-day trial is live. Keep these safe:</p>
           <div className="console-field" style={{ marginBottom: 14 }}>
-            <label>Organization code (terminal setup)</label>
+            <label>Organization code (app setup)</label>
             <div className="console-code">{String(info.org_code ?? '')}</div>
           </div>
           <div className="console-field" style={{ marginBottom: 18 }}>
@@ -207,7 +207,7 @@ const RegisterPage: React.FC = () => {
             <div className="console-code">{String(info.admin_pin ?? '')}</div>
           </div>
           <div className="console-banner console-banner-info">
-            Terminal: open the FoodPOS app → enter the org code above.
+            On your device: open the FoodPOS app → enter the org code above.
           </div>
           <button className="console-btn console-btn-primary" onClick={() => navigate('/console')}>
             Open my dashboard
@@ -223,7 +223,7 @@ const RegisterPage: React.FC = () => {
         <h2>Create your account</h2>
         <p className="hint">One outlet is created for you; add more later from your plan.</p>
         <p className="hint" style={{ fontWeight: 700, color: '#ea580c' }}>
-          Selected plan: {PLAN_LABELS[planCode]} · 14-day free trial
+          Selected plan: {PLAN_LABELS[planCode]} · 7-day free trial
         </p>
         {error && <div className="console-banner console-banner-error">{error}</div>}
         <form className="console-form" onSubmit={submit}>
@@ -234,7 +234,7 @@ const RegisterPage: React.FC = () => {
           <input className="console-input" required placeholder="First outlet name (e.g. Baner)" value={form.outlet_name} onChange={set('outlet_name')} />
           <input className="console-input" placeholder="GSTIN (optional)" value={form.gstin} onChange={set('gstin')} />
           <button className="console-btn console-btn-primary" disabled={busy}>
-            {busy ? 'Creating…' : 'Start 14-day free trial'}
+            {busy ? 'Creating…' : 'Start 7-day free trial'}
           </button>
         </form>
         <p style={{ marginTop: 14, textAlign: 'center' }}>
@@ -377,7 +377,7 @@ const OwnerPanel: React.FC = () => {
             <div className="console-form console-row" style={{ marginBottom: 12 }}>
               <input className="console-input grow" placeholder="Outlet name" value={outletForm.name}
                 onChange={(e) => setOutletForm((f) => ({ ...f, name: e.target.value }))} />
-              <input className="console-input grow" placeholder="Terminal (e.g. POS-1)" value={outletForm.terminal}
+              <input className="console-input grow" placeholder="Counter (e.g. Main Counter)" value={outletForm.terminal}
                 onChange={(e) => setOutletForm((f) => ({ ...f, terminal: e.target.value }))} />
               <button className="console-btn console-btn-primary console-btn-sm" disabled={busy}
                 onClick={() => run(() => api.createOutlet({ name: outletForm.name, terminal: outletForm.terminal }), 'Outlet added')}>
@@ -461,9 +461,17 @@ const OwnerPanel: React.FC = () => {
         {sub.cancel_at_period_end !== true && (
           <div className="console-card">
             <h3 className="console-section-title">Subscription</h3>
-            <p style={{ fontSize: 13, color: '#4a443e' }}>
-              Auto-renew charges your plan each cycle via UPI/card — no manual follow-up. Cancel anytime; renewals stop after the current period.
-            </p>
+            {sub.status === 'trial' ? (
+              <p style={{ fontSize: 13, color: '#4a443e' }}>
+                {sub.gateway_status === 'active' || sub.gateway_status === 'authenticated'
+                  ? `Free trial until ${fmtDate(sub.trial_ends_at)} — auto-pay is on, first charge happens automatically.`
+                  : `Free trial until ${fmtDate(sub.trial_ends_at)} — enable auto-pay now, the mandate is authorized today and the first charge happens automatically.`}
+              </p>
+            ) : (
+              <p style={{ fontSize: 13, color: '#4a443e' }}>
+                Auto-renew charges your plan each cycle via UPI/card — no manual follow-up. Cancel anytime; renewals stop after the current period.
+              </p>
+            )}
             <div className="console-row" style={{ gap: 8 }}>
               {sub.gateway_status !== 'active' && (
                 <button className="console-btn console-btn-primary console-btn-sm" disabled={busy}

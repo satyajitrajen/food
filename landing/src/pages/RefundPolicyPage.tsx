@@ -34,7 +34,7 @@ export const RefundPolicyPage: React.FC = () => {
 
         <h2>2. Annual Subscription Cancellations</h2>
         <p>
-          If you subscribed to an Annual Plan and need to terminate due to outlet relocation or business restructuring after the 14-day window:
+          If you subscribed to an Annual Plan and need to terminate due to outlet relocation or business restructuring after the 7-day trial window:
         </p>
         <ul>
           <li>We will calculate the elapsed billing months at the regular monthly rate.</li>

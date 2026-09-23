@@ -16,12 +16,15 @@ import '../settings/menu_admin_screen.dart';
 import '../settings/staff_admin_screen.dart';
 import '../auth/pin_login_screen.dart';
 import '../auth/select_outlet_screen.dart';
+import '../printer/printer_status_screen.dart';
+import 'attendance_screen.dart';
+import 'customer_menu_qr_screen.dart';
 
 /// Secondary operations hub. Tiles are filtered by role — Admin sees the
 /// overall revenue area (Reports) that Manager/Cashier cannot, and back-office
-/// tiles (menu/staff/settings) are management-only. Waiters keep a minimal hub
-/// (profile + outlet switch + lock); kitchen terminals are locked to their
-/// assigned outlet (profile + lock, no outlet switch).
+/// tiles (menu/staff/settings) are management-only. Outlet-bound staff
+/// (waiters/kitchen assigned to one outlet) get a minimal hub (profile + lock,
+/// no outlet switch); org-wide floaters keep the outlet switch tile.
 class MoreHubScreen extends StatelessWidget {
   const MoreHubScreen({super.key});
 
@@ -104,6 +107,36 @@ class MoreHubScreen extends StatelessWidget {
           bgColor: AppColors.infoBlueBg,
           screen: const InventoryScreen(),
         ),
+      if (canManage)
+        _tile(
+          context: context,
+          title: 'Staff Attendance',
+          subtitle: 'Who clocked in today, hours worked & full log',
+          icon: Icons.fact_check_outlined,
+          color: AppColors.primaryGreen,
+          bgColor: AppColors.primaryGreenLight,
+          screen: const AttendanceScreen(),
+        ),
+      if (isOps)
+        _tile(
+          context: context,
+          title: 'Customer Menu QR',
+          subtitle: 'Print a scan-QR so guests can browse the live menu',
+          icon: Icons.qr_code_2,
+          color: AppColors.primaryGreen,
+          bgColor: AppColors.primaryGreenLight,
+          screen: const CustomerMenuQrScreen(),
+        ),
+      if (isOps)
+        _tile(
+          context: context,
+          title: 'Printer Status & Test',
+          subtitle: 'Connected printer name, connection test & sample print',
+          icon: Icons.print_outlined,
+          color: AppColors.textDark,
+          bgColor: AppColors.creamSubtle,
+          screen: const PrinterStatusScreen(),
+        ),
       // Overall revenue analytics — Admin only.
       if (isAdmin)
         _tile(
@@ -146,11 +179,12 @@ class MoreHubScreen extends StatelessWidget {
           bgColor: AppColors.creamSubtle,
           screen: const SettingsScreen(),
         ),
-      // Kitchen terminals are locked to their assigned outlet: no switching.
-      if (role != StaffRole.kitchen)
+      // Single-outlet staff (waiters/kitchen assigned to one outlet) are
+      // locked to it: no switching tile. Org-wide floaters keep it.
+      if (provider.currentStaff?.outletId == null)
         _tile(
           context: context,
-          title: 'Switch Outlet / Terminal',
+          title: 'Switch Outlet / Counter',
           subtitle: 'Currently connected to ${provider.currentOutlet.name}',
           icon: Icons.store_mall_directory_outlined,
           color: AppColors.textDark,
@@ -197,7 +231,7 @@ class MoreHubScreen extends StatelessWidget {
                           style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
                         ),
                         Text(
-                          '${provider.currentStaff?.roleTitle ?? ""} · ${provider.currentOutlet.name} (${provider.currentOutlet.terminal})',
+                            '${provider.currentStaff?.roleTitle ?? ""} · ${provider.currentOutlet.name} · Counter ${provider.currentOutlet.terminal}',
                           style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
                         ),
                       ],

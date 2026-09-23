@@ -48,3 +48,29 @@ class Staff {
     return outletId == targetOutletId;
   }
 }
+
+/// Attendance ledger entry: a clock-in / clock-out pair (terminal-local).
+class AttendanceEntry {
+  final String id;
+  final String staffId;
+  final String staffName;
+  final DateTime clockIn;
+  DateTime? clockOut;
+
+  AttendanceEntry({
+    required this.id,
+    required this.staffId,
+    required this.staffName,
+    required this.clockIn,
+    this.clockOut,
+  });
+
+  /// Minutes worked for this session; open sessions count up to now.
+  int get minutesWorked {
+    final end = clockOut ?? DateTime.now();
+    final diff = end.difference(clockIn).inMinutes;
+    return diff.isNegative ? 0 : diff;
+  }
+
+  bool get isOnDuty => clockOut == null;
+}

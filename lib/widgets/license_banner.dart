@@ -19,20 +19,47 @@ class LicenseBanner extends StatelessWidget {
     // 2. An organization is bound and initial terminal setup is complete.
     // 3. A staff member is authenticated/working in the POS.
     // 4. An entitlement has actually been loaded and is inactive/expired/suspended.
-    final show = provider.apiEnabled &&
+    final blocked = provider.apiEnabled &&
         provider.orgCode != null &&
         !provider.needsOrgSetup &&
         provider.currentStaff != null &&
         provider.entitlement != null &&
         !provider.licenseActive;
-    if (!show) return child;
+    if (blocked) {
+      final entitle = provider.entitlement!;
+      final status = entitle.status;
+      final message = status == 'suspended'
+          ? 'Subscription suspended by the platform.'
+          : 'Subscription $status. Renew to keep taking orders.';
+      return _banner(child, message, warn: true,
+          verified: provider.licenseTokenVerified);
+    }
 
-    final entitle = provider.entitlement!;
-    final status = entitle.status;
-    final message = status == 'suspended'
-        ? 'Subscription suspended by the platform.'
-        : 'Subscription $status. Renew to keep taking orders.';
+    // Soft nudge during the 7-day free trial: only when ≤3 days remain and
+    // auto-pay is not armed, so owners are not surprised on day 8.
+    final card = provider.subscriptionStatus;
+    final trialLeft = provider.trialDaysLeft;
+    final showTrialNudge = provider.apiEnabled &&
+        provider.orgCode != null &&
+        !provider.needsOrgSetup &&
+        provider.currentStaff != null &&
+        provider.licenseActive &&
+        trialLeft > 0 &&
+        trialLeft <= 3 &&
+        (card == null || (card.isTrial && !card.autoRenewLive));
+    if (showTrialNudge) {
+      return _banner(
+          child,
+          'Free trial ends in $trialLeft day${trialLeft == 1 ? '' : 's'} — '
+          'enable auto-pay in Settings → Subscription.',
+          warn: false,
+          verified: false);
+    }
+    return child;
+  }
 
+  Widget _banner(Widget child, String message,
+      {required bool warn, required bool verified}) {
     return Stack(
       children: [
         child,
@@ -42,7 +69,7 @@ class LicenseBanner extends StatelessWidget {
           right: 0,
           child: SafeArea(
             child: Material(
-              color: AppColors.saffronAmber,
+              color: warn ? AppColors.saffronAmber : AppColors.primaryGreen,
               elevation: 4,
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -57,7 +84,7 @@ class LicenseBanner extends StatelessWidget {
                             color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13),
                       ),
                     ),
-                    if (provider.licenseTokenVerified)
+                    if (verified)
                       const Tooltip(
                         message: 'License verified',
                         child: Icon(Icons.verified_user_outlined, color: Colors.white, size: 18),

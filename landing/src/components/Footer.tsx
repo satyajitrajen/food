@@ -22,7 +22,7 @@ export const Footer: React.FC = () => {
 
   return (
     <footer className="footer">
-      <div className="container">
+      <div className="t-container">
         <div className="footer-grid">
           {/* Brand Col */}
           <div className="footer-brand">

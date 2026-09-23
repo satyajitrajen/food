@@ -83,7 +83,7 @@ class OfflineSyncDialog extends StatelessWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Terminal Status:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                        const Text('Device Status:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
                         Text(
                           provider.isOfflineMode ? 'Local Cache (SQLite)' : 'Online (Baner POS-01)',
                           style: TextStyle(

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/validation.dart';
 import '../../models/customer_model.dart';
 import '../../models/staff_model.dart';
 import '../../providers/pos_provider.dart';
+import '../../widgets/dialog_controller_scope.dart';
 
 class GuestDetailsDialog extends StatefulWidget {
   final VoidCallback onStartOrder;
@@ -23,6 +25,8 @@ class GuestDetailsDialog extends StatefulWidget {
 
 class _GuestDetailsDialogState extends State<GuestDetailsDialog> {
   int _guestCount = 2;
+  String? _phoneError;
+  String _waiterQuery = '';
   late TextEditingController _customerController;
   late TextEditingController _phoneController;
   late TextEditingController _notesController;
@@ -57,7 +61,8 @@ class _GuestDetailsDialogState extends State<GuestDetailsDialog> {
     final queryC = TextEditingController();
     final selected = await showDialog<Customer>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
+      builder: (ctx) => DialogControllerScope(
+        controllers: [queryC],
         builder: (ctx, setDialogState) => AlertDialog(
           title: const Text('Select Existing Customer'),
           content: SizedBox(
@@ -104,7 +109,6 @@ class _GuestDetailsDialogState extends State<GuestDetailsDialog> {
         ),
       ),
     );
-    queryC.dispose();
     if (selected != null && mounted) {
       setState(() {
         _customerController.text = selected.name;
@@ -166,55 +170,84 @@ class _GuestDetailsDialogState extends State<GuestDetailsDialog> {
                   ],
                 ),
                 const SizedBox(height: 18),
-                // Number of Guests Stepper
+                // Number of Guests: quick steppers + dropdown to pick any
+                // larger party directly.
                 const Text('Number of Guests', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
                 const SizedBox(height: 8),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      for (int i in [1, 2, 3, 4, 6, 8])
-                        Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: ChoiceChip(
-                            label: Text('$i'),
-                            selected: _guestCount == i,
-                            selectedColor: AppColors.primaryGreen,
-                            labelStyle: TextStyle(
-                              color: _guestCount == i ? Colors.white : AppColors.textDark,
-                              fontWeight: FontWeight.w700,
-                            ),
-                            onSelected: (_) => setState(() => _guestCount = i),
+                Row(
+                  children: [
+                    IconButton.filledTonal(
+                      onPressed: _guestCount > 1 ? () => setState(() => _guestCount--) : null,
+                      icon: const Icon(Icons.remove, size: 18),
+                      tooltip: 'Fewer guests',
+                    ),
+                    Expanded(
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 10),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.borderLight),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<int>(
+                            value: _guestCount,
+                            isExpanded: true,
+                            alignment: AlignmentDirectional.center,
+                            icon: const Icon(Icons.expand_more, color: AppColors.textMuted),
+                            items: [
+                              // Always offer 1-20, and never drop an existing larger
+                              // party (e.g. a 24-seat banqueting table).
+                              for (int i = 1; i <= (_guestCount > 20 ? _guestCount : 20); i++)
+                                DropdownMenuItem(
+                                  value: i,
+                                  child: Text(
+                                    i == 1 ? '1 Guest' : '$i Guests',
+                                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                                  ),
+                                ),
+                            ],
+                            onChanged: (v) {
+                              if (v != null) setState(() => _guestCount = v);
+                            },
                           ),
                         ),
-                    ],
-                  ),
+                      ),
+                    ),
+                    IconButton.filledTonal(
+                      onPressed: () => setState(() => _guestCount++),
+                      icon: const Icon(Icons.add, size: 18),
+                      tooltip: 'More guests',
+                    ),
+                  ],
                 ),
               const SizedBox(height: 16),
-              // Customer Name & Phone
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _customerController,
-                      decoration: const InputDecoration(
-                        labelText: 'Customer Name (Optional)',
-                        prefixIcon: Icon(Icons.person_outline, size: 18),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextField(
-                      controller: _phoneController,
-                      keyboardType: TextInputType.phone,
-                      decoration: const InputDecoration(
-                        labelText: 'Mobile Number',
-                        prefixIcon: Icon(Icons.phone_outlined, size: 18),
-                      ),
-                    ),
-                  ),
-                ],
+              // Customer details — prominent, entered once at seating.
+              const Text('Customer Details',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _customerController,
+                textCapitalization: TextCapitalization.words,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                decoration: const InputDecoration(
+                  labelText: 'Customer Name',
+                  hintText: 'Optional',
+                  prefixIcon: Icon(Icons.person_outline, size: 18),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _phoneController,
+                keyboardType: TextInputType.phone,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                decoration: InputDecoration(
+                  labelText: 'Mobile Number (10-digit)',
+                  hintText: '98XXXXXXXX',
+                  prefixIcon: const Icon(Icons.phone_outlined, size: 18),
+                  errorText: _phoneError,
+                ),
               ),
               if (provider.customers.isNotEmpty) ...[
                 Align(
@@ -231,28 +264,54 @@ class _GuestDetailsDialogState extends State<GuestDetailsDialog> {
               // Waiter Selector
               const Text('Assigned Waiter / Captain', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
               const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                children: waiters.map((w) {
-                  final isSelected = _selectedWaiter == w.name;
-                  return ChoiceChip(
-                    avatar: CircleAvatar(
-                      backgroundColor: AppColors.primaryGreenLight,
-                      backgroundImage: NetworkImage(w.avatarUrl),
-                      onBackgroundImageError: (_, _) {},
-                      radius: 10,
-                    ),
-                    label: Text(w.name),
-                    selected: isSelected,
-                    selectedColor: AppColors.primaryGreen,
-                    labelStyle: TextStyle(
-                      color: isSelected ? Colors.white : AppColors.textDark,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    onSelected: (_) => setState(() => _selectedWaiter = w.name),
-                  );
-                }).toList(),
-              ),
+              if (waiters.length > 4)
+                TextField(
+                  onChanged: (v) => setState(() => _waiterQuery = v),
+                  decoration: InputDecoration(
+                    hintText: 'Search waiter…',
+                    prefixIcon: const Icon(Icons.search, size: 18),
+                    isDense: true,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              if (waiters.length > 4) const SizedBox(height: 8),
+              Builder(builder: (context) {
+                final q = _waiterQuery.trim().toLowerCase();
+                final visible = q.isEmpty
+                    ? waiters
+                    : waiters.where((w) => w.name.toLowerCase().contains(q)).toList();
+                if (waiters.isEmpty) {
+                  return const Text('No waiters available on this counter.',
+                      style: TextStyle(color: AppColors.textMuted, fontSize: 12));
+                }
+                if (visible.isEmpty) {
+                  return const Text('No waiter matches that search.',
+                      style: TextStyle(color: AppColors.textMuted, fontSize: 12));
+                }
+                return Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: visible.map((w) {
+                    final isSelected = _selectedWaiter == w.name;
+                    return ChoiceChip(
+                      avatar: CircleAvatar(
+                        backgroundColor: AppColors.primaryGreenLight,
+                        backgroundImage: NetworkImage(w.avatarUrl),
+                        onBackgroundImageError: (error, stackTrace) {},
+                        radius: 10,
+                      ),
+                      label: Text(w.name),
+                      selected: isSelected,
+                      selectedColor: AppColors.primaryGreen,
+                      labelStyle: TextStyle(
+                        color: isSelected ? Colors.white : AppColors.textDark,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      onSelected: (_) => setState(() => _selectedWaiter = w.name),
+                    );
+                  }).toList(),
+                );
+              }),
               const SizedBox(height: 16),
               // Special Note
               TextField(
@@ -262,27 +321,33 @@ class _GuestDetailsDialogState extends State<GuestDetailsDialog> {
                   prefixIcon: Icon(Icons.edit_note, size: 20),
                 ),
               ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: ElevatedButton(
-                  onPressed: () {
-                    provider.setGuestDetails(
-                      count: _guestCount,
-                      customerName: _customerController.text.trim().isNotEmpty ? _customerController.text.trim() : null,
-                      customerPhone: _phoneController.text.trim(),
-                      waiter: _selectedWaiter,
-                    );
-                    if (_notesController.text.trim().isNotEmpty) {
-                      provider.setOrderNote(_notesController.text.trim());
-                    }
-                    Navigator.of(context).pop();
-                    widget.onStartOrder();
-                  },
-                  child: const Text('Start Order →', style: TextStyle(fontWeight: FontWeight.w700)),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      // Mobile must be a valid 10-digit number when given.
+                      final phoneErr = validateMobile(_phoneController.text);
+                      if (phoneErr != null) {
+                        setState(() => _phoneError = phoneErr);
+                        return;
+                      }
+                      setState(() => _phoneError = null);
+                      provider.setGuestDetails(
+                        count: _guestCount,
+                        customerName: _customerController.text.trim().isNotEmpty ? _customerController.text.trim() : null,
+                        customerPhone: _phoneController.text.trim(),
+                        waiter: _selectedWaiter,
+                      );
+                      if (_notesController.text.trim().isNotEmpty) {
+                        provider.setOrderNote(_notesController.text.trim());
+                      }
+                      Navigator.of(context).pop();
+                      widget.onStartOrder();
+                    },
+                    child: const Text('Start Order →', style: TextStyle(fontWeight: FontWeight.w700)),
+                  ),
                 ),
-              ),
             ],
           ),
         ),

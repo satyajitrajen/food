@@ -56,6 +56,19 @@ class PinVault {
     return _staffOf(e);
   }
 
+  /// Read-only identity lookup for session restore (no PIN check).
+  /// Only used to rebuild the signed-in profile after an app restart when
+  /// the device is offline; the entry exists solely because this staff
+  /// authenticated against the server on this device before. Returns null
+  /// when this staff never verified here.
+  Future<Staff?> lookup(String staffId) async {
+    if (staffId.isEmpty) return null;
+    final prefs = await _prefs;
+    final e = _readAll(prefs)[staffId];
+    if (e == null) return null;
+    return _staffOf(e);
+  }
+
   /// Offline manager gate: returns the first cached manager/admin whose PIN
   /// verifies, so privileged actions stay gated with no server.
   Future<Staff?> verifyAnyManager(String pin) async {

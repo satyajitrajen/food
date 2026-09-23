@@ -44,4 +44,18 @@ void main() {
     expect(await vault.verifyStaff('st-03', '1111'), isNull, reason: 'old PIN must stop working');
     expect((await vault.verifyStaff('st-03', '2222'))?.id, 'st-03');
   });
+
+  test('lookup returns the cached identity without a PIN (session restore)', () async {
+    SharedPreferences.setMockInitialValues({});
+    final vault = PinVault();
+
+    expect(await vault.lookup('st-01'), isNull, reason: 'never verified here');
+
+    await vault.remember(staffId: 'st-01', name: 'Rahul', role: 'cashier', pin: '1234');
+    final staff = await vault.lookup('st-01');
+    expect(staff?.id, 'st-01');
+    expect(staff?.name, 'Rahul');
+    expect(staff?.role.name, 'cashier');
+    expect(await vault.lookup(''), isNull);
+  });
 }

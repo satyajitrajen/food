@@ -25,7 +25,7 @@ export const PrivacyPolicyPage: React.FC = () => {
         </p>
 
         <p>
-          This Privacy Policy governs the use of the FoodPOS Android Application, Desktop Terminal, and related cloud synchronization services. It discloses what information we collect, how it is processed and stored on your local devices and cloud servers, and your statutory rights.
+          This Privacy Policy governs the use of the FoodPOS Android Application, Desktop App, and related cloud synchronization services. It discloses what information we collect, how it is processed and stored on your local devices and cloud servers, and your statutory rights.
         </p>
 
         <div className="policy-box">
@@ -43,7 +43,7 @@ export const PrivacyPolicyPage: React.FC = () => {
           When setting up an outlet on FoodPOS, we collect business registration details such as Restaurant Name, Trade Name, Outlet Address, GSTIN (optional for unregistered entities), and FSSAI license numbers.
         </p>
         <p>
-          For operational authentication, terminal profiles include staff names, role assignments (Admin, Manager, Cashier, Waiter, Kitchen), and 4-to-6 digit access PINs. <strong>All staff PINs are salted and hashed using bcrypt before local storage or cloud transmission.</strong>
+          For operational authentication, staff profiles include staff names, role assignments (Admin, Manager, Cashier, Waiter, Kitchen), and 4-to-6 digit access PINs. <strong>All staff PINs are salted and hashed using bcrypt before local storage or cloud transmission.</strong>
         </p>
 
         <h3>B. Dine-in Patron & Customer Data</h3>

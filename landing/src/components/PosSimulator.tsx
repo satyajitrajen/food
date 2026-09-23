@@ -24,7 +24,7 @@ export const PosSimulator: React.FC = () => {
         <div className="t-ecosystem-card">
           <img
             src="/images/benefits-composite.png"
-            alt="FoodPOS complete restaurant operations ecosystem: 90s billing terminal, offline cache cloud, live kitchen display, theft-proof cash count, and multi-outlet console"
+            alt="FoodPOS complete restaurant operations ecosystem: 90s billing counter, offline cache cloud, live kitchen display, theft-proof cash count, and multi-outlet console"
             className="t-ecosystem-img"
             loading="lazy"
           />

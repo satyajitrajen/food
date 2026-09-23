@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS plans (
     interval_days INTEGER NOT NULL DEFAULT 30,
     max_outlets   INTEGER NOT NULL DEFAULT 1,
     max_staff     INTEGER NOT NULL DEFAULT 20,
-    trial_days    INTEGER NOT NULL DEFAULT 14,
+    trial_days    INTEGER NOT NULL DEFAULT 7,
     is_active     INTEGER NOT NULL DEFAULT 1
 );
 

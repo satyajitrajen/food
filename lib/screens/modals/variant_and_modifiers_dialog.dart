@@ -13,12 +13,12 @@ class VariantAndModifiersDialog extends StatefulWidget {
     required this.onConfirm,
   });
 
-  static void show(
+  static Future<void> show(
     BuildContext context, {
     required MenuItem item,
     required Function(ProductVariant? variant, List<ModifierItem> modifiers, String? note, int quantity) onConfirm,
   }) {
-    showDialog(
+    return showDialog(
       context: context,
       builder: (ctx) => VariantAndModifiersDialog(item: item, onConfirm: onConfirm),
     );

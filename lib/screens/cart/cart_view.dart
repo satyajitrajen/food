@@ -5,10 +5,13 @@ import '../../providers/pos_provider.dart';
 import '../../models/app_nav.dart';
 import '../../widgets/custom_badge.dart';
 import '../modals/kot_preview_dialog.dart';
+import '../modals/variant_and_modifiers_dialog.dart';
 import '../modals/kot_sent_dialog.dart';
 import '../modals/manager_pin_dialog.dart';
 import '../../widgets/confirm_dialog.dart';
+import '../../widgets/system_insets.dart';
 import '../billing/bill_preview_screen.dart';
+import '../running_orders/running_order_detail_screen.dart';
 
 class CartViewScreen extends StatelessWidget {
   const CartViewScreen({super.key});
@@ -236,7 +239,24 @@ class CartViewScreen extends StatelessWidget {
                                     ),
                                     IconButton(
                                       icon: const Icon(Icons.add_circle_outline, size: 20, color: AppColors.primaryGreen),
-                                      onPressed: () => provider.incrementItem(item),
+                                      onPressed: () {
+                                        // Every add asks again: variant + spice/add-ons + note.
+                                        // Identical picks merge; different picks split lines.
+                                        VariantAndModifiersDialog.show(
+                                          context,
+                                          item: item.menuItem,
+                                          onConfirm: (variant, modifiers, note, qty) {
+                                            for (int i = 0; i < qty; i++) {
+                                              provider.addToCart(
+                                                item.menuItem,
+                                                variant: variant,
+                                                modifiers: modifiers,
+                                                note: note,
+                                              );
+                                            }
+                                          },
+                                        );
+                                      },
                                     ),
                                     IconButton(
                                       icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.textLight),
@@ -277,9 +297,9 @@ class CartViewScreen extends StatelessWidget {
             }),
           ),
 
-          // Bottom Summary & Actions
+          // Bottom Summary & Actions (explicit inset: survives opaque nav bars).
           Container(
-            padding: const EdgeInsets.all(20),
+            padding: BottomInsets.barAll(context, horizontal: 20, vertical: 20),
             decoration: const BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -292,6 +312,8 @@ class CartViewScreen extends StatelessWidget {
               ],
             ),
             child: SafeArea(
+              top: false,
+              bottom: false,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -320,6 +342,9 @@ class CartViewScreen extends StatelessWidget {
                           child: ElevatedButton.icon(
                             style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryGreen),
                             onPressed: () {
+                              // Capture the order before the dialog: the
+                              // callback must not depend on live state.
+                              final order = provider.activeOrder;
                               KOTPreviewDialog.show(
                                 context,
                                 onSendKOT: () {
@@ -328,11 +353,24 @@ class CartViewScreen extends StatelessWidget {
                                     KOTSentDialog.show(
                                       context,
                                       kot: kot,
-                                      onAddMoreItems: () => Navigator.of(context).pop(),
-                                      onViewOrder: () {},
+                                      // The dialog pops itself; callbacks must
+                                      // not pop again (they navigate instead).
+                                      onAddMoreItems: () {},
+                                      onViewOrder: () {
+                                        if (order == null) return;
+                                        // Replace the cart with the order
+                                        // details screen (status + items).
+                                        Navigator.of(context).pushReplacement(
+                                          MaterialPageRoute(
+                                            builder: (_) => RunningOrderDetailScreen(order: order),
+                                          ),
+                                        );
+                                      },
                                       onGoToTables: () {
-                                        Navigator.of(context).pop();
-                                        provider.goToDest(AppDest.tables); // Tables tab
+                                        // Return to the shell so the Tables tab
+                                        // is actually visible, then switch to it.
+                                        Navigator.of(context).popUntil((r) => r.isFirst);
+                                        provider.goToDest(AppDest.tables);
                                       },
                                     );
                                   }
@@ -346,18 +384,38 @@ class CartViewScreen extends StatelessWidget {
                       else
                         Expanded(
                           child: ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(backgroundColor: AppColors.vegGreen),
+                            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryGreen),
                             onPressed: () {
                               Navigator.of(context).push(
-                                MaterialPageRoute(builder: (_) => const BillPreviewScreen()),
+                                MaterialPageRoute(
+                                  builder: (_) => RunningOrderDetailScreen(order: activeOrder),
+                                ),
                               );
                             },
-                            icon: const Icon(Icons.receipt_long, size: 16),
-                            label: const Text('Checkout Bill'),
+                            icon: const Icon(Icons.receipt_long_outlined, size: 16),
+                            label: const Text('View Order'),
                           ),
                         ),
                     ],
                   ),
+                  // Explicit checkout: never automatic (waiter taps it when
+                  // the table is ready to pay).
+                  if (!hasUnsentItems) ...[
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(backgroundColor: AppColors.vegGreen),
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) => const BillPreviewScreen()),
+                          );
+                        },
+                        icon: const Icon(Icons.point_of_sale, size: 16),
+                        label: const Text('Checkout'),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),

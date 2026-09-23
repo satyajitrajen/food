@@ -43,7 +43,7 @@ const TESTIMONIALS: Testimonial[] = [
 export const Testimonials: React.FC = () => {
   return (
     <section className="section" style={{ backgroundColor: 'var(--bg-porcelain)' }}>
-      <div className="container">
+      <div className="t-container">
         <div className="section-header">
           <span className="section-eyebrow">Proven on the Dining Floor</span>
           <h2 className="section-title">Trusted by Independent Restaurateurs Across India</h2>

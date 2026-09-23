@@ -68,6 +68,7 @@ This kills the float drift class of bugs found in review.
 Order:   received → preparing → ready → served → billing → completed
                  ↘ cancelled (audit reason)          ↘ cancelled (full refund)
 KOT:     new → preparing → ready → served            (cancelled allowed pre-served)
+         kitchen drives new→preparing→ready · assigned waiter marks served
 Table:   available → occupied → billing → available ; reserved/cleaning → available
 Shift:   (none) → open → closed                      (one open per outlet+terminal)
 ```
@@ -141,7 +142,7 @@ Base: `/api/v1` · Auth: `Authorization: Bearer <jwt>` · All writes: `Idempoten
 | Menu | `GET /menu?category_id=`, `GET /menu/{id}`, `POST /menu` (manager), `PATCH /menu/{id}` (manager), `DELETE /menu/{id}` (manager) |
 | Orders | `GET /orders?status=&limit=`, `POST /orders`, `GET /orders/{id}`, `PATCH /orders/{id}` (status/note/guests/customer/charges/discount), `POST /orders/{id}/items`, `PATCH /orders/{id}/items/{itemId}`, `POST /orders/{id}/items/{itemId}/cancel` |
 | Payments | `POST /orders/{id}/pay` (method cash\|upi\|card, amount_received_paise, splits[]), `POST /orders/{id}/refund` (amount_paise, reason, is_full_refund, mode) |
-| KOT | `POST /orders/{id}/kot`, `GET /kots?status=`, `PATCH /kots/{id}` (status FSM: new→preparing→ready→served, cancel before served) |
+| KOT | `POST /orders/{id}/kot`, `GET /kots?status=`, `PATCH /kots/{id}` (status FSM: new→preparing→ready→served, cancel before served; kitchen sets new→preparing→ready, assigned waiter sets served) |
 | Shifts | `GET /shifts/current`, `GET /shifts`, `POST /shifts/open`, `POST /shifts/current/close`, `POST /shifts/current/cash-move` (cash_in\|cash_out) |
 | Expenses | `GET /expenses?range=today\|month`, `POST /expenses`, `DELETE /expenses/{id}` |
 | Customers | `GET /customers?q=`, `POST /customers`, `POST /customers/{id}/credit` (kind sale\|settlement), `GET /customers/{id}/credit-log` |

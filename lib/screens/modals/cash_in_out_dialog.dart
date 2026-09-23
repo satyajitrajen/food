@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/pos_provider.dart';
@@ -23,6 +24,7 @@ class CashInOutDialog extends StatefulWidget {
 class _CashInOutDialogState extends State<CashInOutDialog> {
   final TextEditingController _amountController = TextEditingController();
   final TextEditingController _refController = TextEditingController();
+  DateTime _when = DateTime.now();
   String _selectedReason = 'Petty Cash';
 
   final List<String> _cashInReasons = [
@@ -133,6 +135,40 @@ class _CashInOutDialogState extends State<CashInOutDialog> {
                 }).toList(),
               ),
               const SizedBox(height: 16),
+              // Movement date: defaults to now; backdated corrections allowed.
+              Builder(builder: (pickerContext) => InkWell(
+                onTap: () async {
+                  final now = DateTime.now();
+                  final picked = await showDatePicker(
+                    context: pickerContext,
+                    initialDate: _when,
+                    firstDate: now.subtract(const Duration(days: 365)),
+                    lastDate: now,
+                  );
+                  if (picked == null || !pickerContext.mounted) return;
+                  final time = await showTimePicker(
+                    context: pickerContext,
+                    initialTime: TimeOfDay.fromDateTime(_when),
+                  );
+                  if (!pickerContext.mounted) return;
+                  setState(() {
+                    _when = DateTime(picked.year, picked.month, picked.day,
+                        time?.hour ?? _when.hour, time?.minute ?? _when.minute);
+                  });
+                },
+                borderRadius: BorderRadius.circular(12),
+                child: InputDecorator(
+                  decoration: const InputDecoration(
+                    labelText: 'Date & time of movement',
+                    prefixIcon: Icon(Icons.event_outlined, size: 18),
+                  ),
+                  child: Text(
+                    DateFormat('dd MMM yyyy, hh:mm a').format(_when),
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                  ),
+                ),
+              )),
+              const SizedBox(height: 16),
               TextField(
                 controller: _refController,
                 decoration: const InputDecoration(
@@ -187,12 +223,14 @@ class _CashInOutDialogState extends State<CashInOutDialog> {
                         amount: amount,
                         reason: _selectedReason,
                         reference: _refController.text.trim().isNotEmpty ? _refController.text.trim() : null,
+                        at: _when,
                       );
                     } else {
                       provider.addCashOut(
                         amount: amount,
                         reason: _selectedReason,
                         reference: _refController.text.trim().isNotEmpty ? _refController.text.trim() : null,
+                        at: _when,
                       );
                     }
                     Navigator.of(context).pop();

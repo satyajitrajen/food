@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:food_pos/main.dart';
 import 'package:food_pos/providers/pos_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:food_pos/models/shift_model.dart';
 import 'package:food_pos/models/table_model.dart';
 import 'package:food_pos/models/order_model.dart';
@@ -84,12 +85,14 @@ class _MockHttpClientResponse implements HttpClientResponse {
 void main() {
   setUpAll(() {
     HttpOverrides.global = TestHttpOverrides();
+    // Boot reads SharedPreferences (tenant/session restore): resolve instantly.
+    SharedPreferences.setMockInitialValues({});
   });
 
   group('Resto POS Unit & Widget Tests', () {
     testWidgets('App renders splash screen and transitions to PIN login', (WidgetTester tester) async {
       await tester.pumpWidget(const RestoPosApp());
-      expect(find.text('RESTO POS'), findsOneWidget);
+      expect(find.text('Syncing local catalog & offline state...'), findsOneWidget);
       await tester.pump(const Duration(milliseconds: 500));
       await tester.pumpAndSettle(const Duration(seconds: 2));
       // After splash, should transition to staff login with avatar & title

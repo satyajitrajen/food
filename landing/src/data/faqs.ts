@@ -8,7 +8,7 @@ export const FAQS: FAQItem[] = [
   {
     id: 'faq-1',
     question: 'How does FoodPOS work when our restaurant internet goes completely down?',
-    answer: 'FoodPOS is built from the ground up as an offline-first system. All terminal operations — table orders, menu lookups, modifier selections, and bill settlements — run against a high-speed local device cache. Outbox transactions are queued and cryptographically persisted locally. Once Wi-Fi reconnects, FoodPOS automatically syncs transactions to your cloud database with timestamp integrity, guaranteeing zero lost orders or double bills.',
+    answer: 'FoodPOS is built from the ground up as an offline-first system. All billing operations — table orders, menu lookups, modifier selections, and bill settlements — run against a high-speed local device cache. Outbox transactions are queued and cryptographically persisted locally. Once Wi-Fi reconnects, FoodPOS automatically syncs transactions to your cloud database with timestamp integrity, guaranteeing zero lost orders or double bills.',
   },
   {
     id: 'faq-2',
@@ -18,7 +18,7 @@ export const FAQS: FAQItem[] = [
   {
     id: 'faq-3',
     question: 'Can our captains and waitstaff use standard Android tablets or phones for table ordering?',
-    answer: 'Yes! FoodPOS runs natively on Android tablets, desktop PCs (Windows & Linux), and browser-based terminals. Waiters can carry lightweight 8-inch or 10-inch Android tablets directly to tables to punch orders and fire KOTs in real-time.',
+    answer: 'Yes! FoodPOS runs natively on Android tablets, desktop PCs (Windows & Linux), and in the browser. Waiters can carry lightweight 8-inch or 10-inch Android tablets directly to tables to punch orders and fire KOTs in real-time.',
   },
   {
     id: 'faq-4',
