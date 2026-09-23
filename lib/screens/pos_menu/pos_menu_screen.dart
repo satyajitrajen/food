@@ -22,6 +22,18 @@ class _PosMenuScreenState extends State<PosMenuScreen> {
   final TextEditingController _searchController = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    // Re-read the catalog for this outlet. The menu is otherwise only loaded
+    // once at login, so a failed/absent hydrate would leave a blank grid for
+    // the whole session (and server-side menu edits would never show up).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<PosProvider>().refreshMenu();
+    });
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
@@ -195,8 +207,22 @@ class _PosMenuScreenState extends State<PosMenuScreen> {
                 final items = provider.filteredMenuItems;
 
                 if (items.isEmpty) {
-                  return const Center(
-                    child: Text('No dishes match your search or filters.', style: TextStyle(color: AppColors.textMuted)),
+                  // Distinguish "your filters hid everything" from "this outlet
+                  // has no menu on the server" — they need different actions.
+                  final message = provider.menuItems.isNotEmpty
+                      ? 'No dishes match your search or filters.'
+                      : provider.lastSyncError != null
+                          ? 'Menu unavailable — ${provider.lastSyncError}'
+                          : 'No menu items for ${provider.currentOutlet.name} yet. Add them from Menu Management.';
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Text(
+                        message,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: AppColors.textMuted),
+                      ),
+                    ),
                   );
                 }
 

@@ -18,6 +18,9 @@ import '../../widgets/dialog_controller_scope.dart';
 class MenuAdminScreen extends StatelessWidget {
   const MenuAdminScreen({super.key});
 
+  /// Sentinel dropdown value that reveals the free-text "new category" field.
+  static const _newCategory = '__new_category__';
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<PosProvider>();
@@ -196,6 +199,8 @@ class MenuAdminScreen extends StatelessWidget {
     final nameC = TextEditingController(text: existing?.name ?? '');
     final priceC = TextEditingController(text: existing == null ? '' : existing.price.toStringAsFixed(0));
     final descC = TextEditingController(text: existing?.description ?? '');
+    final newCategoryC = TextEditingController();
+    var creatingNewCategory = false;
     final categories = provider.categories.where((c) => c != 'All').toList();
     var category = existing?.category.isNotEmpty == true ? existing!.category : (categories.isNotEmpty ? categories.first : 'Starters');
     var isVeg = existing?.isVeg ?? true;
@@ -213,7 +218,7 @@ class MenuAdminScreen extends StatelessWidget {
     await showDialog(
       context: context,
       builder: (ctx) => DialogControllerScope(
-        controllers: [nameC, priceC, descC],
+        controllers: [nameC, priceC, descC, newCategoryC],
         builder: (ctx, setDialogState) {
           final existingUrl = resolveMediaUrl(
             (removedImage ? '' : existing?.imageUrl ?? ''),
@@ -244,7 +249,8 @@ class MenuAdminScreen extends StatelessWidget {
           Future<void> save() async {
             final name = nameC.text.trim();
             final price = double.tryParse(priceC.text) ?? 0;
-            if (name.isEmpty || price <= 0) return;
+            final finalCategory = creatingNewCategory ? newCategoryC.text.trim() : category;
+            if (name.isEmpty || price <= 0 || finalCategory.isEmpty) return;
             setDialogState(() => saving = true);
 
             var finalImage = removedImage ? '' : (existing?.imageUrl ?? '');
@@ -275,7 +281,7 @@ class MenuAdminScreen extends StatelessWidget {
               provider.addMenuItem(MenuItem(
                 id: 'm-${DateTime.now().millisecondsSinceEpoch}',
                 name: name,
-                category: category,
+                category: finalCategory,
                 price: price,
                 isVeg: isVeg,
                 imageUrl: finalImage,
@@ -287,7 +293,7 @@ class MenuAdminScreen extends StatelessWidget {
             } else {
               final updated = existing.copyWith(
                 name: name,
-                category: category,
+                category: finalCategory,
                 price: price,
                 isVeg: isVeg,
                 imageUrl: finalImage,
@@ -318,9 +324,28 @@ class MenuAdminScreen extends StatelessWidget {
                     DropdownButtonFormField<String>(
                       initialValue: category,
                       decoration: const InputDecoration(labelText: 'Category'),
-                      items: categories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
-                      onChanged: (v) => setDialogState(() => category = v ?? category),
+                      items: [
+                        ...{
+                          ...categories,
+                          if (category.isNotEmpty) category,
+                        }.map((c) => DropdownMenuItem(value: c, child: Text(c))),
+                        const DropdownMenuItem(
+                          value: MenuAdminScreen._newCategory,
+                          child: Text('+ New category…'),
+                        ),
+                      ],
+                      onChanged: (v) => setDialogState(() {
+                        creatingNewCategory = v == MenuAdminScreen._newCategory;
+                        if (!creatingNewCategory && v != null) category = v;
+                      }),
                     ),
+                    if (creatingNewCategory) ...[
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: newCategoryC,
+                        decoration: const InputDecoration(labelText: 'New category name'),
+                      ),
+                    ],
                     const SizedBox(height: 10),
                     TextField(
                       controller: priceC,

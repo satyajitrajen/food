@@ -787,14 +787,7 @@ class PosProvider extends ChangeNotifier {
     Map<String, String> q = {'outlet_id': outletId};
     try {
       final menu = await _tryRead('/api/v1/menu', q);
-      if (menu is Map && menu['menu_items'] is List) {
-        _menuItems
-          ..clear()
-          ..addAll((menu['menu_items'] as List)
-              .whereType<Map>()
-              .map((m) => menuItemFromApi(m.cast<String, dynamic>())));
-        _rebuildCategories();
-      }
+      _applyMenu(menu);
       final tables = await _tryRead('/api/v1/tables', q);
       if (tables is Map && tables['tables'] is List) {
         _tables
@@ -896,6 +889,27 @@ class PosProvider extends ChangeNotifier {
       _hydrating = false;
       notifyListeners();
     }
+  }
+
+  /// Re-reads just the menu for the current outlet. Called when the POS menu
+  /// screen opens so a hydrate that failed at login (flaky network, transient
+  /// 5xx) self-heals instead of leaving the grid empty for the whole session.
+  Future<void> refreshMenu() async {
+    if (!apiEnabled || _api == null) return;
+    _applyMenu(await _tryRead('/api/v1/menu', {'outlet_id': _currentOutlet.id}));
+  }
+
+  /// Applies a `GET /api/v1/menu` payload. A null/failed read leaves the
+  /// current items untouched — `_tryRead` already recorded `_lastSyncError`.
+  void _applyMenu(dynamic menu) {
+    if (menu is! Map || menu['menu_items'] is! List) return;
+    _menuItems
+      ..clear()
+      ..addAll((menu['menu_items'] as List)
+          .whereType<Map>()
+          .map((m) => menuItemFromApi(m.cast<String, dynamic>())));
+    _rebuildCategories();
+    notifyListeners();
   }
 
   void _rebuildCategories() {

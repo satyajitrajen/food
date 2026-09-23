@@ -350,6 +350,58 @@ func seed(st *store.Store, mgr *auth.Manager) error {
 			return err
 		}
 	}
+
+	// Secondary outlets inherit the demo catalog. Outlets are advertised to the
+	// terminal and selectable in the POS switcher, but every read is scoped by
+	// outlet_id — so an outlet without its own menu_items/tables renders a
+	// completely blank POS ("whole menu is empty"). Ids are suffixed per outlet
+	// so primary keys stay unique; ON CONFLICT keeps this idempotent.
+	for _, outletID := range []string{"out-02"} {
+		sfx := "-" + outletID
+		stmts := []struct {
+			sql  string
+			args []any
+		}{
+			{`INSERT INTO menu_categories (id, outlet_id, name, sort)
+				SELECT id || ?, ?, name, sort FROM menu_categories WHERE outlet_id = 'out-01'
+				ON CONFLICT DO NOTHING`, []any{sfx, outletID}},
+			{`INSERT INTO menu_items (id, outlet_id, category_id, name, description, price_paise, is_veg, image_url, is_bestseller, is_available, sort)
+				SELECT id || ?, ?, category_id || ?, name, description, price_paise, is_veg, image_url, is_bestseller, is_available, sort
+				FROM menu_items WHERE outlet_id = 'out-01'
+				ON CONFLICT DO NOTHING`, []any{sfx, outletID, sfx}},
+			{`INSERT INTO product_variants (id, menu_item_id, name, price_paise)
+				SELECT v.id || ?, v.menu_item_id || ?, v.name, v.price_paise
+				FROM product_variants v JOIN menu_items mi ON mi.id = v.menu_item_id
+				WHERE mi.outlet_id = 'out-01'
+				ON CONFLICT DO NOTHING`, []any{sfx, sfx}},
+			{`INSERT INTO modifier_groups (id, menu_item_id, name, is_multi_select, is_required, sort)
+				SELECT g.id || ?, g.menu_item_id || ?, g.name, g.is_multi_select, g.is_required, g.sort
+				FROM modifier_groups g JOIN menu_items mi ON mi.id = g.menu_item_id
+				WHERE mi.outlet_id = 'out-01'
+				ON CONFLICT DO NOTHING`, []any{sfx, sfx}},
+			{`INSERT INTO modifier_items (id, group_id, name, price_paise, sort)
+				SELECT mim.id || ?, mim.group_id || ?, mim.name, mim.price_paise, mim.sort
+				FROM modifier_items mim
+				JOIN modifier_groups g ON g.id = mim.group_id
+				JOIN menu_items mi ON mi.id = g.menu_item_id
+				WHERE mi.outlet_id = 'out-01'
+				ON CONFLICT DO NOTHING`, []any{sfx, sfx}},
+			{`INSERT INTO tables (id, outlet_id, table_number, seats, floor, status)
+				SELECT id || ?, ?, table_number, seats, floor, status FROM tables WHERE outlet_id = 'out-01'
+				ON CONFLICT DO NOTHING`, []any{sfx, outletID}},
+			{`INSERT INTO settings (outlet_id, restaurant_name, gst_percent, is_gst_inclusive, service_percent,
+					packaging_paise, delivery_paise, auto_print_kot, allow_reprint, billing_printer, kitchen_printer, bar_printer, sections)
+				SELECT ?, restaurant_name, gst_percent, is_gst_inclusive, service_percent,
+					packaging_paise, delivery_paise, auto_print_kot, allow_reprint, billing_printer, kitchen_printer, bar_printer, sections
+				FROM settings WHERE outlet_id = 'out-01'
+				ON CONFLICT DO NOTHING`, []any{outletID}},
+		}
+		for _, s := range stmts {
+			if _, err := st.DB.ExecContext(ctx, s.sql, s.args...); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 
