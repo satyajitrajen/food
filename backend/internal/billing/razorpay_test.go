@@ -30,7 +30,6 @@ func fakeRazorpay(t *testing.T) (*RazorpayGateway, map[string]string) {
 	}
 	handle("/v1/plans", func([]byte, *http.Request) string { return `{"id":"plan_fake1"}` })
 	handle("/v1/subscriptions", func([]byte, *http.Request) string { return `{"id":"sub_fake1","status":"created"}` })
-	handle("/v1/subscriptions/sub_fake1/addons", func([]byte, *http.Request) string { return `{}` })
 	handle("/v1/subscriptions/sub_fake1/cancel", func([]byte, *http.Request) string { return `{"id":"sub_fake1","status":"cancelled"}` })
 
 	ts := httptest.NewServer(mux)
@@ -109,22 +108,6 @@ func TestRazorpaySubscriptionFlow(t *testing.T) {
 	}
 	if trialReq.StartAt == nil || *trialReq.StartAt != trialEnd.Unix() {
 		t.Fatalf("trial subscription should carry start_at=%d, got %+v", trialEnd.Unix(), trialReq.StartAt)
-	}
-
-	if err := gw.CreateSubscriptionAddon(ctx, "sub_fake1", "FoodPOS registration fee", 10100, "INR"); err != nil {
-		t.Fatalf("CreateSubscriptionAddon: %v", err)
-	}
-	var addonReq struct {
-		Item struct {
-			Name   string `json:"name"`
-			Amount int64  `json:"amount"`
-		} `json:"item"`
-	}
-	if err := json.Unmarshal([]byte(got["/v1/subscriptions/sub_fake1/addons|POST"]), &addonReq); err != nil {
-		t.Fatal(err)
-	}
-	if addonReq.Item.Amount != 10100 || addonReq.Item.Name != "FoodPOS registration fee" {
-		t.Fatalf("unexpected addon payload: %+v", addonReq)
 	}
 
 	st, err := gw.CancelSubscription(ctx, "sub_fake1", true)

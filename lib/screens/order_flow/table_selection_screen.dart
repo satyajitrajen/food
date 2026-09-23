@@ -53,31 +53,59 @@ class TableSelectionScreen extends StatelessWidget {
         top: false,
         child: Column(
           children: [
-            // Floor Tabs
+            // Floor Tabs + Status Filter
             Container(
               color: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: floors.map((f) {
-                    final isSelected = provider.selectedFloor == f;
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: ChoiceChip(
-                        label: Text(f),
-                        selected: isSelected,
-                        selectedColor: AppColors.primaryGreen,
-                        labelStyle: TextStyle(
-                          color: isSelected ? Colors.white : AppColors.textDark,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13,
-                        ),
-                        onSelected: (_) => provider.setFloor(f),
-                      ),
-                    );
-                  }).toList(),
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: floors.map((f) {
+                        final isSelected = provider.selectedFloor == f;
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: ChoiceChip(
+                            label: Text(f),
+                            selected: isSelected,
+                            selectedColor: AppColors.primaryGreen,
+                            labelStyle: TextStyle(
+                              color: isSelected ? Colors.white : AppColors.textDark,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                            ),
+                            onSelected: (_) => provider.setFloor(f),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: PosProvider.tableStatusFilters.map((s) {
+                        final isSelected = provider.selectedTableStatus == s;
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: ChoiceChip(
+                            label: Text(s),
+                            selected: isSelected,
+                            selectedColor: AppColors.primaryGreen,
+                            labelStyle: TextStyle(
+                              color: isSelected ? Colors.white : AppColors.textDark,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                            ),
+                            onSelected: (_) => provider.setTableStatus(s),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ],
               ),
             ),
             const Divider(height: 1, color: AppColors.borderLight),
@@ -120,7 +148,7 @@ class TableSelectionScreen extends StatelessWidget {
 
   Widget _buildTableCard(BuildContext context, RestaurantTable table, PosProvider provider) {
     Color borderColor = AppColors.borderLight;
-    if (table.status == TableStatus.occupied) borderColor = AppColors.primaryGreen.withValues(alpha: 0.5);
+    if (table.status == TableStatus.occupied) borderColor = AppColors.nonVegRed.withValues(alpha: 0.5);
     if (table.status == TableStatus.billing) borderColor = AppColors.saffronAmber;
     // Guest info lives on the table's running order — surface it on the card.
     final guestOrder = table.activeOrderId == null

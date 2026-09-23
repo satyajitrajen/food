@@ -179,13 +179,6 @@ func (g *RazorpayGateway) CreateSubscription(ctx context.Context, planID, orgID 
 	return &out, nil
 }
 
-// CreateSubscriptionAddon attaches a one-time charge to the subscription; for
-// a fresh subscription it is collected with the first cycle (registration fee).
-func (g *RazorpayGateway) CreateSubscriptionAddon(ctx context.Context, subID, name string, amountPaise int64, currency string) error {
-	return g.call(ctx, http.MethodPost, "/v1/subscriptions/"+subID+"/addons",
-		map[string]any{"item": razorpayItem{Name: name, Amount: amountPaise, Currency: currency}}, nil)
-}
-
 // CancelSubscription cancels at the end of the running cycle when atCycleEnd
 // is set, else immediately. Returns the gateway-side status after the call.
 func (g *RazorpayGateway) CancelSubscription(ctx context.Context, subID string, atCycleEnd bool) (string, error) {

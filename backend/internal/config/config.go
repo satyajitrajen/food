@@ -28,11 +28,9 @@ type Config struct {
 	RazorpayKey           string
 	RazorpaySecret        string
 	RazorpayWebhookSecret string
-	// Razorpay subscription (auto-renew) knobs. RegistrationPaise is the
-	// one-time sign-up fee attached to the first subscription cycle.
-	RazorpayCurrency                string
-	RazorpayRegistrationAmountPaise int64
-	RazorpayBaseURL                 string
+	// Razorpay subscription (auto-renew) knobs.
+	RazorpayCurrency string
+	RazorpayBaseURL  string
 
 	// Outbound e-mail (SMTP). When SMTPHost is empty mail calls are logged only.
 	SMTPHost string
@@ -81,9 +79,8 @@ func Load() Config {
 		RazorpaySecret:        env("FOODPOS_RAZORPAY_KEY_SECRET", ""),
 		RazorpayWebhookSecret: env("FOODPOS_RAZORPAY_WEBHOOK_SECRET", ""),
 
-		RazorpayCurrency:                env("FOODPOS_RAZORPAY_CURRENCY", "INR"),
-		RazorpayRegistrationAmountPaise: envInt64("FOODPOS_RAZORPAY_REGISTRATION_AMOUNT_PAISE", 10100),
-		RazorpayBaseURL:                 env("FOODPOS_RAZORPAY_BASE_URL", "https://api.razorpay.com"),
+		RazorpayCurrency: env("FOODPOS_RAZORPAY_CURRENCY", "INR"),
+		RazorpayBaseURL:  env("FOODPOS_RAZORPAY_BASE_URL", "https://api.razorpay.com"),
 
 		SMTPHost:    env("FOODPOS_SMTP_HOST", ""),
 		SMTPPort:    envInt("FOODPOS_SMTP_PORT", 587),

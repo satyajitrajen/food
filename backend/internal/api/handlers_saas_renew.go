@@ -89,32 +89,23 @@ func (s *Server) handleOwnerStartSubscription(w http.ResponseWriter, r *http.Req
 		httpx.ErrorJSON(w, r, httpx.NewError(502, "gateway_error", err.Error()))
 		return
 	}
-	// One-time registration fee rides along with the first cycle.
-	regPaise := s.Cfg.RazorpayRegistrationAmountPaise
-	if regPaise > 0 {
-		if err := gw.CreateSubscriptionAddon(r.Context(), rs.ID, "FoodPOS registration fee", regPaise, currency); err != nil {
-			_ = s.Store.AddOrgEvent(r.Context(), c.OrgID, c.ActorID, "razorpay.addon_failed",
-				store.MetaJSON(map[string]any{"error": err.Error(), "gateway_sub_id": rs.ID}))
-		}
-	}
 	_ = s.Store.SetOrgGatewaySubscription(r.Context(), c.OrgID, rs.ID, rs.Status)
 	_ = s.Store.AddOrgEvent(r.Context(), c.OrgID, c.ActorID, "razorpay.subscription_created",
 		store.MetaJSON(map[string]any{
 			"gateway_sub_id": rs.ID, "plan_code": plan.Code,
-			"amount_paise": gross, "registration_paise": regPaise, "total_count": totalCount,
+			"amount_paise": gross, "total_count": totalCount,
 			"trial": trial, "start_at": startAt,
 		}))
 	httpx.JSON(w, http.StatusOK, models.RazorpaySubscriptionStart{
-		SubscriptionID:    rs.ID,
-		KeyID:             s.Cfg.RazorpayKey,
-		PlanCode:          plan.Code,
-		PlanName:          plan.Name,
-		AmountPaise:       gross,
-		Currency:          currency,
-		RegistrationPaise: regPaise,
-		Trial:             trial,
-		TrialEndsAt:       sub.TrialEndsAt,
-		FirstChargeAt:     startAt,
+		SubscriptionID: rs.ID,
+		KeyID:          s.Cfg.RazorpayKey,
+		PlanCode:       plan.Code,
+		PlanName:       plan.Name,
+		AmountPaise:    gross,
+		Currency:       currency,
+		Trial:          trial,
+		TrialEndsAt:    sub.TrialEndsAt,
+		FirstChargeAt:  startAt,
 	})
 }
 

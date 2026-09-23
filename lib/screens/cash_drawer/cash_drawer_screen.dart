@@ -6,8 +6,22 @@ import '../../providers/pos_provider.dart';
 import '../../models/cash_model.dart';
 import '../modals/cash_in_out_dialog.dart';
 
-class CashDrawerScreen extends StatelessWidget {
+class CashDrawerScreen extends StatefulWidget {
   const CashDrawerScreen({super.key});
+
+  @override
+  State<CashDrawerScreen> createState() => _CashDrawerScreenState();
+}
+
+class _CashDrawerScreenState extends State<CashDrawerScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Hydrate the ledger from server truth (all shifts) on open.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<PosProvider>().fetchCashMoves();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {

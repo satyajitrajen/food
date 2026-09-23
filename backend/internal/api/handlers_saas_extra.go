@@ -407,13 +407,12 @@ func (s *Server) handleSubscriptionCharged(w http.ResponseWriter, r *http.Reques
 	}
 	gross := env.Payload.Payment.Entity.Amount
 	planGross := plan.PricePaise + storeRound(plan.PricePaise)
-	// The one-time registration add-on only rides on the first cycle: when the
-	// gross exceeds the plan gross, this is the first charge and the invoice
-	// records the plan base only. Later cycles extract the base from the gross.
+	// Legacy first-cycle captures may still include the retired registration
+	// add-on: when the gross exceeds the plan gross, record the plan base only.
 	// (Structural detection — sub status is unreliable if the trial lapsed
 	// before the first charge arrived.)
 	base := int64(float64(gross)/1.18 + 0.5)
-	if s.Cfg.RazorpayRegistrationAmountPaise > 0 && gross > planGross {
+	if gross > planGross {
 		base = plan.PricePaise
 	}
 	_, inv, err := s.Store.ActivateOrg(ctx, orgID, "razorpay-webhook", "razorpay",

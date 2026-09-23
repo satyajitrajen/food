@@ -53,7 +53,6 @@ func newRenewEnv(t *testing.T, hits *map[string]string) (*env, config.Config) {
 	record("/v1/plans", `{"id":"plan_fake1"}`)
 	record("/v1/orders", `{"id":"order_fake1"}`)
 	record("/v1/subscriptions", `{"id":"sub_fake1","status":"created"}`)
-	record("/v1/subscriptions/sub_fake1/addons", `{}`)
 	record("/v1/subscriptions/sub_fake1/cancel", `{"id":"sub_fake1","status":"active"}`)
 	ts := httptest.NewServer(mux)
 	t.Cleanup(ts.Close)
@@ -92,15 +91,9 @@ func TestOwnerStartSubscription(t *testing.T) {
 	if body["subscription_id"] != "sub_fake1" || body["key_id"] != "rzp_test_fake" {
 		t.Fatalf("unexpected start payload: %v", body)
 	}
-	// Pro plan gross = 199900 + 18% = 235882; registration add-on 10100.
+	// Pro plan gross = 199900 + 18% = 235882; no registration fee.
 	if amt, _ := body["amount_paise"].(float64); amt != 235882 {
 		t.Fatalf("gross amount = %v, want 235882", body["amount_paise"])
-	}
-	if reg, _ := body["registration_paise"].(float64); reg != 10100 {
-		t.Fatalf("registration fee = %v, want 10100", body["registration_paise"])
-	}
-	if got := hits["/v1/subscriptions/sub_fake1/addons|POST"]; !strings.Contains(got, "10100") {
-		t.Fatalf("registration add-on not requested: %q", got)
 	}
 	var subReq struct {
 		Notes   map[string]string `json:"notes"`
@@ -194,8 +187,8 @@ func TestSubscriptionChargedWebhookLifecycle(t *testing.T) {
 	orgID := subOrgIDForToken(t, e)
 	ctx := context.Background()
 
-	// First charge at checkout (org still in trial): gross = plan gross + 101.
-	raw := `{"event":"subscription.charged","payload":{"payment":{"entity":{"id":"pay_first","amount":245982}},` +
+	// First charge at checkout (org still in trial): gross = plan gross.
+	raw := `{"event":"subscription.charged","payload":{"payment":{"entity":{"id":"pay_first","amount":235882}},` +
 		`"subscription":{"entity":{"id":"sub_fake1","status":"active","notes":{"org_id":"` + orgID + `"}}}}}`
 	code, body := signedWebhook(t, e, cfg.RazorpayWebhookSecret, raw)
 	if code != 200 {
@@ -291,7 +284,7 @@ func TestPaymentCapturedSkipsSubscriptionPayments(t *testing.T) {
 	ctx := context.Background()
 
 	// First subscription charge → active, one invoice.
-	raw := `{"event":"subscription.charged","payload":{"payment":{"entity":{"id":"pay_first","amount":245982}},` +
+	raw := `{"event":"subscription.charged","payload":{"payment":{"entity":{"id":"pay_first","amount":235882}},` +
 		`"subscription":{"entity":{"id":"sub_fake1","status":"active","notes":{"org_id":"` + orgID + `"}}}}}`
 	if code, body := signedWebhook(t, e, cfg.RazorpayWebhookSecret, raw); code != 200 {
 		t.Fatalf("charged webhook failed: %d %v", code, body)
@@ -303,7 +296,7 @@ func TestPaymentCapturedSkipsSubscriptionPayments(t *testing.T) {
 
 	// Razorpay also fires payment.captured for the same payment. It must be
 	// ignored — subscription.charged owns subscription billing.
-	raw = `{"event":"payment.captured","payload":{"payment":{"entity":{"id":"pay_first","amount":245982,` +
+	raw = `{"event":"payment.captured","payload":{"payment":{"entity":{"id":"pay_first","amount":235882,` +
 		`"subscription_id":"sub_fake1","notes":{"org_id":"` + orgID + `"}}}}}`
 	code, body := signedWebhook(t, e, cfg.RazorpayWebhookSecret, raw)
 	if code != 200 {
@@ -384,8 +377,9 @@ func TestFirstChargeAfterTrialExpired(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// The first charge still carries the registration add-on in its gross; the
-	// invoice must record the plan base only (structural detection, not status).
+	// A legacy first charge may still carry the retired registration add-on in
+	// its gross; the invoice must record the plan base only (structural
+	// detection, not status).
 	raw := `{"event":"subscription.charged","payload":{"payment":{"entity":{"id":"pay_late","amount":245982}},` +
 		`"subscription":{"entity":{"id":"sub_fake1","status":"active","notes":{"org_id":"` + orgID + `"}}}}}`
 	if code, body := signedWebhook(t, e, cfg.RazorpayWebhookSecret, raw); code != 200 {

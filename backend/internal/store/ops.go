@@ -6,6 +6,7 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"time"
 
 	"foodpos/backend/internal/httpx"
 	"foodpos/backend/internal/models"
@@ -138,10 +139,16 @@ func (s *Store) CloseShift(ctx context.Context, shiftID string, req models.Shift
 
 // ---- Cash movements ----
 
-func (s *Store) AddCashMove(ctx context.Context, shiftID, staffID, staffName, moveType string, amount int64, reason string, reference *string) (*models.CashTransaction, error) {
+func (s *Store) AddCashMove(ctx context.Context, shiftID, staffID, staffName, moveType string, amount int64, reason string, reference *string, at *time.Time) (*models.CashTransaction, error) {
 	id := NewID("cx")
+	ts := Now()
+	if at != nil && !at.IsZero() {
+		// Client-supplied ledger timestamp (backdated within the shift);
+		// the shift totals always update regardless.
+		ts = *at
+	}
 	_, err := s.DB.ExecContext(ctx, `INSERT INTO cash_transactions (id, shift_id, type, amount, reason, reference, staff_id, staff_name, ts)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, id, shiftID, moveType, amount, reason, reference, staffID, staffName, TimeStr(Now()))
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, id, shiftID, moveType, amount, reason, reference, staffID, staffName, TimeStr(ts))
 	if err != nil {
 		return nil, err
 	}
@@ -153,7 +160,8 @@ func (s *Store) AddCashMove(ctx context.Context, shiftID, staffID, staffName, mo
 		return nil, err
 	}
 	return &models.CashTransaction{
-		ID: id, Amount: amount, Reason: reason, Reference: reference, StaffID: &staffID,
+		ID: id, ShiftID: shiftID, Type: moveType, Amount: amount, Reason: reason,
+		Reference: reference, StaffID: &staffID, StaffName: &staffName, Ts: &ts,
 	}, nil
 }
 
@@ -260,6 +268,16 @@ func (s *Store) SumExpenses(ctx context.Context, outletID, rangeKey string) (int
 	return sum, err
 }
 
+// SumExpensesBetween sums expenses dated within [from, to]. Timestamps are the
+// canonical RFC3339 strings written by store.TimeStr, so plain text comparison
+// matches the convention used for orders.paid_at elsewhere.
+func (s *Store) SumExpensesBetween(ctx context.Context, outletID, from, to string) (int64, error) {
+	q := `SELECT COALESCE(SUM(amount),0) FROM expenses WHERE outlet_id = ? AND ts >= ? AND ts <= ?`
+	var sum int64
+	err := s.DB.QueryRowContext(ctx, q, outletID, from, to).Scan(&sum)
+	return sum, err
+}
+
 // ---- Customers ----
 
 func (s *Store) ListCustomers(ctx context.Context, outletID, q string) ([]models.Customer, error) {
@@ -321,7 +339,7 @@ func (s *Store) CreateCustomer(ctx context.Context, outletID string, req models.
 // ---- Inventory ----
 
 func (s *Store) ListInventory(ctx context.Context, outletID string, lowOnly bool) ([]models.InventoryItem, error) {
-	q := `SELECT id, outlet_id, name, unit, stock, min_stock, cost_paise FROM inventory_items WHERE outlet_id = ?`
+	q := `SELECT id, outlet_id, name, unit, stock, min_stock, cost_paise, batch_no, rack_no, purchased_at FROM inventory_items WHERE outlet_id = ?`
 	if lowOnly {
 		q += ` AND stock <= min_stock`
 	}
@@ -333,13 +351,32 @@ func (s *Store) ListInventory(ctx context.Context, outletID string, lowOnly bool
 	defer rows.Close()
 	out := []models.InventoryItem{}
 	for rows.Next() {
-		var i models.InventoryItem
-		if err := rows.Scan(&i.ID, &i.OutletID, &i.Name, &i.Unit, &i.Stock, &i.MinStock, &i.CostPaise); err != nil {
+		i, err := scanInventoryItem(rows)
+		if err != nil {
 			return nil, err
 		}
-		out = append(out, i)
+		out = append(out, *i)
 	}
 	return out, rows.Err()
+}
+
+// Shared scan so every inventory read (list, adjust re-select, intake echo)
+// carries the provenance columns consistently.
+func scanInventoryItem(sc interface{ Scan(...any) error }) (*models.InventoryItem, error) {
+	var i models.InventoryItem
+	var batch, rack sql.NullString
+	var purchased sql.NullString
+	if err := sc.Scan(&i.ID, &i.OutletID, &i.Name, &i.Unit, &i.Stock, &i.MinStock, &i.CostPaise,
+		&batch, &rack, &purchased); err != nil {
+		return nil, err
+	}
+	i.BatchNo = nullIfEmpty(batch)
+	i.RackNo = nullIfEmpty(rack)
+	if purchased.Valid && purchased.String != "" {
+		t := ParseTime(purchased.String)
+		i.PurchasedAt = &t
+	}
+	return &i, nil
 }
 
 func (s *Store) AdjustStock(ctx context.Context, outletID, itemID string, delta float64, reason, staffID, staffName string) (*models.InventoryItem, error) {
@@ -362,16 +399,24 @@ func (s *Store) AdjustStock(ctx context.Context, outletID, itemID string, delta 
 		VALUES (?, ?, ?, ?, ?, ?, ?)`, NewID("sa"), itemID, delta, reason, staffID, staffName, TimeStr(Now())); err != nil {
 		return nil, err
 	}
-	var item models.InventoryItem
-	err = s.DB.QueryRowContext(ctx, `SELECT id, outlet_id, name, unit, stock, min_stock, cost_paise FROM inventory_items WHERE id = ?`, itemID).
-		Scan(&item.ID, &item.OutletID, &item.Name, &item.Unit, &item.Stock, &item.MinStock, &item.CostPaise)
-	return &item, err
+	item, err := scanInventoryItem(s.DB.QueryRowContext(ctx,
+		`SELECT id, outlet_id, name, unit, stock, min_stock, cost_paise, batch_no, rack_no, purchased_at FROM inventory_items WHERE id = ?`, itemID))
+	return item, err
+}
+
+// purchasedStr formats an optional timestamp for TEXT storage ("" = NULL).
+func purchasedStr(t *time.Time) string {
+	if t == nil {
+		return ""
+	}
+	return TimeStr(*t)
 }
 
 func (s *Store) CreateInventoryItem(ctx context.Context, outletID string, item models.InventoryItem) (*models.InventoryItem, error) {
 	id := NewID("inv")
-	_, err := s.DB.ExecContext(ctx, `INSERT INTO inventory_items (id, outlet_id, name, unit, stock, min_stock, cost_paise)
-		VALUES (?, ?, ?, ?, ?, ?, ?)`, id, outletID, item.Name, item.Unit, item.Stock, item.MinStock, item.CostPaise)
+	_, err := s.DB.ExecContext(ctx, `INSERT INTO inventory_items (id, outlet_id, name, unit, stock, min_stock, cost_paise, batch_no, rack_no, purchased_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, id, outletID, item.Name, item.Unit, item.Stock, item.MinStock, item.CostPaise,
+		item.BatchNo, item.RackNo, purchasedStr(item.PurchasedAt))
 	if err != nil {
 		return nil, err
 	}
@@ -442,6 +487,159 @@ func (s *Store) CreateSupplier(ctx context.Context, outletID string, req models.
 		Email: req.Email, Category: req.Category}, nil
 }
 
+// CreateSupplierPayment records a direct payout against a supplier's
+// outstanding due and reduces the balance atomically. Cash payouts are NOT
+// auto-posted to the drawer here — the client records the drawer leg via its
+// expense/cash-move flow (single source of truth for shift math).
+func (s *Store) CreateSupplierPayment(ctx context.Context, outletID, supplierID string, req models.SupplierPaymentCreate, staffID, staffName string) (*models.SupplierPayment, *models.Supplier, error) {
+	if req.Amount <= 0 {
+		return nil, nil, httpx.ErrInvalidAmount
+	}
+	switch req.Method {
+	case "cash", "upi", "bank_transfer":
+	default:
+		return nil, nil, httpx.NewError(400, "invalid_method", "method must be cash, upi or bank_transfer")
+	}
+	var outstanding int64
+	var name string
+	err := s.DB.QueryRowContext(ctx, `SELECT name, outstanding FROM suppliers WHERE id = ? AND outlet_id = ?`, supplierID, outletID).
+		Scan(&name, &outstanding)
+	if err == sql.ErrNoRows {
+		return nil, nil, httpx.NewError(400, "invalid_supplier", "Supplier not found in this outlet")
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+	if req.Amount > outstanding {
+		return nil, nil, httpx.NewError(400, "exceeds_due",
+			"Payment exceeds the outstanding due")
+	}
+	ts := Now()
+	if req.At != nil && !req.At.IsZero() {
+		ts = *req.At
+	}
+	id := NewID("spay")
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.ExecContext(ctx,
+		`INSERT INTO supplier_payments (id, outlet_id, supplier_id, supplier_name, amount, method, reference, staff_id, staff_name, ts)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		id, outletID, supplierID, name, req.Amount, req.Method, req.Reference, staffID, staffName, TimeStr(ts)); err != nil {
+		return nil, nil, err
+	}
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE suppliers SET outstanding = outstanding - ? WHERE id = ?`, req.Amount, supplierID); err != nil {
+		return nil, nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, nil, err
+	}
+	pay := &models.SupplierPayment{
+		ID: id, OutletID: outletID, SupplierID: supplierID, SupplierName: name,
+		Amount: req.Amount, Method: req.Method, Reference: req.Reference,
+		StaffID: &staffID, StaffName: &staffName, Ts: ts,
+	}
+	updated, err := s.GetSupplier(ctx, supplierID)
+	if err != nil {
+		return nil, nil, err
+	}
+	return pay, updated, nil
+}
+
+// ListSupplierPayments returns the payout ledger for a supplier, newest first.
+func (s *Store) ListSupplierPayments(ctx context.Context, outletID, supplierID string, limit int) ([]models.SupplierPayment, error) {
+	q := `SELECT id, outlet_id, supplier_id, supplier_name, amount, method, reference, staff_id, staff_name, ts
+	      FROM supplier_payments WHERE outlet_id = ?`
+	args := []any{outletID}
+	if supplierID != "" {
+		q += ` AND supplier_id = ?`
+		args = append(args, supplierID)
+	}
+	if limit <= 0 {
+		limit = 200
+	}
+	q += ` ORDER BY ts DESC LIMIT ?`
+	args = append(args, limit)
+	rows, err := s.DB.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []models.SupplierPayment{}
+	for rows.Next() {
+		var p models.SupplierPayment
+		var reference sql.NullString
+		var staffID, staffName sql.NullString
+		var ts string
+		if err := rows.Scan(&p.ID, &p.OutletID, &p.SupplierID, &p.SupplierName, &p.Amount,
+			&p.Method, &reference, &staffID, &staffName, &ts); err != nil {
+			return nil, err
+		}
+		p.Reference = nullIfEmpty(reference)
+		p.StaffID = nullIfEmpty(staffID)
+		p.StaffName = nullIfEmpty(staffName)
+		p.Ts = ParseTime(ts)
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+// GetSupplier resolves one supplier row (used after payment for server truth).
+func (s *Store) GetSupplier(ctx context.Context, id string) (*models.Supplier, error) {
+	var sup models.Supplier
+	var email, category sql.NullString
+	err := s.DB.QueryRowContext(ctx,
+		`SELECT id, outlet_id, name, mobile, email, category, outstanding FROM suppliers WHERE id = ?`, id).
+		Scan(&sup.ID, &sup.OutletID, &sup.Name, &sup.Mobile, &email, &category, &sup.Outstanding)
+	if err == sql.ErrNoRows {
+		return nil, httpx.ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	sup.Email = nullIfEmpty(email)
+	sup.Category = nullIfEmpty(category)
+	return &sup, nil
+}
+
+// ListCashTransactions returns the recent cash-move ledger across all shifts
+// of an outlet (manager audit view).
+func (s *Store) ListCashTransactions(ctx context.Context, outletID string, limit int) ([]models.CashTransaction, error) {
+	if limit <= 0 {
+		limit = 200
+	}
+	rows, err := s.DB.QueryContext(ctx,
+		`SELECT cx.id, cx.shift_id, cx.type, cx.amount, cx.reason, cx.reference, cx.staff_id, cx.staff_name, cx.ts
+		 FROM cash_transactions cx JOIN shifts sh ON sh.id = cx.shift_id
+		 WHERE sh.outlet_id = ? ORDER BY cx.ts DESC LIMIT ?`, outletID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []models.CashTransaction{}
+	for rows.Next() {
+		var t models.CashTransaction
+		var reference sql.NullString
+		var staffID, staffName sql.NullString
+		var ts sql.NullString
+		if err := rows.Scan(&t.ID, &t.ShiftID, &t.Type, &t.Amount, &t.Reason, &reference, &staffID, &staffName, &ts); err != nil {
+			return nil, err
+		}
+		t.Reference = nullIfEmpty(reference)
+		t.StaffID = nullIfEmpty(staffID)
+		t.StaffName = nullIfEmpty(staffName)
+		if ts.Valid && ts.String != "" {
+			parsed := ParseTime(ts.String)
+			t.Ts = &parsed
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
 // CreatePurchase records a purchase and, for each line with an inventory
 // item, posts stock intake through the adjustment log. A `pending` purchase
 // increases the supplier's outstanding balance.
@@ -474,6 +672,9 @@ func (s *Store) CreatePurchase(ctx context.Context, outletID string, req models.
 	summary := buildPurchaseSummary(req.Items)
 	id := NewID("pur")
 	ts := Now()
+	if req.PurchasedAt != nil && !req.PurchasedAt.IsZero() {
+		ts = *req.PurchasedAt
+	}
 
 	tx, err := s.DB.BeginTx(ctx, nil)
 	if err != nil {

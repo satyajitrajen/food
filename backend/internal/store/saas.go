@@ -286,20 +286,20 @@ type seedPlanRow struct {
 	staff, trial      int
 }
 
-// defaultPlans must stay in sync with the advertised tiers: starter/pro/chain
-// at ₹999/₹1,999/₹3,999 monthly and their 20%-off annual variants (interval
-// 365). Canonical codes are upserted so catalog changes ship with the binary;
-// superadmin-created plans use other codes and are never touched here.
-// All plans carry a 7-day free trial: registration sets trial_ends_at =
-// now + 7d and Razorpay mandates are scheduled with start_at = trial end.
+// defaultPlans must stay in sync with the advertised tier: a single pro plan
+// at ₹1,999 billed yearly (interval 365). Canonical codes are upserted so
+// catalog changes ship with the binary; superadmin-created plans use other
+// codes and are never touched here. All plans carry a 7-day free trial:
+// registration sets trial_ends_at = now + 7d and Razorpay mandates are
+// scheduled with start_at = trial end.
 var defaultPlans = []seedPlanRow{
-	{"starter", "Starter Café", 99900, 30, 1, 10, 7},
-	{"pro", "Pro Dining", 199900, 30, 5, 20, 7},
-	{"chain", "Multi-Outlet Chain", 399900, 30, 100, 500, 7},
-	{"starter-annual", "Starter Café (Annual)", 958800, 365, 1, 10, 7},
-	{"pro-annual", "Pro Dining (Annual)", 1918800, 365, 5, 20, 7},
-	{"chain-annual", "Multi-Outlet Chain (Annual)", 3838800, 365, 100, 500, 7},
+	{"pro", "Pro Dining (Annual)", 199900, 365, 5, 20, 7},
 }
+
+// retiredPlanCodes are tiers removed from the single-plan catalog. Seed keeps
+// their rows dormant (subscriptions may still reference them) so old databases
+// can no longer register against stale pricing.
+var retiredPlanCodes = []string{"starter", "chain", "starter-annual", "chain-annual"}
 
 // SeedDefaultPlans upserts the landing pricing catalog (idempotent).
 func (s *Store) SeedDefaultPlans(ctx context.Context) error {
@@ -315,14 +315,25 @@ func (s *Store) SeedDefaultPlans(ctx context.Context) error {
 			return err
 		}
 	}
-	return nil
+	args := make([]any, 0, len(retiredPlanCodes))
+	marks := ""
+	for i, c := range retiredPlanCodes {
+		if i > 0 {
+			marks += ", "
+		}
+		marks += "?"
+		args = append(args, c)
+	}
+	_, err := s.DB.ExecContext(ctx,
+		`UPDATE plans SET is_active = 0 WHERE code IN (`+marks+`)`, args...)
+	return err
 }
 
 func (s *Store) GetPlanByCode(ctx context.Context, code string) (*models.Plan, error) {
 	var p models.Plan
 	var active int
 	err := s.DB.QueryRowContext(ctx,
-		`SELECT `+planCols+` FROM plans WHERE code = ?`, code).
+		`SELECT `+planCols+` FROM plans WHERE code = ? AND is_active = 1`, code).
 		Scan(&p.ID, &p.Code, &p.Name, &p.PricePaise, &p.IntervalDays, &p.MaxOutlets, &p.MaxStaff, &p.TrialDays, &active, &p.GatewayPlanID)
 	if err == sql.ErrNoRows {
 		return nil, httpx.ErrNotFound

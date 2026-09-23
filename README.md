@@ -54,8 +54,7 @@ Backend env vars (see `backend/internal/config/config.go`):
 - `FOODPOS_SMTP_*`, `FOODPOS_LICENSE_SECRET`
 - `FOODPOS_RAZORPAY_KEY_ID` / `_KEY_SECRET` / `_WEBHOOK_SECRET` — hosted
   checkout + auto-renew subscriptions (live keys in gitignored `.env` only);
-  `FOODPOS_RAZORPAY_REGISTRATION_AMOUNT_PAISE` (one-time sign-up fee, default
-  10100), `FOODPOS_RAZORPAY_CURRENCY` (default INR)
+  `FOODPOS_RAZORPAY_CURRENCY` (default INR)
 - `FOODPOS_APP_BASE_URL`, `FOODPOS_CORS_ORIGINS`
 
 Landing build: `VITE_FOODPOS_API_URL` (API base) and `VITE_FOODPOS_WHATSAPP`

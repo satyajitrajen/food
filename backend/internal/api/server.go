@@ -153,7 +153,14 @@ func (s *Server) Routes() http.Handler {
 		r.Get("/inventory/{id}/adjustments", s.handleListStockLog)
 		r.Get("/inventory/adjustments", s.handleListStockLog)
 		r.Get("/suppliers", s.handleListSuppliers)
+		r.Get("/suppliers/{id}/payments", s.handleListSupplierPayments)
 		r.Get("/purchases", s.handleListPurchases)
+		r.Get("/cash-moves", s.handleListCashMoves)
+		// Attendance: explicit clock hooks + ledger (server auto clocks in on
+		// login / out on logout; these are escape hatches + the read).
+		r.Post("/attendance/clock-in", s.handleClockIn)
+		r.Post("/attendance/clock-out", s.handleClockOut)
+		r.Get("/attendance", s.handleListAttendance)
 		r.Get("/settings", s.handleGetSettings)
 
 		// ---- Writes & back-office — kitchen is denied; paid writes gated ----
@@ -207,6 +214,8 @@ func (s *Server) Routes() http.Handler {
 			r.With(middleware.RequireRole("manager")).Post("/inventory", s.handleCreateInventoryItem)
 			r.Post("/inventory/{id}/adjust", s.handleAdjustStock)
 			r.Post("/suppliers", s.handleCreateSupplier)
+			// Direct supplier payout reduces the outstanding due (manager-only).
+			r.With(middleware.RequireRole("manager")).Post("/suppliers/{id}/payments", s.handleCreateSupplierPayment)
 			r.Post("/purchases", s.handleCreatePurchase)
 			r.Patch("/purchases/{id}", s.handlePatchPurchase)
 

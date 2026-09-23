@@ -9,6 +9,29 @@ enum ExpenseCategory {
   rawMaterials,
 }
 
+extension ExpenseCategoryLabel on ExpenseCategory {
+  String get label {
+    switch (this) {
+      case ExpenseCategory.rent:
+        return 'Rent';
+      case ExpenseCategory.electricity:
+        return 'Electricity';
+      case ExpenseCategory.gas:
+        return 'Gas';
+      case ExpenseCategory.salary:
+        return 'Salary';
+      case ExpenseCategory.maintenance:
+        return 'Maintenance';
+      case ExpenseCategory.transport:
+        return 'Transport';
+      case ExpenseCategory.miscellaneous:
+        return 'Miscellaneous';
+      case ExpenseCategory.rawMaterials:
+        return 'Raw Materials';
+    }
+  }
+}
+
 class Expense {
   final String id;
   final String title;
@@ -32,24 +55,5 @@ class Expense {
     this.description,
   });
 
-  String get categoryLabel {
-    switch (category) {
-      case ExpenseCategory.rent:
-        return 'Rent';
-      case ExpenseCategory.electricity:
-        return 'Electricity';
-      case ExpenseCategory.gas:
-        return 'Gas';
-      case ExpenseCategory.salary:
-        return 'Salary';
-      case ExpenseCategory.maintenance:
-        return 'Maintenance';
-      case ExpenseCategory.transport:
-        return 'Transport';
-      case ExpenseCategory.miscellaneous:
-        return 'Miscellaneous';
-      case ExpenseCategory.rawMaterials:
-        return 'Raw Materials';
-    }
-  }
+  String get categoryLabel => category.label;
 }

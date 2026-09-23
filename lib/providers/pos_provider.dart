@@ -453,6 +453,27 @@ class PosProvider extends ChangeNotifier {
       case 'supplier.create':
         if (data != null) _upsertServerSupplier(data, replaceLocalId: payload['local_id']?.toString());
         break;
+      case 'supplier.payment':
+        if (data != null) {
+          final supplier = data['supplier'];
+          if (supplier is Map) {
+            _upsertServerSupplier(supplier.cast<String, dynamic>());
+          }
+          final pay = data['payment'];
+          if (pay is Map) {
+            final incoming = supplierPaymentFromApi(pay.cast<String, dynamic>());
+            final localId = payload['local_id']?.toString();
+            final idx = _supplierPayments.indexWhere((p) =>
+                p.id == incoming.id ||
+                (localId != null && p.id == localId));
+            if (idx >= 0) {
+              _supplierPayments[idx] = incoming;
+            } else {
+              _supplierPayments.insert(0, incoming);
+            }
+          }
+        }
+        break;
       case 'purchase.create':
       case 'purchase.patch':
         if (data != null) _upsertServerPurchase(data, replaceLocalId: payload['local_id']?.toString());
@@ -1233,6 +1254,19 @@ class PosProvider extends ChangeNotifier {
       return resp is Map ? resp.cast<String, dynamic>() : null;
     });
 
+    // Direct supplier payout: the server atomically reduces the outstanding
+    // due and returns {payment, supplier} (server truth for the ledger).
+    sync.register('supplier.payment', (p) async {
+      final resp = await api.request(
+        'POST',
+        '/api/v1/suppliers/${p['supplier_id']}/payments',
+        query: {'outlet_id': _currentOutlet.id},
+        body: _bodyOf(p),
+        idempotencyKey: p['__key']?.toString(),
+      );
+      return resp is Map ? resp.cast<String, dynamic>() : null;
+    });
+
     sync.register('purchase.create', (p) async {
       final resp = await api.request(
         'POST',
@@ -1345,9 +1379,33 @@ class PosProvider extends ChangeNotifier {
   }
 
   // ---- Attendance (W3): who clocked in when, on this terminal ----
+  // Server truth when online (auto clock-in on login, clock-out on logout);
+  // the local ledger keeps working offline and until the first hydration.
 
   final List<AttendanceEntry> _attendance = [];
   List<AttendanceEntry> get attendanceLog => List.unmodifiable(_attendance);
+
+  /// Hydrates the attendance ledger from the server (replaces local rows).
+  Future<void> fetchAttendance() async {
+    if (!apiEnabled || _api == null || !_sync!.online) return;
+    try {
+      final data = await _api!.request('GET', '/api/v1/attendance',
+          query: {'outlet_id': _currentOutlet.id});
+      if (data is! Map || data['attendance'] is! List) return;
+      final server = (data['attendance'] as List)
+          .whereType<Map>()
+          .map((j) => attendanceFromApi(j.cast<String, dynamic>()))
+          .toList();
+      _attendance
+        ..clear()
+        ..addAll(server);
+      notifyListeners();
+    } on NetworkException {
+      // offline — keep the local ledger
+    } on ApiException {
+      // non-fatal read failure
+    }
+  }
 
   AttendanceEntry? _openAttendanceFor(String staffId) =>
       _attendance
@@ -1763,6 +1821,51 @@ class PosProvider extends ChangeNotifier {
   final List<CashTransaction> _cashTransactions = [];
   List<CashTransaction> get cashTransactions => _cashTransactions;
 
+  /// Hydrates the cash-move ledger from the server (all shifts of the outlet),
+  /// keeping only pending local entries that have not reached the server yet.
+  /// A local row is "acked" when a server row matches on type/amount/reason
+  /// within a 2-minute window of its timestamp.
+  Future<void> fetchCashMoves() async {
+    if (!apiEnabled || _api == null || !_sync!.online) return;
+    try {
+      final data = await _api!.request('GET', '/api/v1/cash-moves',
+          query: {'outlet_id': _currentOutlet.id});
+      if (data is! Map || data['cash_moves'] is! List) return;
+      final server = (data['cash_moves'] as List)
+          .whereType<Map>()
+          .map((j) => cashMoveFromApi(j.cast<String, dynamic>()))
+          .toList();
+      final pendingLocal =
+          _cashTransactions.where((t) => !_ackedOnServer(server, t)).toList();
+      _cashTransactions
+        ..clear()
+        ..addAll(server)
+        ..addAll(pendingLocal);
+      notifyListeners();
+    } on NetworkException {
+      // offline — keep the local ledger
+    } on ApiException {
+      // non-fatal read failure
+    }
+  }
+
+  /// True when a server row matches the local row (type/amount/reason) within
+  /// a 2-minute timestamp window — i.e. the local entry already reached the
+  /// server and must not be double-counted.
+  bool _ackedOnServer(List<CashTransaction> server, CashTransaction local) {
+    final key =
+        '${local.type.name}|${local.amount.toStringAsFixed(0)}|${local.reason}';
+    for (final s in server) {
+      final sKey = '${s.type.name}|${s.amount.toStringAsFixed(0)}|${s.reason}';
+      if (sKey == key &&
+          s.timestamp.difference(local.timestamp).abs() <=
+              const Duration(minutes: 2)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   void addCashIn({required double amount, required String reason, String? reference, DateTime? at}) {
     if (amount <= 0) return;
     final when = at ?? DateTime.now();
@@ -1776,18 +1879,17 @@ class PosProvider extends ChangeNotifier {
       staffName: _currentStaff?.name ?? 'Staff',
     );
     _cashTransactions.insert(0, tx);
-    // Only live entries move the running drawer math; backdated entries
-    // stay in the ledger for audit without corrupting the current shift.
-    final shift = _currentShift;
-    if (shift != null && !when.isBefore(shift.startedAt)) {
-      shift.cashIn += amount;
-    }
+    // Every recorded move counts toward the open shift — matching the server,
+    // which books each cash move into the current shift regardless of the
+    // ledger timestamp (the `at` date is display/audit only).
+    _currentShift?.cashIn += amount;
     notifyListeners();
     _sync?.push('cash.move', {
       'type': 'cash_in',
       'amount_paise': toPaise(amount),
       'reason': reason,
       if (reference != null && reference.isNotEmpty) 'reference': reference,
+      'at': when.toUtc().toIso8601String(),
     });
   }
 
@@ -1804,16 +1906,14 @@ class PosProvider extends ChangeNotifier {
       staffName: _currentStaff?.name ?? 'Staff',
     );
     _cashTransactions.insert(0, tx);
-    final shift = _currentShift;
-    if (shift != null && !when.isBefore(shift.startedAt)) {
-      shift.cashOut += amount;
-    }
+    _currentShift?.cashOut += amount;
     notifyListeners();
     _sync?.push('cash.move', {
       'type': 'cash_out',
       'amount_paise': toPaise(amount),
       'reason': reason,
       if (reference != null && reference.isNotEmpty) 'reference': reference,
+      'at': when.toUtc().toIso8601String(),
     });
   }
 
@@ -1822,6 +1922,21 @@ class PosProvider extends ChangeNotifier {
   String get selectedFloor => _selectedFloor;
   void setFloor(String floor) {
     _selectedFloor = floor;
+    notifyListeners();
+  }
+
+  static const List<String> tableStatusFilters = [
+    'All',
+    'Available',
+    'Occupied',
+    'Billing',
+    'Reserved',
+    'Cleaning',
+  ];
+  String _selectedTableStatus = 'All';
+  String get selectedTableStatus => _selectedTableStatus;
+  void setTableStatus(String status) {
+    _selectedTableStatus = status;
     notifyListeners();
   }
 
@@ -1842,8 +1957,13 @@ class PosProvider extends ChangeNotifier {
   List<RestaurantTable> get tables => List.unmodifiable(_tables);
 
   List<RestaurantTable> get filteredTables {
-    if (_selectedFloor == 'All') return List.unmodifiable(_tables);
-    return List.unmodifiable(_tables.where((t) => t.floor == _selectedFloor));
+    final floorMatch = _selectedFloor == 'All'
+        ? _tables
+        : _tables.where((t) => t.floor == _selectedFloor);
+    if (_selectedTableStatus == 'All') return List.unmodifiable(floorMatch);
+    return List.unmodifiable(
+      floorMatch.where((t) => t.statusLabel == _selectedTableStatus),
+    );
   }
 
   /// Explicitly marks a reserved/cleaning table available again.
@@ -3098,6 +3218,46 @@ class PosProvider extends ChangeNotifier {
   DashboardStats? _serverDashboard;
   DashboardStats? get serverDashboard => _serverDashboard;
 
+  /// On-demand server report for an arbitrary date range
+  /// (GET /reports/dashboard?from=…&to=…, admin-only endpoint).
+  DashboardStats? _rangeReport;
+  DateTimeRange? _rangeReportKey;
+  bool _rangeReportLoading = false;
+  DashboardStats? get serverRangeReport => _rangeReport;
+  DateTimeRange? get rangeReportKey => _rangeReportKey;
+  bool get rangeReportLoading => _rangeReportLoading;
+
+  /// Fetches outlet-wide stats for [range]. Cached by range key; no-op when
+  /// offline, non-admin (endpoint is admin-gated) or already loading.
+  Future<void> fetchRangeReport(DateTimeRange range) async {
+    if (!apiEnabled || _api == null) return;
+    if (_currentStaff?.role != StaffRole.admin) return;
+    if (_rangeReportLoading) return;
+    if (_rangeReportKey == range && _rangeReport != null) return;
+    _rangeReportLoading = true;
+    notifyListeners();
+    try {
+      final q = {
+        'outlet_id': _currentOutlet.id,
+        'from': DateTime(range.start.year, range.start.month, range.start.day)
+            .toUtc()
+            .toIso8601String(),
+        'to': DateTime(range.end.year, range.end.month, range.end.day, 23, 59,
+                59, 999)
+            .toUtc()
+            .toIso8601String(),
+      };
+      final rep = await _tryRead('/api/v1/reports/dashboard', q);
+      if (rep is Map) {
+        _rangeReport = dashboardReportFromApi(rep.cast<String, dynamic>());
+        _rangeReportKey = range;
+      }
+    } finally {
+      _rangeReportLoading = false;
+      notifyListeners();
+    }
+  }
+
   void updateSettings(RestaurantSettings s) {
     _settings = s;
     notifyListeners();
@@ -3331,6 +3491,8 @@ class PosProvider extends ChangeNotifier {
   }
 
   // ---- Supplier payment ledger (W5): pay dues, track history by date ----
+  // Server truth: POST /suppliers/{id}/payments reduces the due atomically;
+  // GET /suppliers/{id}/payments hydrates the ledger for the outlet.
 
   final List<SupplierPayment> _supplierPayments = [];
   List<SupplierPayment> get supplierPayments => List.unmodifiable(_supplierPayments);
@@ -3338,6 +3500,34 @@ class PosProvider extends ChangeNotifier {
   List<SupplierPayment> supplierPaymentsFor(String supplierId) =>
       List.unmodifiable(
           _supplierPayments.where((p) => p.supplierId == supplierId));
+
+  /// Hydrates the payment ledger from the server for one supplier (merged by
+  /// id; local optimistic rows survive until the server knows them).
+  Future<void> fetchSupplierPayments(String supplierId) async {
+    if (!apiEnabled || _api == null || !_sync!.online) return;
+    final localId = _serverIdFor(supplierId);
+    final id = localId ?? supplierId;
+    if (id.isEmpty) return;
+    try {
+      final data = await _api!.request(
+          'GET', '/api/v1/suppliers/$id/payments',
+          query: {'outlet_id': _currentOutlet.id});
+      if (data is! Map || data['payments'] is! List) return;
+      final server = (data['payments'] as List)
+          .whereType<Map>()
+          .map((j) => supplierPaymentFromApi(j.cast<String, dynamic>()))
+          .toList();
+      // Replace this supplier's rows with server truth, keep others.
+      _supplierPayments
+        ..removeWhere((p) => p.supplierId == supplierId)
+        ..insertAll(0, server);
+      notifyListeners();
+    } on NetworkException {
+      // offline — keep the local ledger
+    } on ApiException {
+      // per-supplier read failures are non-fatal
+    }
+  }
 
   /// Records a payment against [supplierId]'s outstanding due and reduces it.
   /// Returns false when the payment exceeds the outstanding amount.
@@ -3351,35 +3541,32 @@ class PosProvider extends ChangeNotifier {
     final sup = _suppliers.where((s) => s.id == supplierId).firstOrNull;
     if (sup == null || amount <= 0) return false;
     if (amount > sup.outstanding + 0.005) return false;
-    sup.outstanding = (sup.outstanding - amount).clamp(0.0, double.infinity);
-    _supplierPayments.insert(
-      0,
-      SupplierPayment(
-        id: 'pay-${DateTime.now().millisecondsSinceEpoch}',
-        supplierId: supplierId,
-        supplierName: sup.name,
-        amount: amount,
-        method: method,
-        paidAt: at ?? DateTime.now(),
-        reference: reference,
-        staffName: _currentStaff?.name ?? 'Staff',
-      ),
+    final when = at ?? DateTime.now();
+    final pay = SupplierPayment(
+      id: 'pay-${DateTime.now().millisecondsSinceEpoch}',
+      supplierId: supplierId,
+      supplierName: sup.name,
+      amount: amount,
+      method: method,
+      paidAt: when,
+      reference: reference,
+      staffName: _currentStaff?.name ?? 'Staff',
     );
+    sup.outstanding = (sup.outstanding - amount).clamp(0.0, double.infinity);
+    _supplierPayments.insert(0, pay);
     notifyListeners();
-    // A direct supplier payout reduces the physical drawer for cash modes.
+    // A direct cash payout leaves the physical drawer (mirrors the server,
+    // which books cash payouts through the expense flow into shift math).
     if (method == 'Cash' && _currentShift != null) {
       _currentShift!.expenses += amount;
     }
-    // Reuse the expense op so back-office server truth stays consistent.
-    _sync?.push('expense.create', {
-      'local_id': 'sup-$supplierId-${DateTime.now().millisecondsSinceEpoch}',
-      'title': 'Supplier payment — ${sup.name}',
-      'category': 'raw_materials',
+    _sync?.push('supplier.payment', {
+      'local_id': pay.id,
+      'supplier_id': supplierId,
       'amount_paise': toPaise(amount),
-      'method': method,
+      'method': supplierMethodToApi(method),
+      'at': when.toUtc().toIso8601String(),
       if (reference != null && reference.isNotEmpty) 'reference': reference,
-      'note': 'Supplier payment (${sup.name})',
-      'vendor': sup.name,
     });
     return true;
   }
