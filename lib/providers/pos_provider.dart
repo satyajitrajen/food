@@ -1950,15 +1950,15 @@ class PosProvider extends ChangeNotifier {
 
   final List<RestaurantTable> _tables = [
     RestaurantTable(id: 't-01', tableNumber: 'T01', seats: 2, floor: 'Ground Floor', status: TableStatus.available),
-    RestaurantTable(id: 't-02', tableNumber: 'T02', seats: 4, floor: 'Ground Floor', status: TableStatus.occupied, currentOrderAmount: 850.0, runningMinutes: 24, guestCount: 3, assignedWaiter: 'Rahul'),
-    RestaurantTable(id: 't-03', tableNumber: 'T03', seats: 4, floor: 'Ground Floor', status: TableStatus.reserved, guestCount: 4),
-    RestaurantTable(id: 't-04', tableNumber: 'T04', seats: 6, floor: 'Ground Floor', status: TableStatus.billing, currentOrderAmount: 2450.0, runningMinutes: 52, guestCount: 5, assignedWaiter: 'Amit'),
+    RestaurantTable(id: 't-02', tableNumber: 'T02', seats: 4, floor: 'Ground Floor', status: TableStatus.available),
+    RestaurantTable(id: 't-03', tableNumber: 'T03', seats: 4, floor: 'Ground Floor', status: TableStatus.available),
+    RestaurantTable(id: 't-04', tableNumber: 'T04', seats: 6, floor: 'Ground Floor', status: TableStatus.available),
     RestaurantTable(id: 't-05', tableNumber: 'T05', seats: 4, floor: 'Ground Floor', status: TableStatus.available),
     RestaurantTable(id: 't-06', tableNumber: 'T06', seats: 4, floor: 'Ground Floor', status: TableStatus.available),
     RestaurantTable(id: 't-07', tableNumber: 'T07', seats: 2, floor: 'First Floor', status: TableStatus.available),
-    RestaurantTable(id: 't-08', tableNumber: 'T08', seats: 6, floor: 'First Floor', status: TableStatus.occupied, currentOrderAmount: 1650.0, runningMinutes: 18, guestCount: 4, assignedWaiter: 'Rohan'),
+    RestaurantTable(id: 't-08', tableNumber: 'T08', seats: 6, floor: 'First Floor', status: TableStatus.available),
     RestaurantTable(id: 't-09', tableNumber: 'T09', seats: 8, floor: 'First Floor', status: TableStatus.available),
-    RestaurantTable(id: 't-10', tableNumber: 'T10', seats: 4, floor: 'Outdoor', status: TableStatus.cleaning),
+    RestaurantTable(id: 't-10', tableNumber: 'T10', seats: 4, floor: 'Outdoor', status: TableStatus.available),
     RestaurantTable(id: 't-11', tableNumber: 'T11', seats: 2, floor: 'Outdoor', status: TableStatus.available),
     RestaurantTable(id: 't-12', tableNumber: 'T12', seats: 4, floor: 'Outdoor', status: TableStatus.available),
   ];
@@ -1985,6 +1985,11 @@ class PosProvider extends ChangeNotifier {
       return;
     }
     t.status = TableStatus.available;
+    t.activeOrderId = null;
+    t.currentOrderAmount = 0.0;
+    t.runningMinutes = 0;
+    t.guestCount = 0;
+    t.assignedWaiter = null;
     if (_selectedTable?.id == t.id) {
       _selectedTable = null;
       _activeOrder = null;

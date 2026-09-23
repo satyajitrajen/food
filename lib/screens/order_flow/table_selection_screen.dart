@@ -213,6 +213,23 @@ class TableSelectionScreen extends StatelessWidget {
           );
         }
       },
+      onLongPress: table.status != TableStatus.available
+          ? () async {
+              final ok = await showConfirmDialog(
+                context,
+                title: 'Reset Table ${table.tableNumber}?',
+                message:
+                    'Reset table ${table.tableNumber} to Available? Active timer and table bill will be cleared.',
+                confirmLabel: 'Reset Table',
+                isDanger: true,
+              );
+              if (!ok || !context.mounted) return;
+              provider.markTableAvailable(table);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Table ${table.tableNumber} reset to Available!')),
+              );
+            }
+          : null,
       borderRadius: BorderRadius.circular(16),
       child: Container(
         padding: const EdgeInsets.all(12),
