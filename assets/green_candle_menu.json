@@ -1,0 +1,816 @@
+[
+  {
+    "local_id": "gc-01",
+    "outlet_id": "out-green-candle",
+    "category_id": "अरख्खा मसूर स्पेशल",
+    "name": "स्पेशल अरख्खा मसूर",
+    "description": "Hotel Green Candle special Arakha Masoor",
+    "price_paise": 10000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300",
+    "variants": [
+      {
+        "name": "Half",
+        "price_paise": 6000
+      },
+      {
+        "name": "Full",
+        "price_paise": 10000
+      }
+    ]
+  },
+  {
+    "local_id": "gc-02",
+    "outlet_id": "out-green-candle",
+    "category_id": "अरख्खा मसूर स्पेशल",
+    "name": "स्पेशल अरख्खा मसूर तेज",
+    "description": "Spicy Arakha Masoor - extra tart",
+    "price_paise": 11000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300",
+    "variants": [
+      {
+        "name": "Half",
+        "price_paise": 7000
+      },
+      {
+        "name": "Full",
+        "price_paise": 11000
+      }
+    ]
+  },
+  {
+    "local_id": "gc-03",
+    "outlet_id": "out-green-candle",
+    "category_id": "अरख्खा मसूर स्पेशल",
+    "name": "अरख्खा मसूर लसूण तडका",
+    "description": "Arakha Masoor with garlic tadka",
+    "price_paise": 12000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300",
+    "variants": [
+      {
+        "name": "Half",
+        "price_paise": 7000
+      },
+      {
+        "name": "Full",
+        "price_paise": 12000
+      }
+    ]
+  },
+  {
+    "local_id": "gc-04",
+    "outlet_id": "out-green-candle",
+    "category_id": "दाल फ्राय स्पेशल",
+    "name": "दाल फ्राय",
+    "description": "Dal Fry - lentils tempered with spices",
+    "price_paise": 10000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300",
+    "variants": [
+      {
+        "name": "Half",
+        "price_paise": 6000
+      },
+      {
+        "name": "Full",
+        "price_paise": 10000
+      }
+    ]
+  },
+  {
+    "local_id": "gc-05",
+    "outlet_id": "out-green-candle",
+    "category_id": "दाल फ्राय स्पेशल",
+    "name": "दाल तडका",
+    "description": "Dal Tadka with ghee & garlic",
+    "price_paise": 11000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300",
+    "variants": [
+      {
+        "name": "Half",
+        "price_paise": 7000
+      },
+      {
+        "name": "Full",
+        "price_paise": 11000
+      }
+    ]
+  },
+  {
+    "local_id": "gc-06",
+    "outlet_id": "out-green-candle",
+    "category_id": "इंडियन व्हेज स्पेशल",
+    "name": "पनीर मसाला",
+    "description": "Paneer cubes in rich masala gravy",
+    "price_paise": 18000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300"
+  },
+  {
+    "local_id": "gc-07",
+    "outlet_id": "out-green-candle",
+    "category_id": "इंडियन व्हेज स्पेशल",
+    "name": "पनीर तवा",
+    "description": "Paneer Tawa - semi-dry tawa preparation",
+    "price_paise": 23000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300"
+  },
+  {
+    "local_id": "gc-08",
+    "outlet_id": "out-green-candle",
+    "category_id": "इंडियन व्हेज स्पेशल",
+    "name": "पनीर पसंदा",
+    "description": "Paneer Pasanda - stuffed paneer in cashew gravy",
+    "price_paise": 24000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300"
+  },
+  {
+    "local_id": "gc-09",
+    "outlet_id": "out-green-candle",
+    "category_id": "इंडियन व्हेज स्पेशल",
+    "name": "पनीर बटर मसाला",
+    "description": "Creamy butter masala with paneer",
+    "price_paise": 25000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300"
+  },
+  {
+    "local_id": "gc-10",
+    "outlet_id": "out-green-candle",
+    "category_id": "इंडियन व्हेज स्पेशल",
+    "name": "पनीर कढाई",
+    "description": "Kadhai Paneer with capsicum & onions",
+    "price_paise": 19000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300"
+  },
+  {
+    "local_id": "gc-11",
+    "outlet_id": "out-green-candle",
+    "category_id": "इंडियन व्हेज स्पेशल",
+    "name": "पनीर टिक्का मसाला",
+    "description": "Grilled paneer tikka in masala gravy",
+    "price_paise": 24000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300"
+  },
+  {
+    "local_id": "gc-12",
+    "outlet_id": "out-green-candle",
+    "category_id": "इंडियन व्हेज स्पेशल",
+    "name": "पनीर भुर्जी",
+    "description": "Scrambled paneer with spices",
+    "price_paise": 19000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300"
+  },
+  {
+    "local_id": "gc-13",
+    "outlet_id": "out-green-candle",
+    "category_id": "इंडियन व्हेज स्पेशल",
+    "name": "मटर पनीर",
+    "description": "Green peas & paneer in tomato gravy",
+    "price_paise": 23000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300"
+  },
+  {
+    "local_id": "gc-14",
+    "outlet_id": "out-green-candle",
+    "category_id": "इंडियन व्हेज स्पेशल",
+    "name": "पालक पनीर",
+    "description": "Paneer in smooth spinach gravy",
+    "price_paise": 22000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300"
+  },
+  {
+    "local_id": "gc-15",
+    "outlet_id": "out-green-candle",
+    "category_id": "इंडियन व्हेज स्पेशल",
+    "name": "काजू पनीर मसाला",
+    "description": "Cashew & paneer in rich gravy",
+    "price_paise": 22000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300"
+  },
+  {
+    "local_id": "gc-16",
+    "outlet_id": "out-green-candle",
+    "category_id": "काजू स्पेशल",
+    "name": "काजू मसाला",
+    "description": "Cashew masala curry",
+    "price_paise": 19000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300"
+  },
+  {
+    "local_id": "gc-17",
+    "outlet_id": "out-green-candle",
+    "category_id": "काजू स्पेशल",
+    "name": "काजू करी",
+    "description": "Kaju Curry - creamy cashew gravy",
+    "price_paise": 19000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300"
+  },
+  {
+    "local_id": "gc-18",
+    "outlet_id": "out-green-candle",
+    "category_id": "काजू स्पेशल",
+    "name": "काजू कुर्मा",
+    "description": "Mild Kaju Kurma with cashew paste",
+    "price_paise": 21000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300"
+  },
+  {
+    "local_id": "gc-19",
+    "outlet_id": "out-green-candle",
+    "category_id": "काजू स्पेशल",
+    "name": "काजू कढाई",
+    "description": "Kadhai style cashew with bell peppers",
+    "price_paise": 23000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300"
+  },
+  {
+    "local_id": "gc-20",
+    "outlet_id": "out-green-candle",
+    "category_id": "व्हेज स्पेशल",
+    "name": "ग्रीन कँडल स्पेशल",
+    "description": "Signature Green Candle house special veg platter",
+    "price_paise": 29900,
+    "is_veg": true,
+    "is_bestseller": true,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300"
+  },
+  {
+    "local_id": "gc-21",
+    "outlet_id": "out-green-candle",
+    "category_id": "व्हेज स्पेशल",
+    "name": "मिक्स व्हेज",
+    "description": "Mixed vegetables in masala gravy",
+    "price_paise": 17000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300"
+  },
+  {
+    "local_id": "gc-22",
+    "outlet_id": "out-green-candle",
+    "category_id": "व्हेज स्पेशल",
+    "name": "व्हेज कोल्हापुरी",
+    "description": "Kolhapuri style spicy veg",
+    "price_paise": 18000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300"
+  },
+  {
+    "local_id": "gc-23",
+    "outlet_id": "out-green-candle",
+    "category_id": "व्हेज स्पेशल",
+    "name": "व्हेज रसा",
+    "description": "Light veg rassa / curry",
+    "price_paise": 8000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300"
+  },
+  {
+    "local_id": "gc-24",
+    "outlet_id": "out-green-candle",
+    "category_id": "व्हेज स्पेशल",
+    "name": "व्हेज तवा",
+    "description": "Veg Tawa - tawa fried veg",
+    "price_paise": 23000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300"
+  },
+  {
+    "local_id": "gc-25",
+    "outlet_id": "out-green-candle",
+    "category_id": "व्हेज स्पेशल",
+    "name": "गोभी मसाला",
+    "description": "Gobi Masala - cauliflower in gravy",
+    "price_paise": 22000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300"
+  },
+  {
+    "local_id": "gc-26",
+    "outlet_id": "out-green-candle",
+    "category_id": "व्हेज स्पेशल",
+    "name": "आलू मटर मसाला",
+    "description": "Potato & peas masala",
+    "price_paise": 22000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300"
+  },
+  {
+    "local_id": "gc-27",
+    "outlet_id": "out-green-candle",
+    "category_id": "व्हेज स्पेशल",
+    "name": "व्हेज पतियाला",
+    "description": "Veg Patiala - rich royal gravy",
+    "price_paise": 28000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300"
+  },
+  {
+    "local_id": "gc-28",
+    "outlet_id": "out-green-candle",
+    "category_id": "व्हेज स्पेशल",
+    "name": "शेव भाजी",
+    "description": "Shev Bhaji - sev in spicy gravy",
+    "price_paise": 16000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300"
+  },
+  {
+    "local_id": "gc-29",
+    "outlet_id": "out-green-candle",
+    "category_id": "व्हेज स्पेशल",
+    "name": "दुधातील शेव भाजी",
+    "description": "Shev Bhaji in milk/white gravy",
+    "price_paise": 18000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300"
+  },
+  {
+    "local_id": "gc-30",
+    "outlet_id": "out-green-candle",
+    "category_id": "राईस स्पेशल",
+    "name": "प्लेन राईस",
+    "description": "Steamed plain rice",
+    "price_paise": 8000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300",
+    "variants": [
+      {
+        "name": "Half",
+        "price_paise": 4000
+      },
+      {
+        "name": "Full",
+        "price_paise": 8000
+      }
+    ]
+  },
+  {
+    "local_id": "gc-31",
+    "outlet_id": "out-green-candle",
+    "category_id": "राईस स्पेशल",
+    "name": "जीरा राईस",
+    "description": "Jeera rice - cumin tempered basmati",
+    "price_paise": 9000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300",
+    "variants": [
+      {
+        "name": "Half",
+        "price_paise": 5000
+      },
+      {
+        "name": "Full",
+        "price_paise": 9000
+      }
+    ]
+  },
+  {
+    "local_id": "gc-32",
+    "outlet_id": "out-green-candle",
+    "category_id": "राईस स्पेशल",
+    "name": "घी राईस",
+    "description": "Ghee Rice - basmati with ghee",
+    "price_paise": 13000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300"
+  },
+  {
+    "local_id": "gc-33",
+    "outlet_id": "out-green-candle",
+    "category_id": "राईस स्पेशल",
+    "name": "खुशका राईस",
+    "description": "Khushka rice - lightly spiced",
+    "price_paise": 10000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300",
+    "variants": [
+      {
+        "name": "Half",
+        "price_paise": 7000
+      },
+      {
+        "name": "Full",
+        "price_paise": 10000
+      }
+    ]
+  },
+  {
+    "local_id": "gc-34",
+    "outlet_id": "out-green-candle",
+    "category_id": "राईस स्पेशल",
+    "name": "व्हेज पुलाव",
+    "description": "Veg Pulao with vegetables",
+    "price_paise": 15000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300"
+  },
+  {
+    "local_id": "gc-35",
+    "outlet_id": "out-green-candle",
+    "category_id": "राईस स्पेशल",
+    "name": "पनीर पुलाव",
+    "description": "Paneer Pulao with paneer cubes",
+    "price_paise": 17000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300"
+  },
+  {
+    "local_id": "gc-36",
+    "outlet_id": "out-green-candle",
+    "category_id": "राईस स्पेशल",
+    "name": "व्हेज बिर्याणी",
+    "description": "Veg Biryani - dum cooked",
+    "price_paise": 21000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300"
+  },
+  {
+    "local_id": "gc-37",
+    "outlet_id": "out-green-candle",
+    "category_id": "राईस स्पेशल",
+    "name": "दाल खिचडी",
+    "description": "Dal Khichdi comfort rice & lentils",
+    "price_paise": 11000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300"
+  },
+  {
+    "local_id": "gc-38",
+    "outlet_id": "out-green-candle",
+    "category_id": "राईस स्पेशल",
+    "name": "कढी राईस",
+    "description": "Kadhi chawal",
+    "price_paise": 12000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300"
+  },
+  {
+    "local_id": "gc-39",
+    "outlet_id": "out-green-candle",
+    "category_id": "रोटी स्पेशल",
+    "name": "गव्हाची रोटी",
+    "description": "Wheat roti - plain or butter",
+    "price_paise": 2500,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300",
+    "variants": [
+      {
+        "name": "साधी",
+        "price_paise": 2000
+      },
+      {
+        "name": "बटर",
+        "price_paise": 2500
+      }
+    ]
+  },
+  {
+    "local_id": "gc-40",
+    "outlet_id": "out-green-candle",
+    "category_id": "रोटी स्पेशल",
+    "name": "तंदूर रोटी",
+    "description": "Tandoor baked roti",
+    "price_paise": 2500,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300",
+    "variants": [
+      {
+        "name": "साधी",
+        "price_paise": 2000
+      },
+      {
+        "name": "बटर",
+        "price_paise": 2500
+      }
+    ]
+  },
+  {
+    "local_id": "gc-41",
+    "outlet_id": "out-green-candle",
+    "category_id": "रोटी स्पेशल",
+    "name": "नान रोटी",
+    "description": "Soft Naan",
+    "price_paise": 4500,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300"
+  },
+  {
+    "local_id": "gc-42",
+    "outlet_id": "out-green-candle",
+    "category_id": "रोटी स्पेशल",
+    "name": "कुलचा",
+    "description": "Kulcha - leavened bread",
+    "price_paise": 3500,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300",
+    "variants": [
+      {
+        "name": "रेग्युलर",
+        "price_paise": 3000
+      },
+      {
+        "name": "बटर",
+        "price_paise": 3500
+      }
+    ]
+  },
+  {
+    "local_id": "gc-43",
+    "outlet_id": "out-green-candle",
+    "category_id": "रोटी स्पेशल",
+    "name": "लच्छा पराठा",
+    "description": "Layered laccha paratha",
+    "price_paise": 6000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300"
+  },
+  {
+    "local_id": "gc-44",
+    "outlet_id": "out-green-candle",
+    "category_id": "रोटी स्पेशल",
+    "name": "व्हेज पराठा",
+    "description": "Stuffed veg paratha",
+    "price_paise": 10500,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300"
+  },
+  {
+    "local_id": "gc-45",
+    "outlet_id": "out-green-candle",
+    "category_id": "रोटी स्पेशल",
+    "name": "आलू पराठा",
+    "description": "Aloo paratha with curd/pickle",
+    "price_paise": 9000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300"
+  },
+  {
+    "local_id": "gc-46",
+    "outlet_id": "out-green-candle",
+    "category_id": "रोटी स्पेशल",
+    "name": "तवा पराठा",
+    "description": "Tawa Paratha",
+    "price_paise": 4500,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300",
+    "variants": [
+      {
+        "name": "साधी",
+        "price_paise": 4000
+      },
+      {
+        "name": "बटर",
+        "price_paise": 4500
+      }
+    ]
+  },
+  {
+    "local_id": "gc-47",
+    "outlet_id": "out-green-candle",
+    "category_id": "रोटी स्पेशल",
+    "name": "गार्लिक नान",
+    "description": "Garlic butter naan",
+    "price_paise": 7000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300"
+  },
+  {
+    "local_id": "gc-48",
+    "outlet_id": "out-green-candle",
+    "category_id": "थंडाई स्पेशल",
+    "name": "सोलकढी",
+    "description": "Solkadhi - kokum + coconut milk cooler",
+    "price_paise": 8000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300",
+    "variants": [
+      {
+        "name": "1 Glass",
+        "price_paise": 2000
+      },
+      {
+        "name": "1 Liter",
+        "price_paise": 8000
+      }
+    ]
+  },
+  {
+    "local_id": "gc-49",
+    "outlet_id": "out-green-candle",
+    "category_id": "थंडाई स्पेशल",
+    "name": "बटर मिल्क",
+    "description": "Chaas / Buttermilk - 1 Glass",
+    "price_paise": 3000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300"
+  },
+  {
+    "local_id": "gc-50",
+    "outlet_id": "out-green-candle",
+    "category_id": "थंडाई स्पेशल",
+    "name": "मिनरल वॉटर",
+    "description": "Mineral Water bottle",
+    "price_paise": 2000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300"
+  },
+  {
+    "local_id": "gc-51",
+    "outlet_id": "out-green-candle",
+    "category_id": "थंडाई स्पेशल",
+    "name": "दही",
+    "description": "Curd / Dahi bowl",
+    "price_paise": 2000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300"
+  },
+  {
+    "local_id": "gc-52",
+    "outlet_id": "out-green-candle",
+    "category_id": "पापड स्पेशल",
+    "name": "फ्राय पापड",
+    "description": "Fried papad",
+    "price_paise": 2000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300"
+  },
+  {
+    "local_id": "gc-53",
+    "outlet_id": "out-green-candle",
+    "category_id": "पापड स्पेशल",
+    "name": "रोस्ट पापड",
+    "description": "Roasted papad",
+    "price_paise": 2000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300"
+  },
+  {
+    "local_id": "gc-54",
+    "outlet_id": "out-green-candle",
+    "category_id": "पापड स्पेशल",
+    "name": "मसाला पापड",
+    "description": "Masala Papad with chutney & onion",
+    "price_paise": 3500,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300"
+  },
+  {
+    "local_id": "gc-55",
+    "outlet_id": "out-green-candle",
+    "category_id": "पापड स्पेशल",
+    "name": "फ्रेंच फ्राय",
+    "description": "French Fries",
+    "price_paise": 11000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300"
+  },
+  {
+    "local_id": "gc-56",
+    "outlet_id": "out-green-candle",
+    "category_id": "पापड स्पेशल",
+    "name": "मसाला फ्रेंच फ्राय",
+    "description": "Masala French Fries",
+    "price_paise": 12000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300"
+  },
+  {
+    "local_id": "gc-57",
+    "outlet_id": "out-green-candle",
+    "category_id": "पापड स्पेशल",
+    "name": "लसूण फ्राय",
+    "description": "Garlic Fry",
+    "price_paise": 11000,
+    "is_veg": true,
+    "is_bestseller": false,
+    "is_available": true,
+    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300"
+  }
+]
