@@ -74,6 +74,13 @@ class SettingsScreen extends StatelessWidget {
               title: 'Taxes & Additional Charges',
               subtitle: 'GST rates, Service charges & Packaging fees',
               icon: Icons.calculate_outlined,
+              trailing: provider.canManage
+                  ? IconButton(
+                      tooltip: 'Edit taxes & charges',
+                      icon: const Icon(Icons.edit_outlined, size: 20),
+                      onPressed: () => _showEditTaxesDialog(context, provider, settings),
+                    )
+                  : null,
               children: [
                 _buildSettingItem(
                   'GST Rate',
@@ -81,9 +88,10 @@ class SettingsScreen extends StatelessWidget {
                       ? '${settings.gstPercentage}% Inclusive of GST (CGST ${(settings.gstPercentage / 2).toStringAsFixed(1)}% + SGST ${(settings.gstPercentage / 2).toStringAsFixed(1)}%)'
                       : '${settings.gstPercentage}% Exclusive (CGST ${(settings.gstPercentage / 2).toStringAsFixed(1)}% + SGST ${(settings.gstPercentage / 2).toStringAsFixed(1)}%)',
                 ),
-                _buildSettingItem('Menu Pricing', settings.isGstInclusive ? 'Inclusive of GST' : 'Exclusive of GST (+5%)'),
+                _buildSettingItem('Menu Pricing', settings.isGstInclusive ? 'Inclusive of GST' : 'Exclusive of GST (+${settings.gstPercentage.toStringAsFixed(0)}%)'),
                 _buildSettingItem('Service Charge', '${settings.defaultServiceChargePercent}% (Dine-In Optional)'),
                 _buildSettingItem('Packaging Charge', '₹${settings.defaultPackagingCharge.toStringAsFixed(0)} flat rate'),
+                _buildSettingItem('Delivery Charge', '₹${settings.defaultDeliveryCharge.toStringAsFixed(0)} flat rate'),
               ],
             ),
             const SizedBox(height: 16),
@@ -289,6 +297,231 @@ class SettingsScreen extends StatelessWidget {
             child: const Text('Save'),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showEditTaxesDialog(BuildContext context, PosProvider provider, RestaurantSettings settings) {
+    final gstC = TextEditingController(text: settings.gstPercentage.toStringAsFixed(1).replaceAll('.0', ''));
+    final serviceC = TextEditingController(text: settings.defaultServiceChargePercent.toStringAsFixed(1).replaceAll('.0', ''));
+    final packagingC = TextEditingController(text: settings.defaultPackagingCharge.toStringAsFixed(0));
+    final deliveryC = TextEditingController(text: settings.defaultDeliveryCharge.toStringAsFixed(0));
+    bool isInclusive = settings.isGstInclusive;
+    bool saving = false;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryGreenLight,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.calculate_outlined, color: AppColors.primaryGreen, size: 20),
+              ),
+              const SizedBox(width: 10),
+              const Text('Edit Taxes & Charges', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+            ],
+          ),
+          content: SizedBox(
+            width: 480,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('GST Configuration', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: gstC,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                      labelText: 'GST Percentage (%)',
+                      hintText: 'e.g. 5, 12, 18',
+                      suffixText: '%',
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    children: [0.0, 5.0, 12.0, 18.0, 28.0].map((rate) {
+                      final str = rate.toStringAsFixed(1).replaceAll('.0', '');
+                      final isSelected = gstC.text.trim() == str;
+                      return ChoiceChip(
+                        label: Text('$str%'),
+                        selected: isSelected,
+                        selectedColor: AppColors.primaryGreenLight,
+                        onSelected: (_) {
+                          setDialogState(() {
+                            gstC.text = str;
+                          });
+                        },
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: AppColors.creamSubtle,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.borderLight),
+                    ),
+                    child: SwitchListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      title: const Text('Inclusive Menu Pricing', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                      subtitle: Text(
+                        isInclusive
+                            ? 'Menu prices already include GST. Tax is extracted from item price.'
+                            : 'Menu prices are exclusive. GST is added on top at checkout.',
+                        style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+                      ),
+                      value: isInclusive,
+                      activeThumbColor: AppColors.primaryGreen,
+                      onChanged: (v) => setDialogState(() => isInclusive = v),
+                    ),
+                  ),
+                  const Divider(height: 28, color: AppColors.borderLight),
+                  const Text('Service & Operational Charges', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: serviceC,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                      labelText: 'Default Service Charge (%)',
+                      hintText: 'e.g. 5.0 (0 to disable)',
+                      suffixText: '%',
+                      helperText: 'Applies to Dine-In bills. Set to 0 to disable.',
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    children: [0.0, 2.5, 5.0, 10.0].map((sc) {
+                      final str = sc.toStringAsFixed(1).replaceAll('.0', '');
+                      final isSelected = serviceC.text.trim() == str;
+                      return ChoiceChip(
+                        label: Text('$str%'),
+                        selected: isSelected,
+                        selectedColor: AppColors.primaryGreenLight,
+                        onSelected: (_) {
+                          setDialogState(() {
+                            serviceC.text = str;
+                          });
+                        },
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: packagingC,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                      labelText: 'Default Packaging Charge (₹)',
+                      hintText: 'e.g. 25',
+                      prefixText: '₹ ',
+                      helperText: 'Flat charge applied on Takeaway & Delivery orders.',
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: deliveryC,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                      labelText: 'Default Delivery Charge (₹)',
+                      hintText: 'e.g. 40',
+                      prefixText: '₹ ',
+                      helperText: 'Flat charge applied on Delivery orders.',
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: saving ? null : () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: saving
+                  ? null
+                  : () async {
+                      final gst = double.tryParse(gstC.text.trim());
+                      if (gst == null || gst < 0 || gst > 100) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('GST percentage must be between 0% and 100%')),
+                        );
+                        return;
+                      }
+                      final sc = double.tryParse(serviceC.text.trim());
+                      if (sc == null || sc < 0 || sc > 100) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Service charge must be between 0% and 100%')),
+                        );
+                        return;
+                      }
+                      final pkg = double.tryParse(packagingC.text.trim());
+                      if (pkg == null || pkg < 0) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Packaging charge must be 0 or greater')),
+                        );
+                        return;
+                      }
+                      final del = double.tryParse(deliveryC.text.trim());
+                      if (del == null || del < 0) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Delivery charge must be 0 or greater')),
+                        );
+                        return;
+                      }
+
+                      setDialogState(() => saving = true);
+
+                      final updated = settings.copyWith(
+                        gstPercentage: gst,
+                        isGstInclusive: isInclusive,
+                        defaultServiceChargePercent: sc,
+                        defaultPackagingCharge: pkg,
+                        defaultDeliveryCharge: del,
+                      );
+
+                      await provider.updateSettings(updated);
+
+                      if (ctx.mounted) {
+                        Navigator.of(ctx).pop();
+                      }
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Taxes & Charges updated and saved to backend successfully!'),
+                            backgroundColor: AppColors.vegGreen,
+                          ),
+                        );
+                      }
+                    },
+              child: saving
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Text('Save Changes'),
+            ),
+          ],
+        ),
       ),
     );
   }

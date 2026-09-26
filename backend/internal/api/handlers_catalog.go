@@ -428,5 +428,6 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorJSON(w, r, err)
 		return
 	}
+	s.publish(r, "settings.updated", st.OutletID, st)
 	httpx.JSON(w, http.StatusOK, st)
 }

@@ -296,5 +296,26 @@ void main() {
       expect(provider.shiftHistory.first.cashDifference, 0.0);
       expect(provider.shiftHistory.length, 1);
     });
+
+    testWidgets('Taxes & Charges settings can be updated and reflected in provider', (WidgetTester tester) async {
+      final provider = PosProvider();
+      expect(provider.settings.gstPercentage, 5.0);
+
+      final newSettings = provider.settings.copyWith(
+        gstPercentage: 18.0,
+        isGstInclusive: true,
+        defaultServiceChargePercent: 10.0,
+        defaultPackagingCharge: 30.0,
+        defaultDeliveryCharge: 50.0,
+      );
+
+      await provider.updateSettings(newSettings);
+
+      expect(provider.settings.gstPercentage, 18.0);
+      expect(provider.settings.isGstInclusive, true);
+      expect(provider.settings.defaultServiceChargePercent, 10.0);
+      expect(provider.settings.defaultPackagingCharge, 30.0);
+      expect(provider.settings.defaultDeliveryCharge, 50.0);
+    });
   });
 }

@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -5,7 +6,6 @@ import '../../core/theme/app_theme.dart';
 import '../../providers/pos_provider.dart';
 import '../../models/app_nav.dart';
 import '../../models/table_model.dart';
-import '../../models/kot_model.dart';
 import '../../widgets/stat_kpi_card.dart';
 import '../order_flow/table_selection_screen.dart';
 import '../kitchen/kitchen_board_screen.dart';
@@ -22,18 +22,29 @@ class PosDashboardScreen extends StatelessWidget {
     final provider = context.watch<PosProvider>();
     final shift = provider.currentShift;
 
-    // Financial Metrics. Server truth (outlet-wide, all terminals) when the
-    // dashboard report is available; local computation is the offline fallback.
+    // Financial Metrics.
+    // Live operational state takes precedence for realtime freshness;
+    // server dashboard (outlet-wide truth from API) provides cross-terminal history.
     final rep = provider.serverDashboard;
-    final todaySales = rep?.sales ?? (shift?.totalSales ?? 0.0);
-    final orderCount = rep?.orderCount ?? provider.completedTransactions.length;
-    final aov = rep?.aov ?? (orderCount > 0 ? (todaySales / orderCount) : 0.0);
-    final todayExp = rep?.expenses ?? provider.todayExpenses;
-    final cashInDrawer = rep?.cashDrawer ?? shift?.expectedCash ?? 0.0;
-    final pendingKOTs = rep?.pendingKots ??
-        provider.kots
-            .where((k) => k.status != KOTStatus.served && k.status != KOTStatus.cancelled)
-            .length;
+    final todayCompleted = provider.todayCompletedTransactions;
+    final localTodaySales = todayCompleted.fold(0.0, (sum, o) => sum + o.grandTotal);
+    final shiftSales = shift?.totalSales ?? 0.0;
+    final todaySales = math.max(math.max(localTodaySales, shiftSales), rep?.sales ?? 0.0);
+
+    final localOrderCount = todayCompleted.length;
+    final orderCount = math.max(localOrderCount, rep?.orderCount ?? 0);
+
+    final aov = orderCount > 0 ? (todaySales / orderCount) : (rep?.aov ?? 0.0);
+    final todayExp = math.max(provider.todayExpenses, rep?.expenses ?? 0.0);
+
+    // Drawer cash: live expected cash for open shift, fallback to server/recorded drawer
+    final liveCash = shift?.expectedCash ?? 0.0;
+    final cashInDrawer = (shift != null && (liveCash > 0 || shift.cashSales > 0 || shift.expenses > 0))
+        ? liveCash
+        : (rep?.cashDrawer ?? liveCash);
+
+    // Pending KOTs: kitchen tickets currently in progress (always live from provider)
+    final pendingKOTs = provider.pendingKotsCount;
 
     // Table Counts
     final freeTables = provider.tables.where((t) => t.status == TableStatus.available).length;
@@ -84,9 +95,15 @@ class PosDashboardScreen extends StatelessWidget {
           const SizedBox(width: 8),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
+      body: RefreshIndicator(
+        onRefresh: () async {
+          await provider.refreshDashboard();
+          await provider.hydrateOutlet();
+        },
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // KPI Grid (Sales, Orders, AOV, Expenses, Cash Drawer, Pending KOT)
@@ -343,8 +360,9 @@ class PosDashboardScreen extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildFloorBadge(String label, String value, Color color, Color bg) {
     return Expanded(

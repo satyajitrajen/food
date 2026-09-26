@@ -357,6 +357,17 @@ func seed(st *store.Store, mgr *auth.Manager) error {
 	// completely blank POS ("whole menu is empty"). Ids are suffixed per outlet
 	// so primary keys stay unique; ON CONFLICT keeps this idempotent.
 	for _, outletID := range []string{"out-02"} {
+		// Only fill an outlet that has no menu yet. An outlet whose menu was
+		// created through the API or the app must never be duplicated by a
+		// re-seed — the clone ids do not collide, so ON CONFLICT would not
+		// catch it.
+		var existing int
+		if err := st.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM menu_items WHERE outlet_id = ?`, outletID).Scan(&existing); err != nil {
+			return err
+		}
+		if existing > 0 {
+			continue
+		}
 		sfx := "-" + outletID
 		stmts := []struct {
 			sql  string

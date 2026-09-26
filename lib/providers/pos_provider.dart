@@ -180,6 +180,9 @@ class PosProvider extends ChangeNotifier {
     switch (type) {
       case 'order.updated':
         _upsertServerOrder(payload);
+        if (_currentStaff?.role == StaffRole.admin) {
+          unawaited(refreshDashboard());
+        }
         break;
       case 'kot.created':
       case 'kot.updated':
@@ -190,6 +193,12 @@ class PosProvider extends ChangeNotifier {
         break;
       case 'shift.updated':
         _applyServerShift(payload);
+        if (_currentStaff?.role == StaffRole.admin) {
+          unawaited(refreshDashboard());
+        }
+        break;
+      case 'settings.updated':
+        _settings = settingsFromApi(payload);
         break;
       default:
         break;
@@ -2054,8 +2063,17 @@ class PosProvider extends ChangeNotifier {
       taxPercent: _settings.gstPercentage,
       isTaxInclusive: _settings.isGstInclusive,
     );
-    _pushOrderCreate(order);
+    // Deliberately NOT pushed here — see _pushedOrders. _ensureOrderPushed
+    // queues the create once the order is actually started, so tapping a free
+    // table (without confirming the guest dialog) cannot occupy it.
     return order;
+  }
+
+  /// Queues `order.create` for [order] exactly once. Idempotent, so any path
+  /// that can be the first to touch an order may call it.
+  void _ensureOrderPushed(RestaurantOrder order) {
+    if (!_pushedOrders.add(order.id)) return;
+    _pushOrderCreate(order);
   }
 
   void _pushOrderCreate(RestaurantOrder order) {
@@ -2421,6 +2439,14 @@ class PosProvider extends ChangeNotifier {
   RestaurantOrder? _activeOrder;
   RestaurantOrder? get activeOrder => _activeOrder;
 
+  /// Order ids already queued to the server. A table's order is built locally
+  /// when the table is selected, but only pushed once the order actually
+  /// starts: `order.create` is what the server turns into
+  /// `tables.status = 'occupied'`, so pushing it on selection would occupy a
+  /// free table the moment it is tapped (and leave it occupied even if the
+  /// guest dialog is cancelled).
+  final Set<String> _pushedOrders = {};
+
   void startNewOrder(OrderType type, {String? customerName, String? customerPhone, String? address}) {
     _orderCounter++;
     // Mirror the outlet settings defaults (same rules the server applies on
@@ -2444,7 +2470,7 @@ class PosProvider extends ChangeNotifier {
       deliveryCharge: type == OrderType.delivery ? _settings.defaultDeliveryCharge : 0.0,
     );
     notifyListeners();
-    _pushOrderCreate(_activeOrder!);
+    _ensureOrderPushed(_activeOrder!);
   }
 
   void addToCart(
@@ -2458,6 +2484,9 @@ class PosProvider extends ChangeNotifier {
       startNewOrder(OrderType.dineIn);
     }
     if (quantity <= 0) return;
+    // The order must exist server-side before its first line item is queued,
+    // for the paths that reach the menu without the guest-details commit.
+    _ensureOrderPushed(_activeOrder!);
 
     // Check if same item with same variant and modifiers exists.
     // itemNote participates in the identity so different cooking notes
@@ -2559,6 +2588,9 @@ class PosProvider extends ChangeNotifier {
 
   void setGuestDetails({required int count, String? customerName, String? customerPhone, String? waiter}) {
     if (_activeOrder != null) {
+      // Confirming guest details is the commit point for a table order: this is
+      // the first server write for it, so the table only becomes occupied now.
+      _ensureOrderPushed(_activeOrder!);
       _activeOrder!.guestCount = count;
       if (customerName != null) _activeOrder!.customerName = customerName;
       if (customerPhone != null && customerPhone.trim().isNotEmpty) {
@@ -2752,6 +2784,21 @@ class PosProvider extends ChangeNotifier {
   List<RestaurantOrder> get completedTransactions =>
       _orders.where((o) => o.status == OrderStatus.completed).toList();
 
+  /// Orders completed today (local terminal or synced).
+  List<RestaurantOrder> get todayCompletedTransactions {
+    final now = DateTime.now();
+    return _orders.where((o) {
+      if (o.status != OrderStatus.completed) return false;
+      final ts = o.paidAt ?? o.createdAt;
+      return ts.year == now.year && ts.month == now.month && ts.day == now.day;
+    }).toList();
+  }
+
+  /// Live count of active/pending KOTs currently in the kitchen.
+  int get pendingKotsCount => _kots
+      .where((k) => k.status != KOTStatus.served && k.status != KOTStatus.cancelled)
+      .length;
+
   void openRunningOrder(RestaurantOrder order) {
     _activeOrder = order;
     if (order.tableId != null) {
@@ -2936,6 +2983,9 @@ class PosProvider extends ChangeNotifier {
     _activeOrder = null;
     _selectedTable = null;
     notifyListeners();
+    if (_currentStaff?.role == StaffRole.admin) {
+      unawaited(refreshDashboard());
+    }
     _sync?.push('order.pay', {
       'order_id': completed.id,
       'method': paymentMethodToApi(legs.first.method),
@@ -3245,6 +3295,20 @@ class PosProvider extends ChangeNotifier {
   DashboardStats? _serverDashboard;
   DashboardStats? get serverDashboard => _serverDashboard;
 
+  /// Re-fetches the live outlet-wide revenue dashboard (admin-only).
+  Future<void> refreshDashboard() async {
+    if (!apiEnabled || _api == null) return;
+    if (_currentStaff?.role != StaffRole.admin) return;
+    try {
+      final q = {'outlet_id': _currentOutlet.id};
+      final dash = await _tryRead('/api/v1/reports/dashboard', q);
+      if (dash is Map) {
+        _serverDashboard = dashboardReportFromApi(dash.cast<String, dynamic>());
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
+
   /// On-demand server report for an arbitrary date range
   /// (GET /reports/dashboard?from=…&to=…, admin-only endpoint).
   DashboardStats? _rangeReport;
@@ -3285,14 +3349,14 @@ class PosProvider extends ChangeNotifier {
     }
   }
 
-  void updateSettings(RestaurantSettings s) {
+  Future<void> updateSettings(RestaurantSettings s) async {
     _settings = s;
     notifyListeners();
     // PUT /settings is manager-gated server-side; pushing from a cashier/
     // waiter terminal would only produce a guaranteed 403.
     final role = _currentStaff?.role;
-    if (apiEnabled && (role == StaffRole.manager || role == StaffRole.admin)) {
-      _sync?.push('settings.update', settingsToApi(s));
+    if (apiEnabled && (role == null || role == StaffRole.manager || role == StaffRole.admin)) {
+      await _sync?.push('settings.update', settingsToApi(s));
     }
   }
 
