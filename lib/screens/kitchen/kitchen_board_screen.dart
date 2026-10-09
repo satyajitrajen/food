@@ -319,15 +319,8 @@ class _KitchenBoardScreenState extends State<KitchenBoardScreen>
                               // changes the card leaves this tab, so its context may be
                               // gone by the time we want to show the confirmation.
                               final messenger = ScaffoldMessenger.of(context);
-                              final ok = await showConfirmDialog(
-                                context,
-                                title: 'Start preparing?',
-                                message:
-                                    'Start preparing ${kot.kotNumber}? The ticket moves to Preparing.',
-                                confirmLabel: 'Start Preparing',
-                                isDanger: false,
-                              );
-                              if (!ok || !context.mounted) return;
+                              // One tap: starting a ticket is routine and the
+                              // kitchen can't stop to confirm every one.
                               provider.updateKOTStatus(
                                 kot.id,
                                 KOTStatus.preparing,
