@@ -96,7 +96,7 @@ func (s *Server) handleForgotPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	go func() {
-		_ = sender.Send(acc.Email, "Reset your FoodPOS password", mail.Reset(acc.Name, s.Cfg.AppBaseURL, token))
+		_ = sender.Send(acc.Email, "Reset your "+mail.Brand+" password", mail.Reset(acc.Name, s.Cfg.AppBaseURL, token))
 	}()
 	httpx.JSON(w, http.StatusOK, models.MailResp{Delivered: true, Message: "If that account exists, a reset link was sent."})
 }
@@ -235,6 +235,9 @@ func (s *Server) handleAdminCheckout(w http.ResponseWriter, r *http.Request) {
 	// Charge the gross (base + GST) so the webhook can extract the base back.
 	amount = amount + storeRound(amount)
 	co, err := gw.CreateCheckout(r.Context(), orgID, amount, req.Notes)
+	if err == nil {
+		_ = s.Store.RecordGatewayOrder(r.Context(), co.GatewayID, orgID)
+	}
 	if err != nil {
 		httpx.ErrorJSON(w, r, httpx.NewError(502, "gateway_error", err.Error()))
 		return
@@ -256,10 +259,18 @@ type razorpayWebhookEnvelope struct {
 			Entity struct {
 				ID             string            `json:"id"`
 				Amount         int64             `json:"amount"`
+				OrderID        string            `json:"order_id"`
 				SubscriptionID string            `json:"subscription_id"`
 				Notes          map[string]string `json:"notes"`
 			} `json:"entity"`
 		} `json:"payment"`
+		Order struct {
+			Entity struct {
+				ID         string            `json:"id"`
+				AmountPaid int64             `json:"amount_paid"`
+				Notes      map[string]string `json:"notes"`
+			} `json:"entity"`
+		} `json:"order"`
 		Subscription struct {
 			Entity struct {
 				ID     string            `json:"id"`
@@ -299,9 +310,13 @@ func (s *Server) handleRazorpayWebhook(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorJSON(w, r, httpx.NewError(400, "bad_payload", "Malformed webhook"))
 		return
 	}
-	orgID := env.Payload.Payment.Entity.Notes["org_id"]
+	orgID := s.paymentEventOrg(r.Context(), &env)
 	switch env.Event {
-	case "payment.captured":
+	case "payment.captured", "order.paid":
+		// Manual (one-off order) renewals. Razorpay may send both events for
+		// the same payment; the payment-id invoice reference makes the second
+		// a no-op.
+		//
 		// Subscription charges also fire payment.captured; subscription.charged
 		// owns them (the first charge's gross includes the registration add-on,
 		// so its base math differs). Never account for them here.
@@ -310,11 +325,25 @@ func (s *Server) handleRazorpayWebhook(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if orgID == "" {
-			httpx.ErrorJSON(w, r, httpx.NewError(400, "no_org", "Webhook payload missing org_id"))
+			// Authentic but unattributable (foreign deployment / unknown
+			// order): 2xx so Razorpay does not retry forever and disable the
+			// endpoint.
+			httpx.JSON(w, http.StatusOK, map[string]any{"ignored": env.Event, "reason": "org_unresolved"})
 			return
 		}
-		// entity.amount is gross (INR paise) — extract the taxable base (÷1.18).
+		// amount is gross (INR paise) — extract the taxable base (÷1.18).
 		gross := env.Payload.Payment.Entity.Amount
+		if gross <= 0 {
+			gross = env.Payload.Order.Entity.AmountPaid
+		}
+		payID := env.Payload.Payment.Entity.ID
+		if payID == "" {
+			payID = env.Payload.Order.Entity.ID
+		}
+		if exists, _ := s.Store.SaaSInvoiceExistsWithReference(r.Context(), orgID, payID); exists {
+			httpx.JSON(w, http.StatusOK, map[string]any{"activated": false, "reason": "duplicate"})
+			return
+		}
 		base := int64(float64(gross)/1.18 + 0.5)
 		if sub, serr := s.Store.GetSubscription(r.Context(), orgID); serr == nil {
 			// Once auto-renew is live the gateway owns billing; a stray manual
@@ -330,7 +359,6 @@ func (s *Server) handleRazorpayWebhook(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		// period_days 0 => ActivateOrg uses the org's plan interval.
-		payID := env.Payload.Payment.Entity.ID
 		_, inv, err := s.Store.ActivateOrg(r.Context(), orgID, "razorpay-webhook", "razorpay",
 			0, base, payID, "Razorpay payment captured")
 		if err != nil {
@@ -369,6 +397,28 @@ func (s *Server) handleRazorpayWebhook(w http.ResponseWriter, r *http.Request) {
 	default:
 		httpx.JSON(w, http.StatusOK, map[string]any{"ignored": env.Event})
 	}
+}
+
+// paymentEventOrg attributes a one-off payment/order event to an org: the
+// org_id note on the payment or the order, else the order id recorded when
+// the checkout was created. "" when unresolvable.
+func (s *Server) paymentEventOrg(ctx context.Context, env *razorpayWebhookEnvelope) string {
+	pay, ord := &env.Payload.Payment.Entity, &env.Payload.Order.Entity
+	if id := pay.Notes["org_id"]; id != "" {
+		return id
+	}
+	if id := ord.Notes["org_id"]; id != "" {
+		return id
+	}
+	for _, orderID := range []string{pay.OrderID, ord.ID} {
+		if orderID == "" {
+			continue
+		}
+		if id, err := s.Store.OrgIDByGatewayOrder(ctx, orderID); err == nil {
+			return id
+		}
+	}
+	return ""
 }
 
 // subEntityOrg resolves the org behind a hosted subscription: the org_id note

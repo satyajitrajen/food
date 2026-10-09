@@ -19,7 +19,6 @@ import (
 	"foodpos/backend/internal/api"
 	"foodpos/backend/internal/auth"
 	"foodpos/backend/internal/config"
-	"foodpos/backend/internal/db"
 	"foodpos/backend/internal/models"
 	"foodpos/backend/internal/store"
 	"foodpos/backend/internal/ws"
@@ -40,21 +39,10 @@ func newEnv(t *testing.T) *env {
 
 func newEnvWithCfg(t *testing.T, cfg config.Config) *env {
 	t.Helper()
-	dsn := os.Getenv("FOODPOS_TEST_DSN")
-	if dsn == "" {
-		dsn = "postgres://foodpos:foodpos@localhost/foodpos_test?sslmode=disable"
-	}
-	database, err := db.Open(dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = database.Close() })
-	if err := db.Migrate(database); err != nil {
-		t.Fatal(err)
-	}
+	database := openTestDB(t)
 	st := store.New(database)
 	mgr := auth.New("test-secret", 4)
-	hub := ws.NewHub(mgr)
+	hub := ws.NewHub()
 	tickets := auth.NewTicketStore(auth.SSETicketTTL)
 	hub.SetTicketStore(tickets)
 	seedServer(st, mgr)
@@ -400,10 +388,17 @@ func TestDiscountClampEndpoint(t *testing.T) {
 	_, _ = e.do(t, "POST", "/api/v1/orders/"+orderID+"/items", map[string]any{
 		"menu_item_id": "m-01", "quantity": 1,
 	}, true)
-	// 150% discount is clamped to 100% by the service layer, not rejected.
-	// Above the 20% threshold a manager PIN is required (FR-A3).
+	// Out-of-range percents are rejected outright (400)…
 	code, body := e.do(t, "PATCH", "/api/v1/orders/"+orderID, map[string]any{
 		"discount_percent": 150, "manager_pin": "9999",
+	}, true)
+	if code != 400 {
+		t.Fatalf("150%% discount should be rejected: %d %v", code, body)
+	}
+	// …and 100% (above the 20% threshold → manager PIN, FR-A3) zeroes the
+	// subtotal.
+	code, body = e.do(t, "PATCH", "/api/v1/orders/"+orderID, map[string]any{
+		"discount_percent": 100, "manager_pin": "9999",
 	}, true)
 	if code != 200 {
 		t.Fatalf("patch order failed: %d %v", code, body)
@@ -445,7 +440,17 @@ func TestPurchasesAndStock(t *testing.T) {
 		t.Fatalf("inventory create failed: %d %v", code, body)
 	}
 	itemID := body["id"].(string)
+
+	// Back office is manager+: a cashier cannot create suppliers.
+	mgrToken := e.token
 	e.token = old
+	code, _ = e.do(t, "POST", "/api/v1/suppliers?outlet_id=out-01", map[string]any{
+		"name": "Nope", "mobile": "9876543210",
+	}, true)
+	if code != 403 {
+		t.Fatalf("cashier supplier create: expected 403, got %d", code)
+	}
+	e.token = mgrToken
 
 	// Supplier + pending purchase with stock intake
 	code, body = e.do(t, "POST", "/api/v1/suppliers?outlet_id=out-01", map[string]any{
@@ -911,6 +916,12 @@ func TestManagerGates(t *testing.T) {
 	}, true)
 	if code != 200 {
 		t.Fatalf("cancel after KOT with manager PIN failed: %d %v", code, body)
+	}
+
+	// Refunds apply to paid orders only: settle it first.
+	code, body = e.do(t, "POST", "/api/v1/orders/"+orderID+"/pay", map[string]any{"method": "upi"}, true)
+	if code != 200 {
+		t.Fatalf("pay failed: %d %v", code, body)
 	}
 
 	// Refund with manager PIN → 200.

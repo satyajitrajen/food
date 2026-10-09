@@ -6,6 +6,8 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"time"
 
 	"foodpos/backend/internal/httpx"
 	"foodpos/backend/internal/models"
@@ -22,7 +24,7 @@ func (s *Store) ClockInStaff(ctx context.Context, orgID, outletID, staffID, staf
 	if err == nil {
 		return s.GetAttendance(ctx, openID)
 	}
-	if err != httpx.ErrNotFound {
+	if !errors.Is(err, sql.ErrNoRows) {
 		return nil, err
 	}
 	id := NewID("att")
@@ -83,21 +85,22 @@ func scanAttendance(sc interface{ Scan(...any) error }) (*models.AttendanceEntry
 }
 
 // ListAttendance returns attendance entries for an org, optionally scoped to
-// one staff member and a date (YYYY-MM-DD, UTC) window.
-func (s *Store) ListAttendance(ctx context.Context, orgID, staffID, fromDay, toDay string, limit int) ([]models.AttendanceEntry, error) {
+// one staff member and a clock-in window [from, to) (the API resolves day
+// bounds in the outlet's timezone).
+func (s *Store) ListAttendance(ctx context.Context, orgID, staffID string, from, to *time.Time, limit int) ([]models.AttendanceEntry, error) {
 	q := attendanceCols + ` WHERE org_id = ?`
 	args := []any{orgID}
 	if staffID != "" {
 		q += ` AND staff_id = ?`
 		args = append(args, staffID)
 	}
-	if fromDay != "" {
-		q += ` AND substr(clock_in, 1, 10) >= ?`
-		args = append(args, fromDay)
+	if from != nil {
+		q += ` AND clock_in >= ?`
+		args = append(args, TimeStr(*from))
 	}
-	if toDay != "" {
-		q += ` AND substr(clock_in, 1, 10) <= ?`
-		args = append(args, toDay)
+	if to != nil {
+		q += ` AND clock_in < ?`
+		args = append(args, TimeStr(*to))
 	}
 	if limit <= 0 {
 		limit = 200

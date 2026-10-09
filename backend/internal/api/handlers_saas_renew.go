@@ -62,7 +62,7 @@ func (s *Server) handleOwnerStartSubscription(w http.ResponseWriter, r *http.Req
 	gross := plan.PricePaise + storeRound(plan.PricePaise)
 	planID := plan.GatewayPlanID
 	if planID == "" {
-		planID, err = gw.CreatePlan(r.Context(), "FoodPOS "+plan.Name, gross, currency, plan.IntervalDays)
+		planID, err = gw.CreatePlan(r.Context(), "Hishobkr "+plan.Name, gross, currency, plan.IntervalDays)
 		if err != nil {
 			httpx.ErrorJSON(w, r, httpx.NewError(502, "gateway_error", err.Error()))
 			return
@@ -193,6 +193,9 @@ func (s *Server) handleOwnerManualOrder(w http.ResponseWriter, r *http.Request) 
 		httpx.ErrorJSON(w, r, httpx.NewError(502, "gateway_error", err.Error()))
 		return
 	}
+	// Webhooks normally carry notes.org_id; the stored order id is the
+	// fallback attribution when they don't.
+	_ = s.Store.RecordGatewayOrder(r.Context(), co.GatewayID, c.OrgID)
 	_ = s.Store.AddOrgEvent(r.Context(), c.OrgID, c.ActorID, "razorpay.manual_order_created",
 		store.MetaJSON(map[string]any{"order_id": co.GatewayID, "amount_paise": gross}))
 	httpx.JSON(w, http.StatusOK, models.RazorpayManualOrder{

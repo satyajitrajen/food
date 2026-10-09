@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5/middleware"
 
@@ -89,10 +90,11 @@ var (
 
 func Logger(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
 		ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
 		next.ServeHTTP(ww, r)
 		slog.Info("http",
 			"method", r.Method, "path", r.URL.Path,
-			"status", ww.Status(), "bytes", ww.BytesWritten(), "ms", 0)
+			"status", ww.Status(), "bytes", ww.BytesWritten(), "ms", time.Since(start).Milliseconds())
 	})
 }

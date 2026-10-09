@@ -7,6 +7,7 @@
 //	cmd/admin suspend <org_id> [-note ""]
 //	cmd/admin cancel <org_id> [-note ""]
 //	cmd/admin stats
+//	cmd/admin create-org | import-menu | move-outlet  (see tenant.go)
 package main
 
 import (
@@ -47,6 +48,9 @@ func main() {
 	}
 	cmd := args[0]
 	rest := args[1:]
+	if runTenantCommand(ctx, st, cfg, cmd, rest) {
+		return
+	}
 
 	// Only org-taking commands consume a leading org id; "list" keeps its
 	// positional argument as a status filter.
@@ -141,7 +145,12 @@ func main() {
 func usage() {
 	fmt.Println(`cmd/admin <command> [org_id] [flags]
 commands: list | show | activate | extend | suspend | cancel | stats
-flags: -days N -method bank|upi|razorpay -amount <paise> -ref "" -note ""`)
+flags: -days N -method bank|upi|razorpay -amount <paise> -ref "" -note ""
+
+provisioning:
+  create-org  -name -email -owner -password -outlet -pin [-terminal] [-gstin] [-plan]
+  import-menu -outlet <id> -csv <file> [-replace]
+  move-outlet -outlet <id> -to-org <org_id>`)
 }
 
 func flagHasDash(s string) bool {

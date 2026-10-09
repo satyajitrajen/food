@@ -1,3 +1,8 @@
+// Package notify sends push notifications through the FCM HTTP v1 API.
+//
+// Credentials are a Google service-account JSON file (FOODPOS_FCM_CREDENTIALS);
+// the project id comes from that file. Without credentials the notifier is a
+// silent no-op, so dev/test servers never try to reach Google.
 package notify
 
 import (
@@ -5,121 +10,121 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
+	"os"
+	"strings"
 	"time"
+
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
 )
 
-// FCMNotifier sends push notifications via Firebase Cloud Messaging.
+const (
+	fcmScope       = "https://www.googleapis.com/auth/firebase.messaging"
+	defaultBaseURL = "https://fcm.googleapis.com"
+)
+
+// FCMNotifier sends notifications to device registration tokens.
 type FCMNotifier struct {
 	client    *http.Client
 	projectID string
-	serverKey string
+	baseURL   string
 }
 
-func NewFCMNotifier(projectID, serverKey string) *FCMNotifier {
-	return &FCMNotifier{
-		client:    &http.Client{Timeout: 10 * time.Second},
-		projectID: projectID,
-		serverKey: serverKey,
+// NewFCMNotifier loads a service-account JSON from credentialsPath. An empty
+// path returns a disabled notifier (every send is a no-op).
+func NewFCMNotifier(credentialsPath string) (*FCMNotifier, error) {
+	if strings.TrimSpace(credentialsPath) == "" {
+		return &FCMNotifier{}, nil
 	}
+	raw, err := os.ReadFile(credentialsPath)
+	if err != nil {
+		return nil, fmt.Errorf("read fcm credentials: %w", err)
+	}
+	creds, err := google.CredentialsFromJSON(context.Background(), raw, fcmScope)
+	if err != nil {
+		return nil, fmt.Errorf("parse fcm credentials: %w", err)
+	}
+	if creds.ProjectID == "" {
+		return nil, fmt.Errorf("fcm credentials have no project_id")
+	}
+	hc := oauth2.NewClient(context.Background(), creds.TokenSource)
+	hc.Timeout = 10 * time.Second
+	return New(hc, creds.ProjectID, defaultBaseURL), nil
 }
 
-// PushPayload defines the FCM HTTP notification payload.
-type PushPayload struct {
-	To               string            `json:"to,omitempty"`
-	RegistrationIDs  []string          `json:"registration_ids,omitempty"`
-	Notification     *NotificationData `json:"notification,omitempty"`
-	Data             map[string]any    `json:"data,omitempty"`
-	Priority         string            `json:"priority"`
-	ContentAvailable bool              `json:"content_available"`
+// New builds a notifier around an already-authorised HTTP client (tests pass
+// a plain client and an httptest base URL).
+func New(client *http.Client, projectID, baseURL string) *FCMNotifier {
+	if baseURL == "" {
+		baseURL = defaultBaseURL
+	}
+	return &FCMNotifier{client: client, projectID: projectID, baseURL: strings.TrimRight(baseURL, "/")}
 }
 
-type NotificationData struct {
+// Enabled reports whether sends actually go out.
+func (f *FCMNotifier) Enabled() bool { return f != nil && f.client != nil && f.projectID != "" }
+
+type v1Message struct {
+	Message struct {
+		Token        string            `json:"token"`
+		Notification v1Notification    `json:"notification"`
+		Data         map[string]string `json:"data,omitempty"`
+		Android      map[string]any    `json:"android,omitempty"`
+	} `json:"message"`
+}
+
+type v1Notification struct {
 	Title string `json:"title"`
 	Body  string `json:"body"`
-	Sound string `json:"sound"`
 }
 
-// SendToTokens sends push notifications to a slice of device registration tokens.
-func (f *FCMNotifier) SendToTokens(ctx context.Context, tokens []string, title, body string, data map[string]any) error {
-	if len(tokens) == 0 {
-		return nil
+// SendToTokens delivers one message per token (HTTP v1 has no multicast).
+// Returns the number of successful sends; failures are logged, never fatal.
+func (f *FCMNotifier) SendToTokens(ctx context.Context, tokens []string, title, body string, data map[string]string) int {
+	if !f.Enabled() {
+		return 0
 	}
-	payload := PushPayload{
-		RegistrationIDs: tokens,
-		Notification: &NotificationData{
-			Title: title,
-			Body:  body,
-			Sound: "default",
-		},
-		Data:             data,
-		Priority:         "high",
-		ContentAvailable: true,
+	sent := 0
+	for _, tok := range tokens {
+		if tok == "" {
+			continue
+		}
+		if err := f.sendOne(ctx, tok, title, body, data); err != nil {
+			slog.Warn("fcm send failed", "err", err)
+			continue
+		}
+		sent++
 	}
-	return f.send(ctx, payload)
+	return sent
 }
 
-// SendToTopic sends a push notification to an FCM topic (e.g. /topics/outlet_out-01 or /topics/hishobkr_orders).
-func (f *FCMNotifier) SendToTopic(ctx context.Context, topic, title, body string, data map[string]any) error {
-	if topic == "" {
-		return nil
-	}
-	if topic[0] != '/' {
-		topic = "/topics/" + topic
-	}
-	payload := PushPayload{
-		To: topic,
-		Notification: &NotificationData{
-			Title: title,
-			Body:  body,
-			Sound: "default",
-		},
-		Data:             data,
-		Priority:         "high",
-		ContentAvailable: true,
-	}
-	return f.send(ctx, payload)
-}
-
-func (f *FCMNotifier) send(ctx context.Context, payload PushPayload) error {
-	body, err := json.Marshal(payload)
+func (f *FCMNotifier) sendOne(ctx context.Context, token, title, body string, data map[string]string) error {
+	var m v1Message
+	m.Message.Token = token
+	m.Message.Notification = v1Notification{Title: title, Body: body}
+	m.Message.Data = data
+	m.Message.Android = map[string]any{"priority": "high"}
+	payload, err := json.Marshal(m)
 	if err != nil {
-		return fmt.Errorf("marshal fcm payload: %w", err)
+		return err
 	}
-
-	// In development or when no server key is configured, log the notification.
-	if f.serverKey == "" {
-		slog.Info("[FCM] Push dispatched (dry-run/dev)",
-			"to", payload.To,
-			"token_count", len(payload.RegistrationIDs),
-			"title", payload.Notification.Title,
-			"body", payload.Notification.Body,
-			"data", payload.Data,
-		)
-		return nil
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://fcm.googleapis.com/fcm/send", bytes.NewReader(body))
+	url := f.baseURL + "/v1/projects/" + f.projectID + "/messages:send"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
 	if err != nil {
-		return fmt.Errorf("create fcm request: %w", err)
+		return err
 	}
-
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "key="+f.serverKey)
-
 	res, err := f.client.Do(req)
 	if err != nil {
-		slog.Warn("[FCM] Push request failed", "err", err)
 		return err
 	}
 	defer res.Body.Close()
-
-	if res.StatusCode >= 400 {
-		slog.Warn("[FCM] Push server rejected request", "status", res.StatusCode)
-		return fmt.Errorf("fcm rejected with status %d", res.StatusCode)
+	if res.StatusCode >= 300 {
+		msg, _ := io.ReadAll(io.LimitReader(res.Body, 512))
+		return fmt.Errorf("fcm status %d: %s", res.StatusCode, strings.TrimSpace(string(msg)))
 	}
-
-	slog.Info("[FCM] Push successfully delivered", "status", res.StatusCode)
 	return nil
 }

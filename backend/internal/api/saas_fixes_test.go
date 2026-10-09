@@ -80,18 +80,18 @@ func TestRegisterPlanCatalog(t *testing.T) {
 		t.Fatalf("default plan should be pro, got %v", chain["code"])
 	}
 
+	// Retired tiers (single-plan catalog) are no longer registrable.
 	req := registerBody("plan-explicit@test")
 	req["plan_code"] = "chain"
 	code, body = e.do(t, "POST", "/api/v1/auth/register", req, false)
+	if code != 400 {
+		t.Fatalf("retired chain plan should 400, got %d %v", code, body)
+	}
+	req = registerBody("plan-pro@test")
+	req["plan_code"] = "pro"
+	code, body = e.do(t, "POST", "/api/v1/auth/register", req, false)
 	if code != 201 {
-		t.Fatalf("register chain failed: %d %v", code, body)
-	}
-	chain, _ = body["plan"].(map[string]any)
-	if chain["code"] != "chain" {
-		t.Fatalf("expected chain plan, got %v", chain["code"])
-	}
-	if got, _ := chain["max_outlets"].(float64); got != 100 {
-		t.Fatalf("chain max_outlets = %v, want 100", chain["max_outlets"])
+		t.Fatalf("register pro failed: %d %v", code, body)
 	}
 	sub, _ := body["subscription"].(map[string]any)
 	if sub["status"] != models.SubTrial {

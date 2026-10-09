@@ -3,8 +3,8 @@ package api
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"foodpos/backend/internal/auth"
@@ -34,25 +34,23 @@ func (s *Server) handleListTables(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleCreateTable(w http.ResponseWriter, r *http.Request) {
-	var t models.Table
-	if err := httpx.Decode(r, &t); err != nil {
-		httpx.ErrorJSON(w, r, err)
-		return
-	}
-	if c, ok := claimsFrom(r); ok && c.Scope == auth.ScopeStaff {
-		t.OutletID = c.OutletID
-	}
-	if t.OutletID == "" || t.TableNumber == "" || t.Seats <= 0 {
-		httpx.ErrorJSON(w, r, httpx.NewError(400, "invalid_table", "outlet_id, table_number and seats are required"))
-		return
-	}
-	created, err := s.Store.CreateTable(r.Context(), t)
-	if err != nil {
-		httpx.ErrorJSON(w, r, err)
-		return
-	}
-	s.publish(r, "table.updated", t.OutletID, created)
-	httpx.JSON(w, http.StatusCreated, created)
+	s.withIdempotency(w, r, func() (int, any, error) {
+		var t models.Table
+		if err := httpx.Decode(r, &t); err != nil {
+			return 0, nil, err
+		}
+		t.OutletID = outletScope(r)
+		t.TableNumber = strings.TrimSpace(t.TableNumber)
+		if t.OutletID == "" || t.TableNumber == "" || t.Seats <= 0 || t.Seats > 999 {
+			return 0, nil, httpx.NewError(400, "invalid_table", "table_number and seats (1-999) are required")
+		}
+		created, err := s.Store.CreateTable(r.Context(), t)
+		if err != nil {
+			return 0, nil, err
+		}
+		s.publish(r, "table.updated", t.OutletID, created)
+		return http.StatusCreated, created, nil
+	})
 }
 
 func (s *Server) handlePatchTable(w http.ResponseWriter, r *http.Request) {
@@ -66,22 +64,21 @@ func (s *Server) handlePatchTable(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorJSON(w, r, err)
 		return
 	}
-	if c, ok := claimsFrom(r); ok && c.Scope == auth.ScopeStaff && c.OutletID != table.OutletID {
+	if !sameOutlet(r, table.OutletID) {
 		httpx.ErrorJSON(w, r, httpx.ErrNotFound)
 		return
 	}
+	if p.GuestCount != nil && (*p.GuestCount < 0 || *p.GuestCount > 999) {
+		httpx.ErrorJSON(w, r, httpx.NewError(400, "invalid_guests", "guest_count must be between 0 and 999"))
+		return
+	}
 	if p.WaiterID != nil && *p.WaiterID != "" {
-		st, err := s.Store.GetStaff(r.Context(), *p.WaiterID)
-		if err != nil {
-			httpx.ErrorJSON(w, r, httpx.NewError(400, "invalid_waiter", "Waiter does not exist"))
-			return
-		}
-		if st.OutletID != nil && *st.OutletID != "" && *st.OutletID != table.OutletID {
-			httpx.ErrorJSON(w, r, httpx.NewError(400, "invalid_outlet", "Waiter belongs to another outlet"))
+		if _, err := s.resolveWaiter(r, *p.WaiterID, table.OutletID); err != nil {
+			httpx.ErrorJSON(w, r, err)
 			return
 		}
 	}
-	t, err := s.Store.PatchTable(r.Context(), pathID(r, "id"), p)
+	t, err := s.Store.PatchTable(r.Context(), table.ID, p)
 	if err != nil {
 		httpx.ErrorJSON(w, r, err)
 		return
@@ -91,107 +88,43 @@ func (s *Server) handlePatchTable(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleMoveTable(w http.ResponseWriter, r *http.Request) {
-	var req models.MoveTableReq
-	if err := httpx.Decode(r, &req); err != nil {
-		httpx.ErrorJSON(w, r, err)
-		return
-	}
-	from, err := s.Store.GetTable(r.Context(), pathID(r, "id"))
-	if err != nil {
-		httpx.ErrorJSON(w, r, err)
-		return
-	}
-	if c, ok := claimsFrom(r); ok && c.Scope == auth.ScopeStaff && c.OutletID != from.OutletID {
-		httpx.ErrorJSON(w, r, httpx.ErrNotFound)
-		return
-	}
-	if from.ActiveOrderID == nil {
-		httpx.ErrorJSON(w, r, httpx.NewError(409, "no_active_order", "Source table has no active order"))
-		return
-	}
-	to, err := s.Store.GetTable(r.Context(), req.ToTableID)
-	if err != nil {
-		httpx.ErrorJSON(w, r, err)
-		return
-	}
-	if c, ok := claimsFrom(r); ok && c.Scope == auth.ScopeStaff && c.OutletID != to.OutletID {
-		httpx.ErrorJSON(w, r, httpx.ErrNotFound)
-		return
-	}
-	if busy, _, err := s.Store.TableHasActiveOrder(r.Context(), to.ID); err != nil {
-		httpx.ErrorJSON(w, r, err)
-		return
-	} else if busy {
-		httpx.ErrorJSON(w, r, httpx.ErrTableOccupied)
-		return
-	}
-	order, err := s.Store.GetOrder(r.Context(), *from.ActiveOrderID)
-	if err != nil {
-		httpx.ErrorJSON(w, r, err)
-		return
-	}
-	if err := s.Store.PatchOrderTable(r.Context(), order.ID, to.ID, to.TableNumber); err != nil {
-		httpx.ErrorJSON(w, r, err)
-		return
-	}
-	if err := s.Store.UpdateTableForOrder(r.Context(), to.ID, order.ID, order.GrandTotalPaise, order.GuestCount); err != nil {
-		httpx.ErrorJSON(w, r, err)
-		return
-	}
-	// Clear source table.
-	if _, err := s.Store.PatchTable(r.Context(), from.ID, models.TablePatch{Status: strPtr("available")}); err != nil {
-		httpx.ErrorJSON(w, r, err)
-		return
-	}
-	_, _ = s.Store.DB.Exec(`UPDATE tables SET active_order_id = NULL, current_amount = 0, guest_count = 0 WHERE id = ?`, from.ID)
-	s.publish(r, "table.updated", from.OutletID, to)
-	httpx.JSON(w, http.StatusOK, map[string]any{"moved_to": to})
+	s.withIdempotency(w, r, func() (int, any, error) {
+		var req models.MoveTableReq
+		if err := httpx.Decode(r, &req); err != nil {
+			return 0, nil, err
+		}
+		// Ownership of both tables, occupancy and the re-home run in one tx.
+		from, to, err := s.Store.MoveTable(r.Context(), outletScope(r), pathID(r, "id"), req.ToTableID)
+		if err != nil {
+			return 0, nil, err
+		}
+		s.publish(r, "table.updated", to.OutletID, from)
+		s.publish(r, "table.updated", to.OutletID, to)
+		if to.ActiveOrderID != nil {
+			if o, err := s.Store.GetOrder(r.Context(), *to.ActiveOrderID); err == nil {
+				s.publish(r, "order.updated", o.OutletID, o)
+			}
+		}
+		return http.StatusOK, map[string]any{"moved_to": to}, nil
+	})
 }
 
 func (s *Server) handleMergeTable(w http.ResponseWriter, r *http.Request) {
-	var req models.MergeTableReq
-	if err := httpx.Decode(r, &req); err != nil {
-		httpx.ErrorJSON(w, r, err)
-		return
-	}
-	primary, err := s.Store.GetTable(r.Context(), pathID(r, "id"))
-	if err != nil {
-		httpx.ErrorJSON(w, r, err)
-		return
-	}
-	if c, ok := claimsFrom(r); ok && c.Scope == auth.ScopeStaff && c.OutletID != primary.OutletID {
-		httpx.ErrorJSON(w, r, httpx.ErrNotFound)
-		return
-	}
-	secondary, err := s.Store.GetTable(r.Context(), req.SecondaryTableID)
-	if err != nil {
-		httpx.ErrorJSON(w, r, err)
-		return
-	}
-	if c, ok := claimsFrom(r); ok && c.Scope == auth.ScopeStaff && c.OutletID != secondary.OutletID {
-		httpx.ErrorJSON(w, r, httpx.ErrNotFound)
-		return
-	}
-	if primary.ID == secondary.ID {
-		httpx.ErrorJSON(w, r, httpx.NewError(400, "invalid_merge", "Cannot merge a table with itself"))
-		return
-	}
-	// Re-home the secondary's active order onto the primary.
-	if secondary.ActiveOrderID != nil {
-		order, err := s.Store.GetOrder(r.Context(), *secondary.ActiveOrderID)
+	s.withIdempotency(w, r, func() (int, any, error) {
+		var req models.MergeTableReq
+		if err := httpx.Decode(r, &req); err != nil {
+			return 0, nil, err
+		}
+		primary, err := s.Store.MergeTables(r.Context(), outletScope(r), pathID(r, "id"), req.SecondaryTableID)
 		if err != nil {
-			httpx.ErrorJSON(w, r, err)
-			return
+			return 0, nil, err
 		}
-		if err := s.Store.PatchOrderTable(r.Context(), order.ID, primary.ID, primary.TableNumber); err != nil {
-			httpx.ErrorJSON(w, r, err)
-			return
+		s.publish(r, "table.updated", primary.OutletID, primary)
+		if sec, err := s.Store.GetTable(r.Context(), req.SecondaryTableID); err == nil {
+			s.publish(r, "table.updated", sec.OutletID, sec)
 		}
-	}
-	_, _ = s.Store.DB.Exec(`UPDATE tables SET merged_with_table_id = ?, active_order_id = NULL,
-		current_amount = 0, guest_count = 0 WHERE id = ?`, primary.ID, secondary.ID)
-	s.publish(r, "table.updated", primary.OutletID, primary)
-	httpx.JSON(w, http.StatusOK, map[string]any{"merged": true})
+		return http.StatusOK, map[string]any{"merged": true, "table": primary}, nil
+	})
 }
 
 func (s *Server) handleUnmergeTable(w http.ResponseWriter, r *http.Request) {
@@ -200,16 +133,12 @@ func (s *Server) handleUnmergeTable(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorJSON(w, r, err)
 		return
 	}
-	if c, ok := claimsFrom(r); ok && c.Scope == auth.ScopeStaff && c.OutletID != existing.OutletID {
+	if !sameOutlet(r, existing.OutletID) {
 		httpx.ErrorJSON(w, r, httpx.ErrNotFound)
 		return
 	}
-	t, err := s.Store.PatchTable(r.Context(), existing.ID, models.TablePatch{})
+	t, err := s.Store.UnmergeTable(r.Context(), existing.ID)
 	if err != nil {
-		httpx.ErrorJSON(w, r, err)
-		return
-	}
-	if _, err := s.Store.DB.Exec(`UPDATE tables SET merged_with_table_id = NULL WHERE id = ?`, t.ID); err != nil {
 		httpx.ErrorJSON(w, r, err)
 		return
 	}
@@ -226,56 +155,39 @@ func derefStr(s *string) string {
 	return *s
 }
 
+// publish fans an event out to the outlet's live SSE clients. Push
+// notifications are separate (notifyOutlet) and only fire for the events a
+// phone should buzz for.
 func (s *Server) publish(_ *http.Request, evtType, outletID string, payload any) {
-	if s.Hub != nil {
-		body, err := json.Marshal(payload)
-		if err == nil {
-			s.Hub.Publish(ws.Event{Type: evtType, OutletID: outletID, Payload: body, Timestamp: time.Now().UTC()})
+	if s.Hub == nil {
+		return
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return
+	}
+	s.Hub.Publish(ws.Event{Type: evtType, OutletID: outletID, Payload: body, Timestamp: time.Now().UTC()})
+}
+
+// notifyOutlet pushes a notification to the devices registered to an outlet
+// (fire-and-forget; a no-op when FCM is not configured).
+func (s *Server) notifyOutlet(outletID, title, body string, data map[string]string) {
+	if s.Notifier == nil || !s.Notifier.Enabled() || outletID == "" {
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		tokens, err := s.Store.ListDeviceTokensByOutlet(ctx, outletID)
+		if err != nil || len(tokens) == 0 {
+			return
 		}
-	}
-
-	if s.Notifier != nil && outletID != "" {
-		go func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-
-			title := "Hishobkr Alert"
-			bodyText := fmt.Sprintf("Event: %s", evtType)
-
-			switch evtType {
-			case "order.updated":
-				title = "Order Update"
-				bodyText = "An order has been updated."
-			case "kot.created":
-				title = "New Kitchen Order (KOT)"
-				bodyText = "A new KOT has been received for preparation."
-			case "kot.updated":
-				title = "KOT Status Changed"
-				bodyText = "Kitchen order ticket status updated."
-			case "table.updated":
-				title = "Table Updated"
-				bodyText = "Table status or occupancy changed."
-			case "shift.updated":
-				title = "Shift / Cash Drawer Update"
-				bodyText = "A shift event has occurred."
-			}
-
-			data := map[string]any{
-				"type":      evtType,
-				"outlet_id": outletID,
-				"ts":        time.Now().UTC().Format(time.RFC3339),
-			}
-
-			// Send to outlet and global order topics
-			_ = s.Notifier.SendToTopic(ctx, "outlet_"+outletID, title, bodyText, data)
-			_ = s.Notifier.SendToTopic(ctx, "hishobkr_orders", title, bodyText, data)
-
-			// Send to registered outlet devices
-			if tokens, err := s.Store.ListDeviceTokensByOutlet(ctx, outletID); err == nil && len(tokens) > 0 {
-				_ = s.Notifier.SendToTokens(ctx, tokens, title, bodyText, data)
-			}
-		}()
-	}
+		if data == nil {
+			data = map[string]string{}
+		}
+		data["outlet_id"] = outletID
+		s.Notifier.SendToTokens(ctx, tokens, title, body, data)
+	}()
 }
 
 func (s *Server) handleListMenu(w http.ResponseWriter, r *http.Request) {
@@ -311,39 +223,29 @@ func (s *Server) handleGetMenuItem(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleCreateMenuItem(w http.ResponseWriter, r *http.Request) {
-	var req models.MenuItemUpsert
-	if err := httpx.Decode(r, &req); err != nil {
-		httpx.ErrorJSON(w, r, err)
-		return
-	}
-	outletID := r.URL.Query().Get("outlet_id")
-	if c, ok := claimsFrom(r); ok && c.Scope == auth.ScopeStaff {
-		outletID = c.OutletID
-	}
-	if outletID == "" {
-		if c, ok := middleware.ClaimsFrom(r.Context()); ok && c.OutletID != "" {
-			outletID = c.OutletID
+	s.withIdempotency(w, r, func() (int, any, error) {
+		var req models.MenuItemUpsert
+		if err := httpx.Decode(r, &req); err != nil {
+			return 0, nil, err
 		}
-	}
-	if outletID == "" {
-		httpx.ErrorJSON(w, r, httpx.NewError(400, "missing_outlet", "outlet_id is required"))
-		return
-	}
-	// Admin clients send the category *name*; resolve to the real id.
-	if req.CategoryID != nil {
-		id, err := s.Store.CategoryID(r.Context(), outletID, *req.CategoryID)
+		outletID := outletScope(r)
+		if outletID == "" {
+			return 0, nil, httpx.NewError(400, "missing_outlet", "outlet_id is required")
+		}
+		// Admin clients send the category *name*; resolve to the real id.
+		if req.CategoryID != nil {
+			id, err := s.Store.CategoryID(r.Context(), outletID, *req.CategoryID)
+			if err != nil {
+				return 0, nil, err
+			}
+			req.CategoryID = &id
+		}
+		m, err := s.Store.CreateMenuItem(r.Context(), outletID, req)
 		if err != nil {
-			httpx.ErrorJSON(w, r, err)
-			return
+			return 0, nil, err
 		}
-		req.CategoryID = &id
-	}
-	m, err := s.Store.CreateMenuItem(r.Context(), outletID, req)
-	if err != nil {
-		httpx.ErrorJSON(w, r, err)
-		return
-	}
-	httpx.JSON(w, http.StatusCreated, m)
+		return http.StatusCreated, m, nil
+	})
 }
 
 func (s *Server) handlePatchMenuItem(w http.ResponseWriter, r *http.Request) {
@@ -395,13 +297,7 @@ func (s *Server) handleDeleteMenuItem(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGetSettings(w http.ResponseWriter, r *http.Request) {
-	outletID := r.URL.Query().Get("outlet_id")
-	if outletID == "" {
-		if c, ok := middleware.ClaimsFrom(r.Context()); ok && c.OutletID != "" {
-			outletID = c.OutletID
-		}
-	}
-	st, err := s.Store.GetSettings(r.Context(), outletID)
+	st, err := s.Store.GetSettings(r.Context(), outletScope(r))
 	if err != nil {
 		httpx.ErrorJSON(w, r, err)
 		return
@@ -409,19 +305,29 @@ func (s *Server) handleGetSettings(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, st)
 }
 
+// handlePutSettings saves the caller's OWN outlet settings: the target is
+// always the claims-bound outlet (a body outlet_id is ignored, so a manager
+// can never write another tenant's settings).
 func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 	var st models.Settings
 	if err := httpx.Decode(r, &st); err != nil {
 		httpx.ErrorJSON(w, r, err)
 		return
 	}
-	// Clients may omit outlet_id; resolve it like every other outlet-scoped
-	// route so the settings row always lands on a real outlet (FK-guarded).
-	if st.OutletID == "" {
-		st.OutletID = outletScope(r)
-	}
+	st.OutletID = outletScope(r)
 	if st.OutletID == "" {
 		httpx.ErrorJSON(w, r, httpx.NewError(400, "missing_outlet", "outlet_id is required"))
+		return
+	}
+	switch {
+	case st.GSTPercent < 0 || st.GSTPercent > 28:
+		httpx.ErrorJSON(w, r, httpx.NewError(400, "invalid_tax", "gst_percent must be between 0 and 28"))
+		return
+	case st.ServicePercent < 0 || st.ServicePercent > 20:
+		httpx.ErrorJSON(w, r, httpx.NewError(400, "invalid_service", "service_percent must be between 0 and 20"))
+		return
+	case st.PackagingPaise < 0 || st.DeliveryPaise < 0:
+		httpx.ErrorJSON(w, r, httpx.NewError(400, "invalid_charge", "charges cannot be negative"))
 		return
 	}
 	if err := s.Store.PutSettings(r.Context(), st); err != nil {
@@ -429,4 +335,52 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.JSON(w, http.StatusOK, st)
+}
+
+// handlePatchOutlet updates the caller's own outlet profile (manager+): the
+// bill header (name/address/phone/email/GSTIN/FSSAI) and the timezone used
+// for report day boundaries.
+func (s *Server) handlePatchOutlet(w http.ResponseWriter, r *http.Request) {
+	var p models.OutletPatch
+	if err := httpx.Decode(r, &p); err != nil {
+		httpx.ErrorJSON(w, r, err)
+		return
+	}
+	o, err := s.Store.GetOutlet(r.Context(), pathID(r, "id"))
+	if err != nil {
+		httpx.ErrorJSON(w, r, err)
+		return
+	}
+	c, _ := claimsFrom(r)
+	if c == nil || c.OrgID != o.OrgID {
+		httpx.ErrorJSON(w, r, httpx.ErrNotFound)
+		return
+	}
+	for _, f := range []**string{&p.Name, &p.Address, &p.Phone, &p.Email, &p.GSTIN, &p.FSSAI, &p.Timezone} {
+		if *f != nil {
+			v := strings.TrimSpace(**f)
+			*f = &v
+		}
+	}
+	if p.Name != nil && *p.Name == "" {
+		httpx.ErrorJSON(w, r, httpx.NewError(400, "invalid_outlet", "name cannot be empty"))
+		return
+	}
+	if p.Timezone != nil {
+		if _, err := time.LoadLocation(*p.Timezone); err != nil || *p.Timezone == "" || *p.Timezone == "Local" {
+			httpx.ErrorJSON(w, r, httpx.NewError(400, "invalid_timezone", "timezone must be an IANA zone such as Asia/Kolkata"))
+			return
+		}
+	}
+	if p.Email != nil && *p.Email != "" && !strings.Contains(*p.Email, "@") {
+		httpx.ErrorJSON(w, r, httpx.NewError(400, "invalid_email", "email is not valid"))
+		return
+	}
+	updated, err := s.Store.PatchOutlet(r.Context(), o.ID, p)
+	if err != nil {
+		httpx.ErrorJSON(w, r, err)
+		return
+	}
+	s.publish(r, "outlet.updated", o.ID, updated)
+	httpx.JSON(w, http.StatusOK, updated)
 }

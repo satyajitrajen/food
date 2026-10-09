@@ -1,8 +1,12 @@
 package api
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"foodpos/backend/internal/auth"
@@ -37,11 +41,22 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorJSON(w, r, httpx.NewError(400, "missing_credentials", "staff_id, pin and outlet_id are required"))
 		return
 	}
+	lockKey := "login:" + req.StaffID
+	if err := s.pinLockedErr(w, lockKey); err != nil {
+		httpx.ErrorJSON(w, r, err)
+		return
+	}
 	row, err := s.Store.GetStaff(r.Context(), req.StaffID)
 	if err != nil || !row.IsActive || !s.Auth.CheckPIN(row.PINHash, req.PIN) {
+		if s.pinLockout().Fail(lockKey) {
+			_ = s.pinLockedErr(w, lockKey)
+			httpx.ErrorJSON(w, r, errPINLocked)
+			return
+		}
 		httpx.ErrorJSON(w, r, httpx.NewError(401, "bad_credentials", "Invalid staff or PIN"))
 		return
 	}
+	s.pinLockout().Success(lockKey)
 	// Tenant enforcement: the staff must belong to the outlet's org (outlet_id
 	// NULL = org-wide staff such as managers/admins).
 	outlet, err := s.Store.GetOutlet(r.Context(), req.OutletID)
@@ -191,16 +206,58 @@ func (s *Server) handleVerifyManagerPin(w http.ResponseWriter, r *http.Request) 
 	httpx.JSON(w, http.StatusOK, managerPinResp{Valid: valid, Staff: staff})
 }
 
+var errPINLocked = httpx.NewError(http.StatusTooManyRequests, "pin_locked",
+	"Too many wrong PIN attempts; try again in 15 minutes")
+
+// pinLockout lazily creates the per-key PIN failure tracker.
+func (s *Server) pinLockout() *auth.PINLockout {
+	s.pinOnce.Do(func() { s.pinLock = auth.NewPINLockout() })
+	return s.pinLock
+}
+
+// pinLockedErr returns errPINLocked (and sets Retry-After) while key is locked.
+func (s *Server) pinLockedErr(w http.ResponseWriter, key string) error {
+	locked, until := s.pinLockout().Locked(key)
+	if !locked {
+		return nil
+	}
+	if w != nil {
+		w.Header().Set("Retry-After", strconv.Itoa(int(time.Until(until).Seconds())+1))
+	}
+	return errPINLocked
+}
+
 // checkManagerPIN matches a PIN against active manager/admin staff OF THE
-// REQUESTER'S ORG (previously global — a cross-tenant escalation).
+// REQUESTER'S ORG (previously global — a cross-tenant escalation). Wrong
+// PINs count against the requesting actor: 5 misses lock them out of manager
+// authorisation for 15 minutes (429 pin_locked).
 func (s *Server) checkManagerPIN(ctx context.Context, pin string) (bool, *models.Staff, error) {
 	if pin == "" {
 		return false, nil, nil
 	}
-	orgID := ""
+	orgID, lockKey := "", "mgrpin:"
 	if c, ok := middleware.ClaimsFrom(ctx); ok {
 		orgID = c.OrgID
+		lockKey += c.ActorID
 	}
+	if err := s.pinLockedErr(nil, lockKey); err != nil {
+		return false, nil, err
+	}
+	ok, st, err := s.matchManagerPIN(ctx, orgID, pin)
+	if err != nil {
+		return false, nil, err
+	}
+	if !ok {
+		if s.pinLockout().Fail(lockKey) {
+			return false, nil, errPINLocked
+		}
+		return false, nil, nil
+	}
+	s.pinLockout().Success(lockKey)
+	return true, st, nil
+}
+
+func (s *Server) matchManagerPIN(ctx context.Context, orgID, pin string) (bool, *models.Staff, error) {
 	staffList, err := s.Store.ListStaff(ctx, orgID, "")
 	if err != nil {
 		return false, nil, err
@@ -238,24 +295,64 @@ func (s *Server) requireManagerPIN(ctx context.Context, pin string) error {
 	return nil
 }
 
-// handleListStaff is a transitional public endpoint used by legacy terminals
-// pre-login: org is resolved from ?org_code= (defaults to the demo org).
+// handleListStaff is the public pre-login roster (PIN screen): the org comes
+// from the required ?org_code=, and only id/name/role/avatar are exposed.
 func (s *Server) handleListStaff(w http.ResponseWriter, r *http.Request) {
-	orgID, err := s.orgFromCodeOrDemo(r)
+	orgID, err := s.orgFromCode(r)
 	if err != nil {
 		httpx.ErrorJSON(w, r, err)
 		return
 	}
-	outletID := r.URL.Query().Get("outlet_id")
-	list, err := s.Store.ListStaff(r.Context(), orgID, outletID)
+	list, err := s.Store.ListStaff(r.Context(), orgID, r.URL.Query().Get("outlet_id"))
 	if err != nil {
 		httpx.ErrorJSON(w, r, err)
 		return
 	}
-	httpx.JSON(w, http.StatusOK, map[string]any{"staff": list})
+	httpx.JSON(w, http.StatusOK, map[string]any{"staff": publicStaff(list)})
+}
+
+// publicStaff strips a roster down to what an unauthenticated PIN screen
+// needs (no mobile numbers, org/outlet ids or flags).
+func publicStaff(list []models.Staff) []models.PublicStaff {
+	out := make([]models.PublicStaff, 0, len(list))
+	for _, st := range list {
+		out = append(out, models.PublicStaff{ID: st.ID, Name: st.Name, Role: st.Role, AvatarURL: st.AvatarURL})
+	}
+	return out
 }
 
 func (s *Server) handleCreateStaff(w http.ResponseWriter, r *http.Request) {
+	s.withIdempotency(w, r, func() (int, any, error) {
+		rec := &captureWriter{header: http.Header{}}
+		s.createStaff(rec, r)
+		if rec.status == 0 {
+			rec.status = http.StatusOK
+		}
+		if rec.status >= 400 {
+			var env struct {
+				Error httpx.AppError `json:"error"`
+			}
+			_ = json.Unmarshal(rec.body.Bytes(), &env)
+			env.Error.Status = rec.status
+			return 0, nil, &env.Error
+		}
+		return rec.status, json.RawMessage(rec.body.Bytes()), nil
+	})
+}
+
+// captureWriter buffers a handler's response so it can run inside
+// withIdempotency.
+type captureWriter struct {
+	header http.Header
+	status int
+	body   bytes.Buffer
+}
+
+func (c *captureWriter) Header() http.Header         { return c.header }
+func (c *captureWriter) Write(b []byte) (int, error) { return c.body.Write(b) }
+func (c *captureWriter) WriteHeader(code int)        { c.status = code }
+
+func (s *Server) createStaff(w http.ResponseWriter, r *http.Request) {
 	var req models.StaffCreate
 	if err := httpx.Decode(r, &req); err != nil {
 		httpx.ErrorJSON(w, r, err)
@@ -276,8 +373,8 @@ func (s *Server) handleCreateStaff(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorJSON(w, r, httpx.NewError(400, "invalid_role", "role must be admin, manager, cashier, waiter or kitchen"))
 		return
 	}
-	// Managers cannot create admin staff (privilege escalation).
-	if claims.Role == "manager" && req.Role == "admin" {
+	// Only admins may create admin staff (privilege escalation).
+	if claims.Role != "admin" && req.Role == "admin" {
 		httpx.ErrorJSON(w, r, httpx.NewError(403, "admin_only", "Only admins can create admin staff"))
 		return
 	}
@@ -354,10 +451,14 @@ func (s *Server) handlePatchStaff(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	// Managers cannot edit any regular admin row. Protected (owner) rows are
-	// already limited to self-only above.
-	if !existing.IsProtected && existing.Role == "admin" && claims.Role == "manager" {
+	// Managers cannot edit any regular admin row, nor promote anyone to
+	// admin. Protected (owner) rows are already limited to self-only above.
+	if claims.Role != "admin" && existing.Role == "admin" {
 		httpx.ErrorJSON(w, r, httpx.NewError(403, "admin_only", "Only admins can edit admin staff"))
+		return
+	}
+	if claims.Role != "admin" && p.Role != nil && *p.Role == "admin" {
+		httpx.ErrorJSON(w, r, httpx.NewError(403, "admin_only", "Only admins can grant the admin role"))
 		return
 	}
 	// Self guards for all roles: no self-deactivation, no self-demotion.
@@ -432,7 +533,7 @@ func allDigits(s string) bool {
 }
 
 func (s *Server) handleListOutlets(w http.ResponseWriter, r *http.Request) {
-	orgID, err := s.orgFromCodeOrDemo(r)
+	orgID, err := s.orgFromCode(r)
 	if err != nil {
 		httpx.ErrorJSON(w, r, err)
 		return
@@ -445,17 +546,18 @@ func (s *Server) handleListOutlets(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, map[string]any{"outlets": out})
 }
 
-// orgFromCodeOrDemo resolves the tenant for legacy public endpoints: explicit
-// ?org_code= wins; otherwise the demo org is returned for backward compat.
-func (s *Server) orgFromCodeOrDemo(r *http.Request) (string, error) {
-	if code := r.URL.Query().Get("org_code"); code != "" {
-		org, err := s.Store.GetOrgByCode(r.Context(), code)
-		if err != nil {
-			return "", err
-		}
-		return org.ID, nil
+// orgFromCode resolves the tenant of public pre-login endpoints from the
+// required ?org_code= (there is no implicit demo org any more).
+func (s *Server) orgFromCode(r *http.Request) (string, error) {
+	code := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("org_code")))
+	if code == "" {
+		return "", httpx.NewError(400, "missing_org_code", "org_code is required")
 	}
-	return "org-01", nil
+	org, err := s.Store.GetOrgByCode(r.Context(), code)
+	if err != nil {
+		return "", err
+	}
+	return org.ID, nil
 }
 
 func (s *Server) handleGetOutlet(w http.ResponseWriter, r *http.Request) {

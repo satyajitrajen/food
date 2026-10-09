@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"strings"
+	"time"
 
 	"foodpos/backend/internal/httpx"
 	"foodpos/backend/internal/models"
@@ -12,38 +13,87 @@ import (
 
 // ---- Outlets ----
 
+const outletCols = `id, org_id, name, address, terminal, gstin, fssai, phone, email, timezone, is_online`
+
+func scanOutlet(sc interface{ Scan(...any) error }) (*models.Outlet, error) {
+	var o models.Outlet
+	var online int
+	if err := sc.Scan(&o.ID, &o.OrgID, &o.Name, &o.Address, &o.Terminal, &o.GSTIN, &o.FSSAI, &o.Phone,
+		&o.Email, &o.Timezone, &online); err != nil {
+		return nil, err
+	}
+	o.IsOnline = online == 1
+	return &o, nil
+}
+
 func (s *Store) ListOutlets(ctx context.Context, orgID string) ([]models.Outlet, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT id, org_id, name, address, terminal, gstin, fssai, phone, is_online FROM outlets WHERE org_id = ? ORDER BY name`, orgID)
+	rows, err := s.DB.QueryContext(ctx, `SELECT `+outletCols+` FROM outlets WHERE org_id = ? ORDER BY name`, orgID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []models.Outlet
+	out := []models.Outlet{}
 	for rows.Next() {
-		var o models.Outlet
-		var online int
-		if err := rows.Scan(&o.ID, &o.OrgID, &o.Name, &o.Address, &o.Terminal, &o.GSTIN, &o.FSSAI, &o.Phone, &online); err != nil {
+		o, err := scanOutlet(rows)
+		if err != nil {
 			return nil, err
 		}
-		o.IsOnline = online == 1
-		out = append(out, o)
+		out = append(out, *o)
 	}
 	return out, rows.Err()
 }
 
 func (s *Store) GetOutlet(ctx context.Context, id string) (*models.Outlet, error) {
-	var o models.Outlet
-	var online int
-	err := s.DB.QueryRowContext(ctx, `SELECT id, org_id, name, address, terminal, gstin, fssai, phone, is_online FROM outlets WHERE id = ?`, id).
-		Scan(&o.ID, &o.OrgID, &o.Name, &o.Address, &o.Terminal, &o.GSTIN, &o.FSSAI, &o.Phone, &online)
+	o, err := scanOutlet(s.DB.QueryRowContext(ctx, `SELECT `+outletCols+` FROM outlets WHERE id = ?`, id))
 	if err == sql.ErrNoRows {
 		return nil, httpx.ErrNotFound
 	}
 	if err != nil {
 		return nil, err
 	}
-	o.IsOnline = online == 1
-	return &o, nil
+	return o, nil
+}
+
+// OutletLocation returns the outlet's timezone (UTC when unknown/invalid),
+// used for "today" and date-only report bounds.
+func (s *Store) OutletLocation(ctx context.Context, outletID string) *time.Location {
+	var tz string
+	if err := s.DB.QueryRowContext(ctx, `SELECT timezone FROM outlets WHERE id = ?`, outletID).Scan(&tz); err == nil {
+		if loc, err := time.LoadLocation(tz); err == nil {
+			return loc
+		}
+	}
+	return time.UTC
+}
+
+// PatchOutlet applies a partial outlet update (values already validated).
+func (s *Store) PatchOutlet(ctx context.Context, id string, p models.OutletPatch) (*models.Outlet, error) {
+	sets := []string{}
+	args := []any{}
+	add := func(col string, v *string) {
+		if v != nil {
+			sets = append(sets, col+" = ?")
+			args = append(args, *v)
+		}
+	}
+	add("name", p.Name)
+	add("address", p.Address)
+	add("phone", p.Phone)
+	add("email", p.Email)
+	add("gstin", p.GSTIN)
+	add("fssai", p.FSSAI)
+	add("timezone", p.Timezone)
+	if len(sets) > 0 {
+		args = append(args, id)
+		res, err := s.DB.ExecContext(ctx, `UPDATE outlets SET `+strings.Join(sets, ", ")+` WHERE id = ?`, args...)
+		if err != nil {
+			return nil, err
+		}
+		if n, _ := res.RowsAffected(); n == 0 {
+			return nil, httpx.ErrNotFound
+		}
+	}
+	return s.GetOutlet(ctx, id)
 }
 
 func (s *Store) CountOutlets(ctx context.Context, orgID string) (int, error) {
@@ -59,10 +109,14 @@ func (s *Store) CreateOutlet(ctx context.Context, orgID string, o models.Outlet)
 	if !o.IsOnline {
 		online = 0
 	}
+	tz := o.Timezone
+	if tz == "" {
+		tz = "Asia/Kolkata"
+	}
 	_, err := s.DB.ExecContext(ctx,
-		`INSERT INTO outlets (id, org_id, name, address, terminal, gstin, fssai, phone, is_online)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		id, orgID, o.Name, o.Address, o.Terminal, o.GSTIN, o.FSSAI, o.Phone, online)
+		`INSERT INTO outlets (id, org_id, name, address, terminal, gstin, fssai, phone, email, timezone, is_online)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		id, orgID, o.Name, o.Address, o.Terminal, o.GSTIN, o.FSSAI, o.Phone, o.Email, tz, online)
 	if err != nil {
 		return nil, err
 	}
@@ -236,8 +290,7 @@ func (s *Store) CreateTable(ctx context.Context, t models.Table) (*models.Table,
 }
 
 func (s *Store) PatchTable(ctx context.Context, id string, p models.TablePatch) (*models.Table, error) {
-	t, err := s.GetTable(ctx, id)
-	if err != nil {
+	if _, err := s.GetTable(ctx, id); err != nil {
 		return nil, err
 	}
 	if p.Status != nil {
@@ -266,293 +319,7 @@ func (s *Store) PatchTable(ctx context.Context, id string, p models.TablePatch) 
 			return nil, err
 		}
 	}
-	_ = t
 	return s.GetTable(ctx, id)
-}
-
-// ---- Menu ----
-
-func (s *Store) ListCategories(ctx context.Context, outletID string) ([]models.ModifierGroup, error) {
-	return nil, nil // categories fetched as part of menu below
-}
-
-func (s *Store) ListMenu(ctx context.Context, outletID, categoryID string) ([]models.MenuItem, error) {
-	q := `SELECT mi.id, mi.outlet_id, mi.category_id, COALESCE(mc.name,''), mi.name, mi.description, mi.price_paise,
-	             mi.is_veg, mi.image_url, mi.is_bestseller, mi.is_available, mi.sort
-	      FROM menu_items mi LEFT JOIN menu_categories mc ON mc.id = mi.category_id
-	      WHERE mi.outlet_id = ?`
-	args := []any{outletID}
-	if categoryID != "" && categoryID != "All" {
-		q += ` AND mi.category_id = ?`
-		args = append(args, categoryID)
-	}
-	q += ` ORDER BY mi.sort, mi.name`
-	rows, err := s.DB.QueryContext(ctx, q, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	items := map[string]*models.MenuItem{}
-	var order []string
-	for rows.Next() {
-		var m models.MenuItem
-		var veg, best, avail int
-		if err := rows.Scan(&m.ID, &m.OutletID, &m.CategoryID, &m.Category, &m.Name, &m.Description,
-			&m.PricePaise, &veg, &m.ImageURL, &best, &avail, &m.Sort); err != nil {
-			return nil, err
-		}
-		m.IsVeg = veg == 1
-		m.IsBestseller = best == 1
-		m.IsAvailable = avail == 1
-		m.Variants = []models.ProductVariant{}
-		m.ModifierGroups = []models.ModifierGroup{}
-		items[m.ID] = &m
-		order = append(order, m.ID)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	// Variants
-	vrows, err := s.DB.QueryContext(ctx, `SELECT id, menu_item_id, name, price_paise FROM product_variants ORDER BY seq`)
-	if err != nil {
-		return nil, err
-	}
-	defer vrows.Close()
-	for vrows.Next() {
-		var v models.ProductVariant
-		if err := vrows.Scan(&v.ID, &v.MenuItemID, &v.Name, &v.PricePaise); err != nil {
-			return nil, err
-		}
-		if m, ok := items[v.MenuItemID]; ok {
-			v.MenuItemID = ""
-			m.Variants = append(m.Variants, v)
-		}
-	}
-
-	// Modifier groups + items
-	grows, err := s.DB.QueryContext(ctx, `SELECT id, menu_item_id, name, is_multi_select, is_required, sort FROM modifier_groups ORDER BY sort`)
-	if err != nil {
-		return nil, err
-	}
-	defer grows.Close()
-	groupOrder := map[string][]string{}
-	for grows.Next() {
-		var g models.ModifierGroup
-		var multi, req int
-		if err := grows.Scan(&g.ID, &g.MenuItemID, &g.Name, &multi, &req, &g.Sort); err != nil {
-			return nil, err
-		}
-		g.IsMultiSelect = multi == 1
-		g.IsRequired = req == 1
-		g.Items = []models.ModifierItem{}
-		if m, ok := items[g.MenuItemID]; ok {
-			g.MenuItemID = ""
-			m.ModifierGroups = append(m.ModifierGroups, g)
-			groupOrder[m.ID] = append(groupOrder[m.ID], g.ID)
-		}
-	}
-
-	irows, err := s.DB.QueryContext(ctx, `SELECT id, group_id, name, price_paise, sort FROM modifier_items ORDER BY sort`)
-	if err != nil {
-		return nil, err
-	}
-	defer irows.Close()
-	for irows.Next() {
-		var mi models.ModifierItem
-		if err := irows.Scan(&mi.ID, &mi.GroupID, &mi.Name, &mi.PricePaise, &mi.Sort); err != nil {
-			return nil, err
-		}
-		for _, m := range items {
-			for gi := range m.ModifierGroups {
-				if m.ModifierGroups[gi].ID == mi.GroupID {
-					mi.GroupID = ""
-					m.ModifierGroups[gi].Items = append(m.ModifierGroups[gi].Items, mi)
-				}
-			}
-		}
-	}
-
-	out := make([]models.MenuItem, 0, len(order))
-	for _, id := range order {
-		out = append(out, *items[id])
-	}
-	return out, nil
-}
-
-func (s *Store) GetMenuItem(ctx context.Context, id string) (*models.MenuItem, error) {
-	var outletID string
-	err := s.DB.QueryRowContext(ctx, `SELECT outlet_id FROM menu_items WHERE id = ?`, id).Scan(&outletID)
-	if err == sql.ErrNoRows {
-		return nil, httpx.ErrNotFound
-	}
-	if err != nil {
-		return nil, err
-	}
-	list, err := s.ListMenu(ctx, outletID, "")
-	if err != nil {
-		return nil, err
-	}
-	for i := range list {
-		if list[i].ID == id {
-			return &list[i], nil
-		}
-	}
-	return nil, httpx.ErrNotFound
-}
-
-// CategoryID resolves a category reference for an outlet: menu admin clients
-// send the display *name* (the Flutter UI only knows names), while order code
-// may send the real id. Accepts either.
-func (s *Store) CategoryID(ctx context.Context, outletID, nameOrID string) (string, error) {
-	var id string
-	err := s.DB.QueryRowContext(ctx,
-		`SELECT id FROM menu_categories WHERE outlet_id = ? AND (id = ? OR name = ?) LIMIT 1`,
-		outletID, nameOrID, nameOrID).Scan(&id)
-	if err == nil {
-		return id, nil
-	}
-	if err == sql.ErrNoRows {
-		trimmed := strings.TrimSpace(nameOrID)
-		if trimmed != "" {
-			newID := NewID("cat")
-			if _, insErr := s.DB.ExecContext(ctx,
-				`INSERT INTO menu_categories (id, outlet_id, name, sort) VALUES (?, ?, ?, 0)`,
-				newID, outletID, trimmed); insErr == nil {
-				return newID, nil
-			}
-		}
-		return "", httpx.NewError(400, "invalid_category", "Unknown category")
-	}
-	return "", err
-}
-
-func (s *Store) CreateMenuItem(ctx context.Context, outletID string, req models.MenuItemUpsert) (*models.MenuItem, error) {
-	if req.Name == nil || *req.Name == "" || req.CategoryID == nil || *req.CategoryID == "" {
-		return nil, httpx.NewError(400, "invalid_item", "name and category_id are required")
-	}
-	id := NewID("m")
-	avail := 1
-	if req.IsAvailable != nil && !*req.IsAvailable {
-		avail = 0
-	}
-	var description, imageURL string
-	if req.Description != nil {
-		description = *req.Description
-	}
-	if req.ImageURL != nil {
-		imageURL = *req.ImageURL
-	}
-	price := int64(0)
-	if req.PricePaise != nil {
-		price = *req.PricePaise
-	}
-	if _, err := s.DB.ExecContext(ctx,
-		`INSERT INTO menu_items (id, outlet_id, category_id, name, description, price_paise, is_veg, image_url, is_bestseller, is_available)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		id, outletID, *req.CategoryID, *req.Name, description, price, b2i(req.IsVeg != nil && *req.IsVeg), imageURL, b2i(req.IsBestseller != nil && *req.IsBestseller), avail); err != nil {
-		return nil, err
-	}
-	if err := s.upsertVariantsAndGroups(ctx, id, req); err != nil {
-		return nil, err
-	}
-	return s.GetMenuItem(ctx, id)
-}
-
-func (s *Store) PatchMenuItem(ctx context.Context, id string, req models.MenuItemUpsert) (*models.MenuItem, error) {
-	if _, err := s.GetMenuItem(ctx, id); err != nil {
-		return nil, err
-	}
-	// Partial-patch semantics: only provided fields change. (A PATCH body with
-	// just is_available used to wipe name/category — FK footgun.)
-	sets := []string{}
-	args := []any{}
-	add := func(col string, v any) {
-		sets = append(sets, col+" = ?")
-		args = append(args, v)
-	}
-	if req.CategoryID != nil {
-		add("category_id", *req.CategoryID)
-	}
-	if req.Name != nil {
-		add("name", *req.Name)
-	}
-	if req.Description != nil {
-		add("description", *req.Description)
-	}
-	if req.PricePaise != nil {
-		add("price_paise", *req.PricePaise)
-	}
-	if req.IsVeg != nil {
-		add("is_veg", b2i(*req.IsVeg))
-	}
-	if req.ImageURL != nil {
-		add("image_url", *req.ImageURL)
-	}
-	if req.IsBestseller != nil {
-		add("is_bestseller", b2i(*req.IsBestseller))
-	}
-	if req.IsAvailable != nil {
-		add("is_available", b2i(*req.IsAvailable))
-	}
-	if len(sets) > 0 {
-		args = append(args, id)
-		if _, err := s.DB.ExecContext(ctx, `UPDATE menu_items SET `+strings.Join(sets, ", ")+` WHERE id = ?`, args...); err != nil {
-			return nil, err
-		}
-	}
-	// Variants/modifier groups are only rebuilt when explicitly provided;
-	// otherwise the existing children are kept.
-	if req.Variants != nil || req.ModifierGroups != nil {
-		if _, err := s.DB.ExecContext(ctx, `DELETE FROM product_variants WHERE menu_item_id = ?`, id); err != nil {
-			return nil, err
-		}
-		if _, err := s.DB.ExecContext(ctx, `DELETE FROM modifier_groups WHERE menu_item_id = ?`, id); err != nil {
-			return nil, err
-		}
-		if err := s.upsertVariantsAndGroups(ctx, id, req); err != nil {
-			return nil, err
-		}
-	}
-	return s.GetMenuItem(ctx, id)
-}
-
-func (s *Store) upsertVariantsAndGroups(ctx context.Context, itemID string, req models.MenuItemUpsert) error {
-	for _, v := range req.Variants {
-		if _, err := s.DB.ExecContext(ctx,
-			`INSERT INTO product_variants (id, menu_item_id, name, price_paise) VALUES (?, ?, ?, ?)`,
-			NewID("v"), itemID, v.Name, v.PricePaise); err != nil {
-			return err
-		}
-	}
-	for gi, g := range req.ModifierGroups {
-		gid := NewID("mg")
-		if _, err := s.DB.ExecContext(ctx,
-			`INSERT INTO modifier_groups (id, menu_item_id, name, is_multi_select, is_required, sort) VALUES (?, ?, ?, ?, ?, ?)`,
-			gid, itemID, g.Name, b2i(g.IsMultiSelect), b2i(g.IsRequired), gi); err != nil {
-			return err
-		}
-		for ii, mi := range g.Items {
-			if _, err := s.DB.ExecContext(ctx,
-				`INSERT INTO modifier_items (id, group_id, name, price_paise, sort) VALUES (?, ?, ?, ?, ?)`,
-				NewID("mo"), gid, mi.Name, mi.PricePaise, ii); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func (s *Store) DeleteMenuItem(ctx context.Context, id string) error {
-	res, err := s.DB.ExecContext(ctx, `DELETE FROM menu_items WHERE id = ?`, id)
-	if err != nil {
-		return err
-	}
-	if n, _ := res.RowsAffected(); n == 0 {
-		return httpx.ErrNotFound
-	}
-	return nil
 }
 
 // ---- Settings ----

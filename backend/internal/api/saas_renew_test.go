@@ -622,3 +622,56 @@ func TestOwnerManualRenewalOrder(t *testing.T) {
 		t.Fatalf("expected 503 unconfigured, got %d", code)
 	}
 }
+
+// Manual renewal webhooks whose notes lack org_id are attributed through the
+// recorded order id; order.paid is handled like payment.captured; an
+// unattributable event is acknowledged (200) so Razorpay stops retrying.
+// Paying during the trial extends from the trial end, not from now.
+func TestManualRenewalWebhookFallbacks(t *testing.T) {
+	hits := map[string]string{}
+	e, cfg := newRenewEnv(t, &hits)
+	registerOwner(t, e, "renew-fallback@test")
+	orgID := subOrgIDForToken(t, e)
+	ctx := context.Background()
+	sub, err := e.st.GetSubscription(ctx, orgID)
+	if err != nil || sub.TrialEndsAt == nil {
+		t.Fatalf("expected a trial subscription: %v %+v", err, sub)
+	}
+	trialEnd := *sub.TrialEndsAt
+
+	orderID := "order_fb_" + orgID
+	if err := e.st.RecordGatewayOrder(ctx, orderID, orgID); err != nil {
+		t.Fatal(err)
+	}
+	raw := `{"event":"order.paid","payload":{"payment":{"entity":{"id":"pay_fb_` + orgID + `","amount":235882,"order_id":"` + orderID + `"}},` +
+		`"order":{"entity":{"id":"` + orderID + `","amount_paid":235882}}}}`
+	code, body := signedWebhook(t, e, cfg.RazorpayWebhookSecret, raw)
+	if code != 200 || body["activated"] != true {
+		t.Fatalf("order.paid via recorded order id should activate, got %d %v", code, body)
+	}
+	sub, _ = e.st.GetSubscription(ctx, orgID)
+	if sub.Status != models.SubActive || sub.CurrentPeriodEnd == nil {
+		t.Fatalf("expected active, got %+v", sub)
+	}
+	want := trialEnd.AddDate(0, 0, 365)
+	if d := sub.CurrentPeriodEnd.Sub(want); d < -time.Minute || d > time.Minute {
+		t.Fatalf("period end = %v, want trial end + 365d = %v", sub.CurrentPeriodEnd, want)
+	}
+
+	// The same payment's payment.captured is a no-op (no second invoice).
+	raw = `{"event":"payment.captured","payload":{"payment":{"entity":{"id":"pay_fb_` + orgID + `","amount":235882,"order_id":"` + orderID + `"}}}}`
+	code, body = signedWebhook(t, e, cfg.RazorpayWebhookSecret, raw)
+	if code != 200 || body["activated"] == true {
+		t.Fatalf("duplicate capture must not re-activate, got %d %v", code, body)
+	}
+	if invs, _ := e.st.ListSaaSInvoices(ctx, orgID); len(invs) != 1 {
+		t.Fatalf("invoices = %d, want 1", len(invs))
+	}
+
+	// Unknown order, no notes → acknowledged, ignored.
+	raw = `{"event":"payment.captured","payload":{"payment":{"entity":{"id":"pay_ghost","amount":235882,"order_id":"order_unknown_x"}}}}`
+	code, body = signedWebhook(t, e, cfg.RazorpayWebhookSecret, raw)
+	if code != 200 || body["reason"] != "org_unresolved" {
+		t.Fatalf("unresolvable event should be 200 org_unresolved, got %d %v", code, body)
+	}
+}

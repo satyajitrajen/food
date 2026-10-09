@@ -170,7 +170,7 @@ func (g *RazorpayGateway) CreateSubscription(ctx context.Context, planID, orgID 
 	}
 	err := g.call(ctx, http.MethodPost, "/v1/subscriptions", razorpaySubReq{
 		PlanID: planID, TotalCount: totalCount, CustomerNotify: 0,
-		Notes: map[string]string{"org_id": orgID},
+		Notes:   map[string]string{"org_id": orgID},
 		StartAt: start,
 	}, &out)
 	if err != nil {

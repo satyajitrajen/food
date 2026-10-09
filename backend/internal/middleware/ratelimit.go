@@ -23,6 +23,9 @@ type RateLimiter struct {
 	limit  int
 	window time.Duration
 	hits   map[string]*rateWindow
+	// lastPurge bounds memory: expired windows are swept at most once per
+	// window, so an IP sweep cannot grow the map without limit.
+	lastPurge time.Time
 }
 
 func NewRateLimiter(limit int, window time.Duration) *RateLimiter {
@@ -32,6 +35,14 @@ func NewRateLimiter(limit int, window time.Duration) *RateLimiter {
 func (rl *RateLimiter) Allow(key string, now time.Time) bool {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
+	if now.Sub(rl.lastPurge) >= rl.window {
+		for k, hw := range rl.hits {
+			if now.Sub(hw.start) >= rl.window {
+				delete(rl.hits, k)
+			}
+		}
+		rl.lastPurge = now
+	}
 	w, ok := rl.hits[key]
 	if !ok || now.Sub(w.start) >= rl.window {
 		rl.hits[key] = &rateWindow{start: now, count: 1}

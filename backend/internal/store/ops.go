@@ -51,11 +51,12 @@ func parsePaise(s string) int64 {
 	return v
 }
 
-func (s *Store) GetCurrentShift(ctx context.Context, outletID string) (*models.Shift, error) {
-	row := s.DB.QueryRowContext(ctx, `SELECT id, outlet_id, staff_id, staff_name, started_at, closed_at,
+const shiftCols = `id, outlet_id, staff_id, staff_name, started_at, closed_at,
 		opening_paise, opening_notes, cash_sales, upi_sales, card_sales, refunds_cash, refunds_digital,
-		expenses, cash_in, cash_out, counted_paise, closing_notes, status
-		FROM shifts WHERE outlet_id = ? AND status = 'open'`, outletID)
+		expenses, cash_in, cash_out, counted_paise, closing_notes, status`
+
+func (s *Store) GetCurrentShift(ctx context.Context, outletID string) (*models.Shift, error) {
+	row := s.DB.QueryRowContext(ctx, `SELECT `+shiftCols+` FROM shifts WHERE outlet_id = ? AND status = 'open'`, outletID)
 	sh, err := scanShift(row)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -64,10 +65,7 @@ func (s *Store) GetCurrentShift(ctx context.Context, outletID string) (*models.S
 }
 
 func (s *Store) GetShift(ctx context.Context, id string) (*models.Shift, error) {
-	row := s.DB.QueryRowContext(ctx, `SELECT id, outlet_id, staff_id, staff_name, started_at, closed_at,
-		opening_paise, opening_notes, cash_sales, upi_sales, card_sales, refunds_cash, refunds_digital,
-		expenses, cash_in, cash_out, counted_paise, closing_notes, status
-		FROM shifts WHERE id = ?`, id)
+	row := s.DB.QueryRowContext(ctx, `SELECT `+shiftCols+` FROM shifts WHERE id = ?`, id)
 	sh, err := scanShift(row)
 	if err == sql.ErrNoRows {
 		return nil, httpx.ErrNotFound
@@ -76,23 +74,24 @@ func (s *Store) GetShift(ctx context.Context, id string) (*models.Shift, error) 
 }
 
 func (s *Store) ListShifts(ctx context.Context, outletID string, limit int) ([]models.Shift, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT id, outlet_id, staff_id, staff_name, started_at, closed_at,
-		opening_paise, opening_notes, cash_sales, upi_sales, card_sales, refunds_cash, refunds_digital,
-		expenses, cash_in, cash_out, counted_paise, closing_notes, status
-		FROM shifts WHERE outlet_id = ? ORDER BY started_at DESC LIMIT ?`, outletID, limit)
+	if limit <= 0 || limit > 500 {
+		limit = 50
+	}
+	rows, err := s.DB.QueryContext(ctx, `SELECT `+shiftCols+` FROM shifts WHERE outlet_id = ?
+		ORDER BY started_at DESC LIMIT ?`, outletID, limit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	out := []models.Shift{}
-	for {
+	for rows.Next() {
 		sh, err := scanShift(rows)
 		if err != nil {
-			break
+			return nil, err
 		}
 		out = append(out, *sh)
 	}
-	return out, nil
+	return out, rows.Err()
 }
 
 func (s *Store) OpenShift(ctx context.Context, outletID, staffID, staffName string, req models.ShiftOpenReq) (*models.Shift, error) {
@@ -112,11 +111,12 @@ func (s *Store) OpenShift(ctx context.Context, outletID, staffID, staffName stri
 }
 
 func (s *Store) saveDenominations(ctx context.Context, shiftID, kind string, d *models.CashDenominations) error {
-	_, err := s.DB.ExecContext(ctx, `INSERT INTO shift_denominations (shift_id, kind, d500, d200, d100, d50, d20, d10)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+	_, err := s.DB.ExecContext(ctx, `INSERT INTO shift_denominations (shift_id, kind, d500, d200, d100, d50, d20, d10, coins_paise)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (shift_id, kind) DO UPDATE SET
 			d500 = EXCLUDED.d500, d200 = EXCLUDED.d200, d100 = EXCLUDED.d100,
-			d50 = EXCLUDED.d50, d20 = EXCLUDED.d20, d10 = EXCLUDED.d10`, shiftID, kind, d.D500, d.D200, d.D100, d.D50, d.D20, d.D10)
+			d50 = EXCLUDED.d50, d20 = EXCLUDED.d20, d10 = EXCLUDED.d10, coins_paise = EXCLUDED.coins_paise`,
+		shiftID, kind, d.D500, d.D200, d.D100, d.D50, d.D20, d.D10, d.CoinsPaise)
 	return err
 }
 
@@ -139,7 +139,10 @@ func (s *Store) CloseShift(ctx context.Context, shiftID string, req models.Shift
 
 // ---- Cash movements ----
 
-func (s *Store) AddCashMove(ctx context.Context, shiftID, staffID, staffName, moveType string, amount int64, reason string, reference *string, at *time.Time) (*models.CashTransaction, error) {
+// AddCashMove records a drawer movement on the outlet's OPEN shift. The
+// shift row is locked so the cash-out ≤ expected-drawer check and the
+// balance update cannot interleave with a concurrent move or payment.
+func (s *Store) AddCashMove(ctx context.Context, outletID, staffID, staffName, moveType string, amount int64, reason string, reference *string, at *time.Time) (*models.CashTransaction, error) {
 	id := NewID("cx")
 	ts := Now()
 	if at != nil && !at.IsZero() {
@@ -147,16 +150,32 @@ func (s *Store) AddCashMove(ctx context.Context, shiftID, staffID, staffName, mo
 		// the shift totals always update regardless.
 		ts = *at
 	}
-	_, err := s.DB.ExecContext(ctx, `INSERT INTO cash_transactions (id, shift_id, type, amount, reason, reference, staff_id, staff_name, ts)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, id, shiftID, moveType, amount, reason, reference, staffID, staffName, TimeStr(ts))
+	var shiftID string
+	err := s.withTx(ctx, func(tx *sql.Tx) error {
+		sh, err := scanShift(tx.QueryRowContext(ctx, `SELECT `+shiftCols+` FROM shifts
+			WHERE outlet_id = ? AND status = 'open' FOR UPDATE`, outletID))
+		if err == sql.ErrNoRows {
+			return httpx.NewError(409, "no_open_shift", "Open a shift before cash movements")
+		}
+		if err != nil {
+			return err
+		}
+		shiftID = sh.ID
+		if moveType == "cash_out" && amount > sh.ExpectedCash() {
+			return httpx.NewError(400, "insufficient_drawer", "Cash out exceeds the expected drawer balance")
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO cash_transactions (id, shift_id, type, amount, reason, reference, staff_id, staff_name, ts)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, id, sh.ID, moveType, amount, reason, reference, staffID, staffName, TimeStr(ts)); err != nil {
+			return err
+		}
+		col := "cash_in"
+		if moveType == "cash_out" {
+			col = "cash_out"
+		}
+		_, err = tx.ExecContext(ctx, `UPDATE shifts SET `+col+` = `+col+` + ? WHERE id = ?`, amount, sh.ID)
+		return err
+	})
 	if err != nil {
-		return nil, err
-	}
-	col := "cash_in"
-	if moveType == "cash_out" {
-		col = "cash_out"
-	}
-	if _, err := s.DB.ExecContext(ctx, `UPDATE shifts SET `+col+` = `+col+` + ? WHERE id = ?`, amount, shiftID); err != nil {
 		return nil, err
 	}
 	return &models.CashTransaction{
@@ -167,16 +186,22 @@ func (s *Store) AddCashMove(ctx context.Context, shiftID, staffID, staffName, mo
 
 // ---- Expenses ----
 
-func (s *Store) ListExpenses(ctx context.Context, outletID, rangeKey string) ([]models.Expense, error) {
-	q := `SELECT id, outlet_id, title, category, amount, method, vendor, reference, note, ts, created_by
-	      FROM expenses WHERE outlet_id = ?`
-	if rangeKey == "today" {
-		q += ` AND ts::date = CURRENT_DATE`
-	} else if rangeKey == "month" {
-		q += ` AND to_char(ts::timestamp, 'YYYY-MM') = to_char(now(), 'YYYY-MM')`
+const expenseCols = `id, outlet_id, title, category, amount, method, vendor, reference, note, ts, created_by`
+
+// ListExpenses returns expenses dated in [from, to) (nil = unbounded).
+func (s *Store) ListExpenses(ctx context.Context, outletID string, from, to *time.Time) ([]models.Expense, error) {
+	q := `SELECT ` + expenseCols + ` FROM expenses WHERE outlet_id = ?`
+	args := []any{outletID}
+	if from != nil {
+		q += ` AND ts >= ?`
+		args = append(args, TimeStr(*from))
+	}
+	if to != nil {
+		q += ` AND ts < ?`
+		args = append(args, TimeStr(*to))
 	}
 	q += ` ORDER BY ts DESC LIMIT 500`
-	rows, err := s.DB.QueryContext(ctx, q, outletID)
+	rows, err := s.DB.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -200,34 +225,66 @@ func (s *Store) ListExpenses(ctx context.Context, outletID, rangeKey string) ([]
 	return out, rows.Err()
 }
 
-func (s *Store) CreateExpense(ctx context.Context, outletID string, req models.ExpenseCreate, createdBy *string) (*models.Expense, error) {
+// IsCashMethod reports whether an expense/payment method moves drawer cash.
+func IsCashMethod(m string) bool { return strings.EqualFold(strings.TrimSpace(m), "cash") }
+
+// CreateExpense records an expense; a cash expense is booked onto the open
+// shift's drawer in the same transaction and remembers that shift_id so a
+// later delete reverses the right drawer. Returns the booked shift id ("" if
+// none).
+func (s *Store) CreateExpense(ctx context.Context, outletID string, req models.ExpenseCreate, createdBy *string) (*models.Expense, string, error) {
 	if req.Amount <= 0 {
-		return nil, httpx.ErrInvalidAmount
+		return nil, "", httpx.ErrInvalidAmount
 	}
 	id := NewID("exp")
-	_, err := s.DB.ExecContext(ctx, `INSERT INTO expenses (id, outlet_id, title, category, amount, method, vendor, reference, note, ts, created_by)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		id, outletID, req.Title, req.Category, req.Amount, req.Method, req.Vendor, req.Reference, req.Note, TimeStr(Now()), createdBy)
+	now := Now()
+	var shiftID sql.NullString
+	err := s.withTx(ctx, func(tx *sql.Tx) error {
+		if IsCashMethod(req.Method) {
+			err := tx.QueryRowContext(ctx, `SELECT id FROM shifts WHERE outlet_id = ? AND status = 'open' FOR UPDATE`, outletID).Scan(&shiftID)
+			if err != nil && err != sql.ErrNoRows {
+				return err
+			}
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO expenses (id, outlet_id, title, category, amount, method, vendor, reference, note, ts, created_by, shift_id)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			id, outletID, req.Title, req.Category, req.Amount, req.Method, req.Vendor, req.Reference, req.Note, TimeStr(now), createdBy, shiftID); err != nil {
+			return err
+		}
+		if shiftID.Valid {
+			_, err := tx.ExecContext(ctx, `UPDATE shifts SET expenses = expenses + ? WHERE id = ?`, req.Amount, shiftID.String)
+			return err
+		}
+		return nil
+	})
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	return &models.Expense{ID: id, OutletID: outletID, Title: req.Title, Category: req.Category,
 		Amount: req.Amount, Method: req.Method, Vendor: req.Vendor, Reference: req.Reference,
-		Note: req.Note, Ts: Now(), CreatedBy: createdBy}, nil
+		Note: req.Note, Ts: now, CreatedBy: createdBy}, shiftID.String, nil
 }
 
 func (s *Store) GetExpense(ctx context.Context, id string) (*models.Expense, error) {
+	e, _, err := s.getExpense(ctx, s.DB, id, false)
+	return e, err
+}
+
+func (s *Store) getExpense(ctx context.Context, q Querier, id string, forUpdate bool) (*models.Expense, string, error) {
 	e := &models.Expense{}
-	var vendor, reference, note, createdBy sql.NullString
+	var vendor, reference, note, createdBy, shiftID sql.NullString
 	var ts string
-	err := s.DB.QueryRowContext(ctx, `SELECT id, outlet_id, title, category, amount, method, vendor, reference, note, ts, created_by
-		FROM expenses WHERE id = ?`, id).
-		Scan(&e.ID, &e.OutletID, &e.Title, &e.Category, &e.Amount, &e.Method, &vendor, &reference, &note, &ts, &createdBy)
+	query := `SELECT ` + expenseCols + `, shift_id FROM expenses WHERE id = ?`
+	if forUpdate {
+		query += ` FOR UPDATE`
+	}
+	err := q.QueryRowContext(ctx, query, id).
+		Scan(&e.ID, &e.OutletID, &e.Title, &e.Category, &e.Amount, &e.Method, &vendor, &reference, &note, &ts, &createdBy, &shiftID)
 	if err == sql.ErrNoRows {
-		return nil, httpx.ErrNotFound
+		return nil, "", httpx.ErrNotFound
 	}
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	if vendor.Valid {
 		e.Vendor = &vendor.String
@@ -242,40 +299,61 @@ func (s *Store) GetExpense(ctx context.Context, id string) (*models.Expense, err
 		e.CreatedBy = &createdBy.String
 	}
 	e.Ts = ParseTime(ts)
-	return e, nil
+	return e, shiftID.String, nil
 }
 
-func (s *Store) DeleteExpense(ctx context.Context, id string) (*models.Expense, error) {
-	e, err := s.GetExpense(ctx, id)
+// DeleteExpense removes an expense and, for a cash expense that hit a
+// drawer, reverses it against THAT expense's own shift (not whichever shift
+// happens to be open now). Legacy rows without shift_id reverse nothing.
+// Returns the reversed shift id ("" if none).
+func (s *Store) DeleteExpense(ctx context.Context, id string) (*models.Expense, string, error) {
+	var e *models.Expense
+	var shiftID string
+	err := s.withTx(ctx, func(tx *sql.Tx) error {
+		var err error
+		e, shiftID, err = s.getExpense(ctx, tx, id, true)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM expenses WHERE id = ?`, id); err != nil {
+			return err
+		}
+		if shiftID != "" && IsCashMethod(e.Method) {
+			_, err := tx.ExecContext(ctx, `UPDATE shifts SET expenses = GREATEST(0, expenses - ?) WHERE id = ?`, e.Amount, shiftID)
+			return err
+		}
+		return nil
+	})
+	return e, shiftID, err
+}
+
+// SumExpensesBetween sums expenses dated within [from, to). Timestamps are
+// fixed-width UTC strings (store.TimeStr), so text comparison is chronological.
+func (s *Store) SumExpensesBetween(ctx context.Context, outletID string, from, to time.Time) (int64, error) {
+	var sum int64
+	err := s.DB.QueryRowContext(ctx, `SELECT COALESCE(SUM(amount),0) FROM expenses WHERE outlet_id = ? AND ts >= ? AND ts < ?`,
+		outletID, TimeStr(from), TimeStr(to)).Scan(&sum)
+	return sum, err
+}
+
+// ExpensesByCategory sums expenses per category within [from, to).
+func (s *Store) ExpensesByCategory(ctx context.Context, outletID string, from, to time.Time) (map[string]int64, error) {
+	rows, err := s.DB.QueryContext(ctx, `SELECT category, COALESCE(SUM(amount),0) FROM expenses
+		WHERE outlet_id = ? AND ts >= ? AND ts < ? GROUP BY category`, outletID, TimeStr(from), TimeStr(to))
 	if err != nil {
 		return nil, err
 	}
-	if _, err := s.DB.ExecContext(ctx, `DELETE FROM expenses WHERE id = ?`, id); err != nil {
-		return nil, err
+	defer rows.Close()
+	out := map[string]int64{}
+	for rows.Next() {
+		var cat string
+		var sum int64
+		if err := rows.Scan(&cat, &sum); err != nil {
+			return nil, err
+		}
+		out[cat] = sum
 	}
-	return e, nil
-}
-
-func (s *Store) SumExpenses(ctx context.Context, outletID, rangeKey string) (int64, error) {
-	q := `SELECT COALESCE(SUM(amount),0) FROM expenses WHERE outlet_id = ?`
-	if rangeKey == "today" {
-		q += ` AND ts::date = CURRENT_DATE`
-	} else if rangeKey == "month" {
-		q += ` AND to_char(ts::timestamp, 'YYYY-MM') = to_char(now(), 'YYYY-MM')`
-	}
-	var sum int64
-	err := s.DB.QueryRowContext(ctx, q, outletID).Scan(&sum)
-	return sum, err
-}
-
-// SumExpensesBetween sums expenses dated within [from, to]. Timestamps are the
-// canonical RFC3339 strings written by store.TimeStr, so plain text comparison
-// matches the convention used for orders.paid_at elsewhere.
-func (s *Store) SumExpensesBetween(ctx context.Context, outletID, from, to string) (int64, error) {
-	q := `SELECT COALESCE(SUM(amount),0) FROM expenses WHERE outlet_id = ? AND ts >= ? AND ts <= ?`
-	var sum int64
-	err := s.DB.QueryRowContext(ctx, q, outletID, from, to).Scan(&sum)
-	return sum, err
+	return out, rows.Err()
 }
 
 // ---- Customers ----
@@ -380,27 +458,29 @@ func scanInventoryItem(sc interface{ Scan(...any) error }) (*models.InventoryIte
 }
 
 func (s *Store) AdjustStock(ctx context.Context, outletID, itemID string, delta float64, reason, staffID, staffName string) (*models.InventoryItem, error) {
-	if delta == 0 {
+	if delta == 0 || math.IsNaN(delta) || math.IsInf(delta, 0) {
 		return nil, httpx.NewError(400, "invalid_delta", "Delta must be non-zero")
 	}
-	var stock float64
-	err := s.DB.QueryRowContext(ctx, `SELECT stock FROM inventory_items WHERE id = ? AND outlet_id = ?`, itemID, outletID).Scan(&stock)
-	if err == sql.ErrNoRows {
-		return nil, httpx.ErrNotFound
-	}
-	if err != nil {
-		return nil, err
-	}
-	next := math.Max(0, stock+delta)
-	if _, err := s.DB.ExecContext(ctx, `UPDATE inventory_items SET stock = ? WHERE id = ?`, next, itemID); err != nil {
-		return nil, err
-	}
-	if _, err := s.DB.ExecContext(ctx, `INSERT INTO stock_adjustments (id, item_id, delta, reason, staff_id, staff_name, ts)
-		VALUES (?, ?, ?, ?, ?, ?, ?)`, NewID("sa"), itemID, delta, reason, staffID, staffName, TimeStr(Now())); err != nil {
-		return nil, err
-	}
-	item, err := scanInventoryItem(s.DB.QueryRowContext(ctx,
-		`SELECT id, outlet_id, name, unit, stock, min_stock, cost_paise, batch_no, rack_no, purchased_at FROM inventory_items WHERE id = ?`, itemID))
+	var item *models.InventoryItem
+	err := s.withTx(ctx, func(tx *sql.Tx) error {
+		// Relative, clamped update: concurrent adjustments compose instead of
+		// overwriting each other (read-modify-write lost updates).
+		res, err := tx.ExecContext(ctx, `UPDATE inventory_items SET stock = GREATEST(0, stock + ?) WHERE id = ? AND outlet_id = ?`,
+			delta, itemID, outletID)
+		if err != nil {
+			return err
+		}
+		if n, _ := res.RowsAffected(); n == 0 {
+			return httpx.ErrNotFound
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO stock_adjustments (id, item_id, delta, reason, staff_id, staff_name, ts)
+			VALUES (?, ?, ?, ?, ?, ?, ?)`, NewID("sa"), itemID, delta, reason, staffID, staffName, TimeStr(Now())); err != nil {
+			return err
+		}
+		item, err = scanInventoryItem(tx.QueryRowContext(ctx,
+			`SELECT id, outlet_id, name, unit, stock, min_stock, cost_paise, batch_no, rack_no, purchased_at FROM inventory_items WHERE id = ?`, itemID))
+		return err
+	})
 	return item, err
 }
 
@@ -500,41 +580,38 @@ func (s *Store) CreateSupplierPayment(ctx context.Context, outletID, supplierID 
 	default:
 		return nil, nil, httpx.NewError(400, "invalid_method", "method must be cash, upi or bank_transfer")
 	}
-	var outstanding int64
-	var name string
-	err := s.DB.QueryRowContext(ctx, `SELECT name, outstanding FROM suppliers WHERE id = ? AND outlet_id = ?`, supplierID, outletID).
-		Scan(&name, &outstanding)
-	if err == sql.ErrNoRows {
-		return nil, nil, httpx.NewError(400, "invalid_supplier", "Supplier not found in this outlet")
-	}
-	if err != nil {
-		return nil, nil, err
-	}
-	if req.Amount > outstanding {
-		return nil, nil, httpx.NewError(400, "exceeds_due",
-			"Payment exceeds the outstanding due")
-	}
 	ts := Now()
 	if req.At != nil && !req.At.IsZero() {
 		ts = *req.At
 	}
 	id := NewID("spay")
-	tx, err := s.DB.BeginTx(ctx, nil)
+	var name string
+	err := s.withTx(ctx, func(tx *sql.Tx) error {
+		var outstanding int64
+		err := tx.QueryRowContext(ctx, `SELECT name, outstanding FROM suppliers WHERE id = ? AND outlet_id = ? FOR UPDATE`,
+			supplierID, outletID).Scan(&name, &outstanding)
+		if err == sql.ErrNoRows {
+			return httpx.NewError(400, "invalid_supplier", "Supplier not found in this outlet")
+		}
+		if err != nil {
+			return err
+		}
+		// Balance check + decrement in one statement under the row lock.
+		res, err := tx.ExecContext(ctx,
+			`UPDATE suppliers SET outstanding = outstanding - ? WHERE id = ? AND outstanding >= ?`, req.Amount, supplierID, req.Amount)
+		if err != nil {
+			return err
+		}
+		if n, _ := res.RowsAffected(); n == 0 {
+			return httpx.NewError(400, "exceeds_due", "Payment exceeds the outstanding due")
+		}
+		_, err = tx.ExecContext(ctx,
+			`INSERT INTO supplier_payments (id, outlet_id, supplier_id, supplier_name, amount, method, reference, staff_id, staff_name, ts)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			id, outletID, supplierID, name, req.Amount, req.Method, req.Reference, staffID, staffName, TimeStr(ts))
+		return err
+	})
 	if err != nil {
-		return nil, nil, err
-	}
-	defer func() { _ = tx.Rollback() }()
-	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO supplier_payments (id, outlet_id, supplier_id, supplier_name, amount, method, reference, staff_id, staff_name, ts)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		id, outletID, supplierID, name, req.Amount, req.Method, req.Reference, staffID, staffName, TimeStr(ts)); err != nil {
-		return nil, nil, err
-	}
-	if _, err := tx.ExecContext(ctx,
-		`UPDATE suppliers SET outstanding = outstanding - ? WHERE id = ?`, req.Amount, supplierID); err != nil {
-		return nil, nil, err
-	}
-	if err := tx.Commit(); err != nil {
 		return nil, nil, err
 	}
 	pay := &models.SupplierPayment{
@@ -653,6 +730,14 @@ func (s *Store) CreatePurchase(ctx context.Context, outletID string, req models.
 	if req.Status != "paid" && req.Status != "pending" {
 		return nil, httpx.NewError(400, "invalid_status", "status must be paid or pending")
 	}
+	for _, line := range req.Items {
+		if !(line.Qty > 0) || math.IsInf(line.Qty, 0) {
+			return nil, httpx.NewError(400, "invalid_quantity", "Purchase line quantity must be greater than zero")
+		}
+		if line.UnitCostPaise < 0 {
+			return nil, httpx.ErrInvalidAmount
+		}
+	}
 	supplierName := ""
 	supplierID := req.SupplierID
 	if supplierID != nil && *supplierID != "" {
@@ -688,9 +773,6 @@ func (s *Store) CreatePurchase(ctx context.Context, outletID string, req models.
 		return nil, err
 	}
 	for _, line := range req.Items {
-		if line.Qty == 0 {
-			continue
-		}
 		var stock float64
 		var name string
 		err := tx.QueryRowContext(ctx, `SELECT stock, name FROM inventory_items WHERE id = ? AND outlet_id = ?`, line.InventoryItemID, outletID).Scan(&stock, &name)
@@ -867,45 +949,42 @@ func (s *Store) BookCustomerCredit(ctx context.Context, outletID, customerID, ki
 	if reason == "" {
 		return nil, httpx.NewError(400, "missing_reason", "A reason is required for credit movements")
 	}
-	var outstanding int64
-	err := s.DB.QueryRowContext(ctx, `SELECT outstanding_paise FROM customers WHERE id = ? AND outlet_id = ?`, customerID, outletID).Scan(&outstanding)
-	if err == sql.ErrNoRows {
-		return nil, httpx.ErrNotFound
-	}
-	if err != nil {
+	if err := s.withTx(ctx, func(tx *sql.Tx) error {
+		return bookCreditTx(ctx, tx, outletID, customerID, kind, amount, reason, staffID, staffName)
+	}); err != nil {
 		return nil, err
 	}
-	next := outstanding
-	switch kind {
-	case "sale":
-		next = outstanding + amount
-	case "settlement":
-		if amount > outstanding {
-			return nil, httpx.NewError(400, "settlement_exceeds_outstanding",
-				"Settlement exceeds the customer's outstanding balance")
+	return s.GetCustomerByID(ctx, outletID, customerID)
+}
+
+// bookCreditTx moves a customer's outstanding balance relatively (sale +,
+// settlement −) with the overdraw check in the same statement, and appends
+// the audit row — so concurrent bookings compose instead of overwriting.
+func bookCreditTx(ctx context.Context, tx *sql.Tx, outletID, customerID, kind string, amount int64, reason, staffID, staffName string) error {
+	delta := amount
+	if kind == "settlement" {
+		delta = -amount
+	}
+	res, err := tx.ExecContext(ctx, `UPDATE customers SET outstanding_paise = outstanding_paise + ?
+		WHERE id = ? AND outlet_id = ? AND outstanding_paise + ? >= 0`, delta, customerID, outletID, delta)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		var exists int
+		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM customers WHERE id = ? AND outlet_id = ?`, customerID, outletID).
+			Scan(&exists); err != nil {
+			return err
 		}
-		next = outstanding - amount
+		if exists == 0 {
+			return httpx.ErrNotFound
+		}
+		return httpx.NewError(400, "settlement_exceeds_outstanding",
+			"Settlement exceeds the customer's outstanding balance")
 	}
-	tx, err := s.DB.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = tx.Rollback() }()
-	if _, err := tx.ExecContext(ctx, `UPDATE customers SET outstanding_paise = ? WHERE id = ?`, next, customerID); err != nil {
-		return nil, err
-	}
-	if _, err := tx.ExecContext(ctx, `INSERT INTO customer_credit_log (id, outlet_id, customer_id, kind, amount_paise, reason, staff_id, staff_name, ts)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, NewID("ccl"), outletID, customerID, kind, amount, reason, staffID, staffName, TimeStr(Now())); err != nil {
-		return nil, err
-	}
-	if err := tx.Commit(); err != nil {
-		return nil, err
-	}
-	c, err := s.GetCustomerByID(ctx, outletID, customerID)
-	if err != nil {
-		return nil, err
-	}
-	return c, nil
+	_, err = tx.ExecContext(ctx, `INSERT INTO customer_credit_log (id, outlet_id, customer_id, kind, amount_paise, reason, staff_id, staff_name, ts)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, NewID("ccl"), outletID, customerID, kind, amount, reason, staffID, staffName, TimeStr(Now()))
+	return err
 }
 
 func (s *Store) GetCustomerByID(ctx context.Context, outletID, id string) (*models.Customer, error) {

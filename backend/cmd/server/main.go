@@ -1,11 +1,9 @@
-// FoodPOS server entrypoint: config → db → seed → routes → listen.
+// FoodPOS server entrypoint: config → db → migrate → plan catalog → routes → listen.
+// Demo data lives in cmd/seed (dev only); tenants are provisioned with cmd/admin.
 package main
 
 import (
 	"context"
-	"database/sql"
-	"encoding/json"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -18,7 +16,6 @@ import (
 	"foodpos/backend/internal/auth"
 	"foodpos/backend/internal/config"
 	"foodpos/backend/internal/db"
-	"foodpos/backend/internal/models"
 	"foodpos/backend/internal/notify"
 	"foodpos/backend/internal/store"
 	"foodpos/backend/internal/ws"
@@ -33,7 +30,7 @@ func main() {
 	if cfg.Env == "production" && cfg.SMTPHost == "" {
 		slog.Warn("SMTP not configured; password reset and renewal e-mail are unavailable")
 	}
-	slog.Info("foodpos server starting", "port", cfg.Port, "dsn", cfg.DSN, "env", cfg.Env)
+	slog.Info("foodpos server starting", "port", cfg.Port, "env", cfg.Env, "dev", cfg.Dev)
 
 	database, err := db.Open(cfg.DSN)
 	if err != nil {
@@ -50,10 +47,9 @@ func main() {
 	st := store.New(database)
 	authMgr := auth.New(cfg.JWTSecret, cfg.BcryptCost)
 
-	// Every deployment needs the default plan + an active subscription for the
-	// demo org (org-01) so demo terminals keep their entitlements.
-	if err := ensureDefaultTenant(st); err != nil {
-		slog.Error("default tenant setup failed", "err", err)
+	// Every deployment needs the plan catalog (registration + billing).
+	if err := st.SeedDefaultPlans(context.Background()); err != nil {
+		slog.Error("plan catalog setup failed", "err", err)
 		os.Exit(1)
 	}
 
@@ -62,16 +58,14 @@ func main() {
 		slog.Error("superadmin setup failed", "err", err)
 		os.Exit(1)
 	}
-	hub := ws.NewHub(authMgr)
+	hub := ws.NewHub()
 	tickets := auth.NewTicketStore(auth.SSETicketTTL)
 	hub.SetTicketStore(tickets)
 
-	if cfg.Seed {
-		if err := seed(st, authMgr); err != nil {
-			slog.Error("seed failed", "err", err)
-			os.Exit(1)
-		}
-		slog.Info("seed data loaded")
+	notifier, err := notify.NewFCMNotifier(cfg.FCMCredentials)
+	if err != nil {
+		slog.Error("fcm setup failed", "err", err)
+		os.Exit(1)
 	}
 
 	srv := &api.Server{
@@ -81,13 +75,15 @@ func main() {
 		Tickets:   tickets,
 		Cfg:       cfg,
 		UploadDir: cfg.UploadDir,
-		Notifier:  notify.NewFCMNotifier(cfg.FCMProjectID, cfg.FCMServerKey),
+		Notifier:  notifier,
 	}
 
 	httpSrv := &http.Server{
 		Addr:              ":" + cfg.Port,
 		Handler:           srv.Routes(),
 		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	go func() {
@@ -105,626 +101,6 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_ = httpSrv.Shutdown(ctx)
-}
-
-// seed loads demo data mirroring the Flutter prototype so the app is
-// instantly usable (FOODPOS_SEED=1).
-func seed(st *store.Store, mgr *auth.Manager) error {
-	ctx := context.Background()
-
-	// Outlets (explicit org scope; upsert so re-seeding repairs old rows).
-	_, err := st.DB.ExecContext(ctx, `INSERT INTO outlets (id, org_id, name, address, terminal, gstin, fssai, phone, is_online)
-		VALUES ('out-01', 'org-01', 'Baner Outlet', 'Plot 42, High Street, Baner, Pune - 411045', 'POS-01', '27AAAAA0000A1Z5', '11521000000123', '+91 98765 43210', 1)
-		ON CONFLICT (id) DO UPDATE SET org_id = EXCLUDED.org_id, name = EXCLUDED.name, address = EXCLUDED.address,
-			terminal = EXCLUDED.terminal, gstin = EXCLUDED.gstin, fssai = EXCLUDED.fssai, phone = EXCLUDED.phone,
-			is_online = EXCLUDED.is_online`)
-	if err != nil {
-		return err
-	}
-	_, err = st.DB.ExecContext(ctx, `INSERT INTO outlets (id, org_id, name, address, terminal, gstin, fssai, phone, is_online)
-		VALUES ('out-02', 'org-01', 'Kothrud Outlet', 'Shop 12, Paud Road, Kothrud, Pune', 'POS-02', '27AAAAA0000A1Z5', '11521000000124', '+91 98765 43211', 1)
-		ON CONFLICT (id) DO UPDATE SET org_id = EXCLUDED.org_id, name = EXCLUDED.name, address = EXCLUDED.address,
-			terminal = EXCLUDED.terminal, gstin = EXCLUDED.gstin, fssai = EXCLUDED.fssai, phone = EXCLUDED.phone,
-			is_online = EXCLUDED.is_online`)
-	if err != nil {
-		return err
-	}
-
-	// Staff (PINs: admin 0000, manager 9999, cashier 1234, waiter 1111, kitchen 5555) — one per unique role per outlet
-	// out-01 (Baner) + out-02 (Kothrud) mirrors the 2-outlet demo setup.
-	// Matches current rules: waiter/kitchen are single-outlet bound,
-	// admin/manager/cashier are org-wide (outlet_id NULL), st-03 is protected owner.
-	// Upsert keeps re-seeds authoritative.
-	staff := []struct {
-		id, name, role, pin, avatar, mobile string
-		outlet                              any
-		protected                           int
-	}{
-		{"st-01", "Rahul Sharma", "cashier", "1234", "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100", "+91 98220 11223", nil, 0},
-		{"st-02", "Priya Joshi", "manager", "9999", "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100", "+91 98220 22334", nil, 0},
-		{"st-03", "Vikram Singh", "admin", "0000", "https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=100", "+91 98220 33445", nil, 1},
-		{"st-04", "Amit Deshmukh", "waiter", "1111", "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100", "+91 98220 44556", "out-01", 0},
-		{"st-06", "Chef Sharma", "kitchen", "5555", "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100", "+91 98220 66778", "out-01", 0},
-		{"st-452d-4558ff", "Neha Kulkarni", "manager", "8888", "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100", "+91 98220 77889", nil, 0},
-		{"st-9226-ae5f97", "Suresh Patel", "cashier", "3333", "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100", "+91 98220 88990", nil, 0},
-		{"st-ffd8-832499", "Kiran More", "waiter", "2222", "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100", "+91 98220 99001", "out-02", 0},
-		{"st-f92e-2a769a", "Sunita Rao", "kitchen", "6666", "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100", "+91 98220 10112", "out-02", 0},
-	}
-	for _, s := range staff {
-		hash, err := mgr.HashPIN(s.pin)
-		if err != nil {
-			return err
-		}
-		if _, err := st.DB.ExecContext(ctx, `INSERT INTO staff (id, org_id, outlet_id, name, role, pin_hash, avatar_url, mobile, is_active, is_protected)
-			VALUES (?, 'org-01', ?, ?, ?, ?, ?, ?, 1, ?)
-			ON CONFLICT (id) DO UPDATE SET org_id = EXCLUDED.org_id, outlet_id = EXCLUDED.outlet_id, name = EXCLUDED.name,
-				role = EXCLUDED.role, pin_hash = EXCLUDED.pin_hash, avatar_url = EXCLUDED.avatar_url, mobile = EXCLUDED.mobile,
-				is_active = 1, is_protected = EXCLUDED.is_protected`,
-			s.id, s.outlet, s.name, s.role, hash, s.avatar, s.mobile, s.protected); err != nil {
-			return err
-		}
-	}
-
-	// Tables
-	tables := []struct {
-		id, num string
-		seats   int
-		floor   string
-	}{
-		{"t-01", "T01", 2, "Ground Floor"}, {"t-02", "T02", 4, "Ground Floor"},
-		{"t-03", "T03", 4, "Ground Floor"}, {"t-04", "T04", 6, "Ground Floor"},
-		{"t-05", "T05", 4, "Ground Floor"}, {"t-06", "T06", 4, "Ground Floor"},
-		{"t-07", "T07", 2, "First Floor"}, {"t-08", "T08", 6, "First Floor"},
-		{"t-09", "T09", 8, "First Floor"}, {"t-10", "T10", 4, "Outdoor"},
-		{"t-11", "T11", 2, "Outdoor"}, {"t-12", "T12", 4, "Outdoor"},
-	}
-	for _, t := range tables {
-		if _, err := st.DB.ExecContext(ctx, `INSERT INTO tables (id, outlet_id, table_number, seats, floor, status)
-			VALUES (?, 'out-01', ?, ?, ?, 'available') ON CONFLICT DO NOTHING`, t.id, t.num, t.seats, t.floor); err != nil {
-			return err
-		}
-	}
-
-	// Categories + menu with variants/modifiers
-	cats := []struct{ id, name string }{
-		{"cat-st", "Starters"}, {"cat-so", "Soups"}, {"cat-mc", "Main Course"},
-		{"cat-bi", "Biryani"}, {"cat-ch", "Chinese"}, {"cat-pz", "Pizza"},
-		{"cat-dr", "Drinks"}, {"cat-de", "Desserts"},
-	}
-	for i, c := range cats {
-		if _, err := st.DB.ExecContext(ctx, `INSERT INTO menu_categories (id, outlet_id, name, sort)
-			VALUES (?, 'out-01', ?, ?) ON CONFLICT DO NOTHING`, c.id, c.name, i); err != nil {
-			return err
-		}
-	}
-
-	menu := []struct {
-		id, cat, name, desc string
-		paise               int64
-		veg, best           bool
-		img                 string
-		variants            []struct {
-			name  string
-			paise int64
-		}
-		mods []struct {
-			name  string
-			multi bool
-			items []struct {
-				name  string
-				paise int64
-			}
-		}
-	}{
-		{"m-01", "cat-st", "Paneer Tikka", "Marinated cottage cheese char-grilled with capsicum & onions.", 28000, true, true,
-			"https://images.unsplash.com/photo-1599488615731-7e5c2823ff28?w=300",
-			nil,
-			[]struct {
-				name  string
-				multi bool
-				items []struct {
-					name  string
-					paise int64
-				}
-			}{
-				{"Spice Level", false, []struct {
-					name  string
-					paise int64
-				}{{"Medium Spicy", 0}, {"Extra Spicy", 0}, {"Mild / Jain", 0}}},
-				{"Add-ons", true, []struct {
-					name  string
-					paise int64
-				}{{"Extra Mint Chutney", 2000}, {"Laccha Onions", 1500}, {"Extra Butter Coat", 3000}}},
-			}},
-		{"m-02", "cat-st", "Chicken Tandoori", "Whole chicken cut pieces cured in aromatic tandoori masala.", 36000, false, true,
-			"https://images.unsplash.com/photo-1599488615731-7e5c2823ff28?w=300",
-			[]struct {
-				name  string
-				paise int64
-			}{{"Half (4 pcs)", 24000}, {"Full (8 pcs)", 42000}},
-			nil},
-		{"m-03", "cat-so", "Tomato Dhaniya Shorba", "Fresh plum tomato broth spiced with fresh coriander and cumin.", 16000, true, false,
-			"https://images.unsplash.com/photo-1547592166-23ac45744acd?w=300", nil, nil},
-		{"m-04", "cat-mc", "Butter Chicken", "Slow-cooked chicken pieces simmered in silky buttery tomato gravy.", 35000, false, true,
-			"https://images.unsplash.com/photo-1603894584373-5ac82b2ae398?w=300", nil, nil},
-		{"m-05", "cat-mc", "Dal Makhani", "Black lentils overnight slow cooked with butter and fresh cream.", 24000, true, true,
-			"https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=300", nil, nil},
-		{"m-06", "cat-mc", "Butter Naan", "Crisp, pillowy leavened flatbread brushed with salted butter.", 5000, true, false,
-			"https://images.unsplash.com/photo-1601050690597-df0568f70950?w=300", nil, nil},
-		{"m-07", "cat-bi", "Veg Dum Biryani", "Long grain basmati rice layered with garden vegetables and saffron.", 26000, true, false,
-			"https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=300", nil, nil},
-		{"m-08", "cat-bi", "Chicken Dum Biryani", "Hyderabadi style slow dum cooked aromatic chicken biryani.", 33000, false, true,
-			"https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=300", nil, nil},
-		{"m-09", "cat-pz", "Margherita Pizza", "Classic stone-baked sourdough with San Marzano tomatoes and mozzarella.", 19900, true, false,
-			"https://images.unsplash.com/photo-1604382354936-07c5d9983bd3?w=300",
-			[]struct {
-				name  string
-				paise int64
-			}{{"Regular", 19900}, {"Medium", 29900}, {"Large", 39900}},
-			[]struct {
-				name  string
-				multi bool
-				items []struct {
-					name  string
-					paise int64
-				}
-			}{
-				{"Extra Toppings", true, []struct {
-					name  string
-					paise int64
-				}{{"Extra Cheese", 5000}, {"Jalapeno", 3000}, {"Mushroom", 4000}, {"Black Olives", 3500}}},
-				{"Crust & Bake", false, []struct {
-					name  string
-					paise int64
-				}{{"Normal Bake", 0}, {"Well Done / Crispy", 0}}},
-			}},
-		{"m-10", "cat-ch", "Crispy Veg Chilli", "Crisp wok tossed exotic vegetables in dark garlic soya glaze.", 22000, true, false,
-			"https://images.unsplash.com/photo-1585032226651-759b368d7246?w=300", nil, nil},
-		{"m-11", "cat-dr", "Fresh Lime Soda", "Fresh squeezed lime with soda or water (Sweet/Salt/Mix).", 9000, true, false,
-			"https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?w=300", nil, nil},
-		{"m-12", "cat-de", "Gulab Jamun (2 Pcs)", "Warm golden milk dumplings soaked in fragrant cardamom rose syrup.", 11000, true, false,
-			"https://images.unsplash.com/photo-1541781774459-bb2af2f05b55?w=300", nil, nil},
-	}
-	for i, m := range menu {
-		if _, err := st.DB.ExecContext(ctx, `INSERT INTO menu_items (id, outlet_id, category_id, name, description, price_paise, is_veg, image_url, is_bestseller, is_available, sort)
-			VALUES (?, 'out-01', ?, ?, ?, ?, ?, ?, ?, 1, ?) ON CONFLICT DO NOTHING`,
-			m.id, m.cat, m.name, m.desc, m.paise, b2i(m.veg), m.img, b2i(m.best), i); err != nil {
-			return err
-		}
-		for vi, v := range m.variants {
-			if _, err := st.DB.ExecContext(ctx, `INSERT INTO product_variants (id, menu_item_id, name, price_paise)
-				VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING`, fmt.Sprintf("v-%s-%d", m.id, vi), m.id, v.name, v.paise); err != nil {
-				return err
-			}
-		}
-		for gi, g := range m.mods {
-			gid := fmt.Sprintf("mg-%s-%d", m.id, gi)
-			if _, err := st.DB.ExecContext(ctx, `INSERT INTO modifier_groups (id, menu_item_id, name, is_multi_select, is_required, sort)
-				VALUES (?, ?, ?, ?, 0, ?) ON CONFLICT DO NOTHING`, gid, m.id, g.name, b2i(g.multi), gi); err != nil {
-				return err
-			}
-			for ii, mi := range g.items {
-				if _, err := st.DB.ExecContext(ctx, `INSERT INTO modifier_items (id, group_id, name, price_paise, sort)
-					VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING`, fmt.Sprintf("mo-%s-%d-%d", m.id, gi, ii), gid, mi.name, mi.paise, ii); err != nil {
-					return err
-				}
-			}
-		}
-	}
-
-	// Settings
-	_, err = st.DB.ExecContext(ctx, `INSERT INTO settings (outlet_id, restaurant_name, gst_percent, is_gst_inclusive,
-		service_percent, packaging_paise, delivery_paise, auto_print_kot, allow_reprint, billing_printer, kitchen_printer, bar_printer, sections)
-		VALUES ('out-01', 'Spice Haven Resto & Bar', 5.0, 0, 5.0, 2500, 4000, 1, 1,
-		'EPSON TM-T88VI (Counter)', 'TVS RP3200 (Main Kitchen)', 'STAR Micronics (Bar Counter)', '["Ground Floor","First Floor","Outdoor"]') ON CONFLICT DO NOTHING`)
-	if err != nil {
-		return err
-	}
-
-	// Inventory
-	inv := []struct {
-		id, name, unit string
-		stock, min     float64
-		cost           int64
-	}{
-		{"inv-1", "Fresh Paneer", "KG", 18, 10, 32000},
-		{"inv-2", "Mozzarella Cheese", "KG", 4, 8, 45000},
-		{"inv-3", "Basmati Rice", "KG", 45, 25, 11000},
-		{"inv-4", "Chicken (Curry Cut)", "KG", 14, 10, 22000},
-		{"inv-5", "Cooking Butter", "KG", 3.5, 6, 52000},
-		{"inv-6", "Amul Fresh Cream", "Litre", 12, 5, 18000},
-	}
-	for _, i := range inv {
-		if _, err := st.DB.ExecContext(ctx, `INSERT INTO inventory_items (id, outlet_id, name, unit, stock, min_stock, cost_paise)
-			VALUES (?, 'out-01', ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING`, i.id, i.name, i.unit, i.stock, i.min, i.cost); err != nil {
-			return err
-		}
-	}
-
-	// Suppliers
-	sup := []struct {
-		id, name, mobile, cat string
-		outstanding           int64
-	}{
-		{"sup-1", "Metro Dairy Farms", "+91 98221 00112", "Dairy & Paneer", 450000},
-		{"sup-2", "Agro Fresh Poultry", "+91 98221 00223", "Chicken & Eggs", 280000},
-		{"sup-3", "Pune Wholesale Spices", "+91 98221 00334", "Groceries & Rice", 0},
-	}
-	for _, sp := range sup {
-		if _, err := st.DB.ExecContext(ctx, `INSERT INTO suppliers (id, outlet_id, name, mobile, category, outstanding)
-			VALUES (?, 'out-01', ?, ?, ?, ?) ON CONFLICT DO NOTHING`, sp.id, sp.name, sp.mobile, sp.cat, sp.outstanding); err != nil {
-			return err
-		}
-	}
-
-	// --- Clone catalog to out-02 (Kothrud) if empty — idempotent.
-	// Kothrud stays empty without this; re-seeding must not duplicate.
-	for _, t := range tables {
-		cloneID := t.id + "-02"
-		if _, err := st.DB.ExecContext(ctx, `INSERT INTO tables (id, outlet_id, table_number, seats, floor, status)
-			VALUES (?, 'out-02', ?, ?, ?, 'available') ON CONFLICT DO NOTHING`, cloneID, t.num, t.seats, t.floor); err != nil {
-			return err
-		}
-	}
-	catNameByID := map[string]string{}
-	for _, c := range cats {
-		catNameByID[c.id] = c.name
-	}
-	for i, c := range cats {
-		if _, err := st.CategoryID(ctx, "out-02", c.name); err != nil {
-			return err
-		}
-		// keep sort in sync with out-01 order
-		_, _ = st.DB.ExecContext(ctx, `UPDATE menu_categories SET sort = ? WHERE outlet_id = 'out-02' AND name = ?`, i, c.name)
-	}
-	for i, m := range menu {
-		catName := catNameByID[m.cat]
-		catID, err := st.CategoryID(ctx, "out-02", catName)
-		if err != nil {
-			return err
-		}
-		cloneID := m.id + "-02"
-		if _, err := st.DB.ExecContext(ctx, `INSERT INTO menu_items (id, outlet_id, category_id, name, description, price_paise, is_veg, image_url, is_bestseller, is_available, sort)
-			VALUES (?, 'out-02', ?, ?, ?, ?, ?, ?, ?, 1, ?) ON CONFLICT DO NOTHING`,
-			cloneID, catID, m.name, m.desc, m.paise, b2i(m.veg), m.img, b2i(m.best), i); err != nil {
-			return err
-		}
-		for vi, v := range m.variants {
-			if _, err := st.DB.ExecContext(ctx, `INSERT INTO product_variants (id, menu_item_id, name, price_paise)
-				VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING`, fmt.Sprintf("v-%s-%d", cloneID, vi), cloneID, v.name, v.paise); err != nil {
-				return err
-			}
-		}
-		for gi, g := range m.mods {
-			gid := fmt.Sprintf("mg-%s-%d", cloneID, gi)
-			if _, err := st.DB.ExecContext(ctx, `INSERT INTO modifier_groups (id, menu_item_id, name, is_multi_select, is_required, sort)
-				VALUES (?, ?, ?, ?, 0, ?) ON CONFLICT DO NOTHING`, gid, cloneID, g.name, b2i(g.multi), gi); err != nil {
-				return err
-			}
-			for ii, mi := range g.items {
-				if _, err := st.DB.ExecContext(ctx, `INSERT INTO modifier_items (id, group_id, name, price_paise, sort)
-					VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING`, fmt.Sprintf("mo-%s-%d-%d", cloneID, gi, ii), gid, mi.name, mi.paise, ii); err != nil {
-					return err
-				}
-			}
-		}
-	}
-	if _, err := st.DB.ExecContext(ctx, `INSERT INTO settings (outlet_id, restaurant_name, gst_percent, is_gst_inclusive,
-		service_percent, packaging_paise, delivery_paise, auto_print_kot, allow_reprint, billing_printer, kitchen_printer, bar_printer, sections)
-		VALUES ('out-02', 'Spice Haven Resto & Bar - Kothrud', 5.0, 0, 5.0, 2500, 4000, 1, 1,
-		'EPSON TM-T88VI (Counter)', 'TVS RP3200 (Main Kitchen)', 'STAR Micronics (Bar Counter)', '["Ground Floor","First Floor","Outdoor"]') ON CONFLICT DO NOTHING`); err != nil {
-		return err
-	}
-	for _, it := range inv {
-		cloneID := it.id + "-02"
-		if _, err := st.DB.ExecContext(ctx, `INSERT INTO inventory_items (id, outlet_id, name, unit, stock, min_stock, cost_paise)
-			VALUES (?, 'out-02', ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING`, cloneID, it.name, it.unit, it.stock, it.min, it.cost); err != nil {
-			return err
-		}
-	}
-	for _, sp := range sup {
-		cloneID := sp.id + "-02"
-		if _, err := st.DB.ExecContext(ctx, `INSERT INTO suppliers (id, outlet_id, name, mobile, category, outstanding)
-			VALUES (?, 'out-02', ?, ?, ?, ?) ON CONFLICT DO NOTHING`, cloneID, sp.name, sp.mobile, sp.cat, sp.outstanding); err != nil {
-			return err
-		}
-	}
-
-	// --- Green Candle outlet (out-green-candle) — idempotent, added through same seed path.
-	// Menu is added through the API layer semantics (CategoryID resolver + store inserts)
-	// but executed here as idempotent DB inserts so FOODPOS_SEED=1 makes GET /api/v1/menu?outlet_id=out-green-candle return 57 items.
-	if err := seedGreenCandle(st, mgr); err != nil {
-		return err
-	}
-	// Copy Green Candle catalog to Balawadi outlet (out-green-candle-balawadi) — idempotent.
-	// The outlet already exists (user: "there is already a outlet balwadi add just menu in that"), we just ensure menu is copied through the same API-equivalent inserts.
-	if err := seedGreenCandleBalawadi(st, mgr); err != nil {
-		return err
-	}
-	return nil
-}
-
-// seedGreenCandle ensures Hotel Green Candle outlet and its 57-item Page-1 menu exist.
-// It mirrors backend/scripts/seed_green_candle.go but is idempotent and runs as part of FOODPOS_SEED=1,
-// so the menu is available through the APIs (GET/POST /api/v1/menu?outlet_id=out-green-candle) after a single `make run-seed` restart.
-func seedGreenCandle(st *store.Store, mgr *auth.Manager) error {
-	ctx := context.Background()
-	outletID := "out-green-candle"
-	orgID := "org-01"
-	// Outlet
-	if _, err := st.DB.ExecContext(ctx, `INSERT INTO outlets (id, org_id, name, address, terminal, gstin, fssai, phone, is_online)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
-		ON CONFLICT (id) DO UPDATE SET org_id=EXCLUDED.org_id, name=EXCLUDED.name, address=EXCLUDED.address, terminal=EXCLUDED.terminal, gstin=EXCLUDED.gstin, fssai=EXCLUDED.fssai, phone=EXCLUDED.phone, is_online=1`,
-		outletID, orgID, "Hotel Green Candle", "Hotel Green Candle, Main Road, Maharashtra", "POS-GC-01", "27AAAAA0000A1Z5", "11521000000125", "+91 98765 43212"); err != nil {
-		return err
-	}
-	// Staff (manager 7777, cashier 4444, waiter 1212, kitchen 3434) — hashed
-	for _, s := range []struct{ id, name, role, pin string }{
-		{"st-gc-01", "Green Candle Manager", "manager", "7777"},
-		{"st-gc-02", "Green Candle Cashier", "cashier", "4444"},
-		{"st-gc-03", "Green Candle Waiter", "waiter", "1212"},
-		{"st-gc-04", "Green Candle Kitchen", "kitchen", "3434"},
-	} {
-		hash, err := mgr.HashPIN(s.pin)
-		if err != nil {
-			return err
-		}
-		if _, err := st.DB.ExecContext(ctx, `INSERT INTO staff (id, org_id, outlet_id, name, role, pin_hash, is_active, is_protected)
-			VALUES (?, ?, ?, ?, ?, ?, 1, 0)
-			ON CONFLICT (id) DO UPDATE SET pin_hash=EXCLUDED.pin_hash, name=EXCLUDED.name, role=EXCLUDED.role, outlet_id=EXCLUDED.outlet_id, is_active=1`,
-			s.id, orgID, outletID, s.name, s.role, hash); err != nil {
-			return err
-		}
-	}
-	// Settings
-	if _, err := st.DB.ExecContext(ctx, `INSERT INTO settings (outlet_id, restaurant_name, gst_percent, is_gst_inclusive, packaging_paise, delivery_paise, auto_print_kot, allow_reprint, sections)
-		VALUES (?, 'Hotel Green Candle', 5.0, 0, 0, 0, 1, 1, '["Ground Floor","First Floor","Outdoor"]')
-		ON CONFLICT (outlet_id) DO UPDATE SET restaurant_name=EXCLUDED.restaurant_name`, outletID); err != nil {
-		return err
-	}
-	// Tables GC-01..GC-12
-	for i := 1; i <= 12; i++ {
-		id := fmt.Sprintf("t-gc-%02d", i)
-		num := fmt.Sprintf("GC-%02d", i)
-		floor := "Ground Floor"
-		if i >= 6 && i <= 9 {
-			floor = "First Floor"
-		} else if i >= 10 {
-			floor = "Outdoor"
-		}
-		seats := 4
-		if i == 1 || i == 7 || i == 11 {
-			seats = 2
-		} else if i == 4 || i == 8 {
-			seats = 6
-		} else if i == 9 {
-			seats = 8
-		}
-		if _, err := st.DB.ExecContext(ctx, `INSERT INTO tables (id, outlet_id, table_number, seats, floor, status) VALUES (?, ?, ?, ?, ?, 'available') ON CONFLICT (id) DO NOTHING`, id, outletID, num, seats, floor); err != nil {
-			return err
-		}
-	}
-	// Menu from JSON — this is the "through the APIs" semantic: category via CategoryID resolver and menu via store-equivalent inserts.
-	// Try several relative paths so `go run ./cmd/server` works from backend/ or repo root.
-	paths := []string{"/root/food/assets/green_candle_menu.json", "../assets/green_candle_menu.json", "../../assets/green_candle_menu.json", "assets/green_candle_menu.json"}
-	var raw []byte
-	for _, p := range paths {
-		if b, err := os.ReadFile(p); err == nil {
-			raw = b
-			break
-		}
-	}
-	if raw == nil {
-		return nil // no JSON — outlet/staff still seeded
-	}
-	var items []struct {
-		LocalID      string `json:"local_id"`
-		CategoryID   string `json:"category_id"`
-		Name         string `json:"name"`
-		Description  string `json:"description"`
-		PricePaise   int64  `json:"price_paise"`
-		IsVeg        bool   `json:"is_veg"`
-		IsBestseller bool   `json:"is_bestseller"`
-		ImageURL     string `json:"image_url"`
-		Variants []struct {
-			Name       string `json:"name"`
-			PricePaise int64  `json:"price_paise"`
-		} `json:"variants"`
-	}
-	if err := json.Unmarshal(raw, &items); err != nil {
-		return nil
-	}
-	for _, it := range items {
-		catID, err := st.CategoryID(ctx, outletID, it.CategoryID)
-		if err != nil {
-			return err
-		}
-		// Check if already exists (idempotent)
-		var exists string
-		err = st.DB.QueryRowContext(ctx, `SELECT id FROM menu_items WHERE id = ?`, it.LocalID).Scan(&exists)
-		if err != nil && err != sql.ErrNoRows {
-			return err
-		}
-		if err == nil {
-			continue // already seeded
-		}
-		if _, err := st.DB.ExecContext(ctx, `INSERT INTO menu_items (id, outlet_id, category_id, name, description, price_paise, is_veg, image_url, is_bestseller, is_available) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1) ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name, description=EXCLUDED.description, price_paise=EXCLUDED.price_paise, is_veg=EXCLUDED.is_veg, image_url=EXCLUDED.image_url, is_bestseller=EXCLUDED.is_bestseller`,
-			it.LocalID, outletID, catID, it.Name, it.Description, it.PricePaise, b2i(it.IsVeg), it.ImageURL, b2i(it.IsBestseller)); err != nil {
-			return err
-		}
-		for _, v := range it.Variants {
-			vid := fmt.Sprintf("v-%s-%s", it.LocalID, v.Name)
-			// sanitize variant id (spaces)
-			vid = strings.ReplaceAll(vid, " ", "_")
-			if _, err := st.DB.ExecContext(ctx, `INSERT INTO product_variants (id, menu_item_id, name, price_paise) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING`, vid, it.LocalID, v.Name, v.PricePaise); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-// seedGreenCandleBalawadi copies the Green Candle catalog (out-green-candle) into the already-existing Balawadi outlet
-// (out-green-candle-balawadi). This is the "add just menu in that" copy — idempotent, through same DB/API-equivalent inserts.
-func seedGreenCandleBalawadi(st *store.Store, mgr *auth.Manager) error {
-	ctx := context.Background()
-	srcOutlet := "out-green-candle"
-	dstOutlet := "out-green-candle-balawadi"
-	orgID := "org-01"
-	// Ensure destination outlet exists (user says it already exists, but ensure idempotent)
-	if _, err := st.DB.ExecContext(ctx, `INSERT INTO outlets (id, org_id, name, address, terminal, gstin, fssai, phone, is_online)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
-		ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name, address=EXCLUDED.address, terminal=EXCLUDED.terminal`,
-		dstOutlet, orgID, "Hotel Green Candle - Balawadi", "Hotel Green Candle, Balawadi, Pune", "POS-GC-02", "27AAAAA0000A1Z5", "11521000000125", "+91 98765 43213"); err != nil {
-		return err
-	}
-	// Staff for Balawadi (copy pins)
-	for _, s := range []struct{ id, name, role, pin string }{
-		{"st-gc-bal-01", "Green Candle Balawadi Manager", "manager", "7777"},
-		{"st-gc-bal-02", "Green Candle Balawadi Cashier", "cashier", "4444"},
-		{"st-gc-bal-03", "Green Candle Balawadi Waiter", "waiter", "1212"},
-		{"st-gc-bal-04", "Green Candle Balawadi Kitchen", "kitchen", "3434"},
-	} {
-		hash, err := mgr.HashPIN(s.pin)
-		if err != nil {
-			return err
-		}
-		if _, err := st.DB.ExecContext(ctx, `INSERT INTO staff (id, org_id, outlet_id, name, role, pin_hash, is_active, is_protected)
-			VALUES (?, ?, ?, ?, ?, ?, 1, 0)
-			ON CONFLICT (id) DO UPDATE SET pin_hash=EXCLUDED.pin_hash, name=EXCLUDED.name, role=EXCLUDED.role, outlet_id=EXCLUDED.outlet_id`,
-			s.id, orgID, dstOutlet, s.name, s.role, hash); err != nil {
-			return err
-		}
-	}
-	if _, err := st.DB.ExecContext(ctx, `INSERT INTO settings (outlet_id, restaurant_name, gst_percent, is_gst_inclusive, packaging_paise, delivery_paise, auto_print_kot, allow_reprint, sections)
-		VALUES (?, 'Hotel Green Candle - Balawadi', 5.0, 0, 0, 0, 1, 1, '["Ground Floor","First Floor","Outdoor"]')
-		ON CONFLICT (outlet_id) DO NOTHING`, dstOutlet); err != nil {
-		return err
-	}
-	for i := 1; i <= 12; i++ {
-		id := fmt.Sprintf("t-gc-bal-%02d", i)
-		num := fmt.Sprintf("GC-BAL-%02d", i)
-		floor := "Ground Floor"
-		if i >= 6 && i <= 9 {
-			floor = "First Floor"
-		} else if i >= 10 {
-			floor = "Outdoor"
-		}
-		seats := 4
-		if i == 1 || i == 7 || i == 11 {
-			seats = 2
-		} else if i == 4 || i == 8 {
-			seats = 6
-		} else if i == 9 {
-			seats = 8
-		}
-		if _, err := st.DB.ExecContext(ctx, `INSERT INTO tables (id, outlet_id, table_number, seats, floor, status) VALUES (?, ?, ?, ?, ?, 'available') ON CONFLICT (id) DO NOTHING`, id, dstOutlet, num, seats, floor); err != nil {
-			return err
-		}
-	}
-	// Copy categories from src to dst (id + '-bal')
-	rows, err := st.DB.QueryContext(ctx, `SELECT id, name, sort FROM menu_categories WHERE outlet_id = ?`, srcOutlet)
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
-	type catRow struct{ id, name string; sort int }
-	var cats []catRow
-	for rows.Next() {
-		var c catRow
-		if err := rows.Scan(&c.id, &c.name, &c.sort); err != nil {
-			return err
-		}
-		cats = append(cats, c)
-	}
-	for _, c := range cats {
-		newID := c.id + "-bal"
-		if _, err := st.DB.ExecContext(ctx, `INSERT INTO menu_categories (id, outlet_id, name, sort) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING`, newID, dstOutlet, c.name, c.sort); err != nil {
-			return err
-		}
-	}
-	// Copy menu_items
-	mRows, err := st.DB.QueryContext(ctx, `SELECT id, category_id, name, description, price_paise, is_veg, image_url, is_bestseller, is_available, sort FROM menu_items WHERE outlet_id = ?`, srcOutlet)
-	if err != nil {
-		return err
-	}
-	defer mRows.Close()
-	type mRow struct {
-		id, cat, name, desc, img string
-		paise                    int64
-		veg, best, avail, sort   int
-	}
-	var mRowsList []mRow
-	for mRows.Next() {
-		var m mRow
-		if err := mRows.Scan(&m.id, &m.cat, &m.name, &m.desc, &m.paise, &m.veg, &m.img, &m.best, &m.avail, &m.sort); err != nil {
-			return err
-		}
-		mRowsList = append(mRowsList, m)
-	}
-	for _, m := range mRowsList {
-		newID := m.id + "-bal"
-		newCat := m.cat + "-bal"
-		if _, err := st.DB.ExecContext(ctx, `INSERT INTO menu_items (id, outlet_id, category_id, name, description, price_paise, is_veg, image_url, is_bestseller, is_available, sort)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING`, newID, dstOutlet, newCat, m.name, m.desc, m.paise, m.veg, m.img, m.best, m.avail, m.sort); err != nil {
-			return err
-		}
-	}
-	// Copy variants
-	vRows, err := st.DB.QueryContext(ctx, `SELECT id, menu_item_id, name, price_paise FROM product_variants WHERE menu_item_id IN (SELECT id FROM menu_items WHERE outlet_id = ?)`, srcOutlet)
-	if err != nil {
-		return err
-	}
-	defer vRows.Close()
-	for vRows.Next() {
-		var vid, mid, name string
-		var paise int64
-		if err := vRows.Scan(&vid, &mid, &name, &paise); err != nil {
-			return err
-		}
-		newVID := vid + "-bal"
-		newMID := mid + "-bal"
-		if _, err := st.DB.ExecContext(ctx, `INSERT INTO product_variants (id, menu_item_id, name, price_paise) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING`, newVID, newMID, name, paise); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func b2i(b bool) int {
-	if b {
-		return 1
-	}
-	return 0
-}
-
-// ensureDefaultTenant seeds the pro plan and guarantees org-01 has an active
-// subscription (the demo org doubles as the default single-tenant dataset).
-func ensureDefaultTenant(st *store.Store) error {
-	ctx := context.Background()
-	if err := st.SeedDefaultPlans(ctx); err != nil {
-		return err
-	}
-	plan, err := st.GetPlanByCode(ctx, "pro")
-	if err != nil {
-		return err
-	}
-	if _, err := st.GetOrganization(ctx, "org-01"); err != nil {
-		return nil // no legacy org (fresh SaaS-only install) — nothing to do
-	}
-	sub, err := st.GetSubscription(ctx, "org-01")
-	if err == nil && sub != nil {
-		return nil // already has a subscription
-	}
-	now := time.Now().UTC()
-	start, end := now, now.AddDate(0, 0, 30)
-	if err := st.UpsertSubscription(ctx, &models.OrgSubscription{
-		OrgID: "org-01", PlanID: plan.ID, Status: models.SubActive,
-		CurrentPeriodStart: &start, CurrentPeriodEnd: &end,
-	}); err != nil {
-		return err
-	}
-	return st.SetOrgStatus(ctx, "org-01", models.OrgActive)
 }
 
 // ensureSuperAdmin creates the platform admin from FOODPOS_SUPERADMIN_EMAIL /

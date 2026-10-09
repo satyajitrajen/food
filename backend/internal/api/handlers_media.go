@@ -18,11 +18,13 @@ import (
 	"foodpos/backend/internal/store"
 )
 
+// imageExts maps SNIFFED content types to the stored extension. The part's
+// declared Content-Type and filename are never trusted: an HTML/SVG payload
+// labelled image/png would otherwise be served back from /media.
 var imageExts = map[string]string{
 	"image/jpeg": ".jpg",
 	"image/png":  ".png",
 	"image/webp": ".webp",
-	"image/gif":  ".gif",
 }
 
 const maxImageBytes = 5 << 20 // 5 MB
@@ -37,41 +39,29 @@ func (s *Server) handleUploadMenuImage(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorJSON(w, r, httpx.NewError(400, "bad_upload", "Expected a multipart form with a file field named 'file'"))
 		return
 	}
-	file, header, err := r.FormFile("file")
+	file, _, err := r.FormFile("file")
 	if err != nil {
 		httpx.ErrorJSON(w, r, httpx.NewError(400, "bad_upload", "Missing file field 'file'"))
 		return
 	}
 	defer file.Close()
 
-	contentType := strings.ToLower(header.Header.Get("Content-Type"))
-	ext, ok := imageExts[strings.TrimSpace(strings.Split(contentType, ";")[0])]
-	if !ok {
-		// Some clients (Go's multipart writer, some CLIs) omit the part's
-		// Content-Type — detect the type from the actual bytes instead of
-		// trusting the header alone.
-		if sk, canSeek := file.(io.ReadSeeker); canSeek {
-			head := make([]byte, 512)
-			n, _ := io.ReadFull(sk, head)
-			if _, err := sk.Seek(0, io.SeekStart); err == nil {
-				if sniffed, ok2 := imageExts[http.DetectContentType(head[:n])]; ok2 {
-					ext, ok = sniffed, true
-				}
-			}
-		}
-	}
-	if !ok {
-		httpx.ErrorJSON(w, r, httpx.NewError(400, "bad_type", "Only JPEG, PNG, WebP or GIF images are allowed"))
-		return
-	}
-
-	data, err := io.ReadAll(io.LimitReader(file, maxImageBytes))
+	data, err := io.ReadAll(io.LimitReader(file, maxImageBytes+1))
 	if err != nil {
 		httpx.ErrorJSON(w, r, httpx.NewError(400, "read_failed", "Could not read the uploaded file"))
 		return
 	}
 	if len(data) == 0 {
 		httpx.ErrorJSON(w, r, httpx.NewError(400, "empty_file", "Uploaded file is empty"))
+		return
+	}
+	if len(data) > maxImageBytes {
+		httpx.ErrorJSON(w, r, httpx.NewError(413, "too_large", "Images must be 5 MB or smaller"))
+		return
+	}
+	ext, ok := imageExts[http.DetectContentType(data)]
+	if !ok {
+		httpx.ErrorJSON(w, r, httpx.NewError(400, "bad_type", "Only JPEG, PNG or WebP images are allowed"))
 		return
 	}
 
@@ -88,4 +78,32 @@ func (s *Server) handleUploadMenuImage(w http.ResponseWriter, r *http.Request) {
 
 	imageURL := "/media/menu/" + name
 	httpx.JSON(w, http.StatusOK, map[string]any{"image_url": imageURL})
+}
+
+// mediaHandler serves uploaded files without directory listings: any path
+// that resolves to a directory is a 404, and responses are nosniff.
+func mediaHandler(dir string) http.Handler {
+	fs := http.FileServer(noDirFS{http.Dir(dir)})
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/") {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		fs.ServeHTTP(w, r)
+	})
+}
+
+type noDirFS struct{ fs http.FileSystem }
+
+func (n noDirFS) Open(name string) (http.File, error) {
+	f, err := n.fs.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	if st, err := f.Stat(); err != nil || st.IsDir() {
+		_ = f.Close()
+		return nil, os.ErrNotExist
+	}
+	return f, nil
 }

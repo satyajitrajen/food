@@ -203,7 +203,7 @@ func (s *Server) handleAdminActivate(w http.ResponseWriter, r *http.Request) {
 		if org, oerr := s.Store.GetOrganization(r.Context(), orgID); oerr == nil {
 			period := fmt.Sprintf("%s to %s", timeStr(inv.PeriodStart), timeStr(inv.PeriodEnd))
 			go func() {
-				_ = sender.Send(org.Email, "FoodPOS payment receipt",
+				_ = sender.Send(org.Email, mail.Brand+" payment receipt",
 					mail.Receipt(org.Name, inv.InvoiceNo, inv.GrossPaise, period))
 			}()
 		}

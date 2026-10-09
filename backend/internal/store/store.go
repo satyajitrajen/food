@@ -8,6 +8,10 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"time"
+
+	_ "time/tzdata" // outlet timezones resolve on minimal images too
+
+	"foodpos/backend/internal/db"
 )
 
 type Store struct {
@@ -15,6 +19,14 @@ type Store struct {
 }
 
 func New(db *sql.DB) *Store { return &Store{DB: db} }
+
+// Querier is satisfied by *sql.DB and *sql.Tx so helpers can run either
+// standalone or inside a caller's transaction.
+type Querier interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
 
 // NewID returns a sortable prefixed id: <prefix>-<unixmicros>-<rand4>.
 func NewID(prefix string) string {
@@ -31,8 +43,11 @@ func randHex(n int) string {
 
 func Now() time.Time { return time.Now().UTC() }
 
-func TimeStr(t time.Time) string { return t.UTC().Format(time.RFC3339Nano) }
+// TimeStr formats a timestamp for TEXT storage: fixed-width UTC (see
+// db.TimeLayout) so string comparison is chronological.
+func TimeStr(t time.Time) string { return t.UTC().Format(db.TimeLayout) }
 
+// ParseTime accepts both the fixed-width layout and legacy RFC3339Nano rows.
 func ParseTime(s string) time.Time {
 	t, err := time.Parse(time.RFC3339Nano, s)
 	if err != nil {
@@ -41,18 +56,29 @@ func ParseTime(s string) time.Time {
 	return t
 }
 
-// NextCounter increments and returns the named counter for an outlet.
-func (s *Store) NextCounter(ctx context.Context, outletID, kind string) (int, error) {
-	var v int
-	err := s.DB.QueryRowContext(ctx, `SELECT value FROM counters WHERE outlet_id = ? AND kind = ?`, outletID, kind).Scan(&v)
-	switch {
-	case err == sql.ErrNoRows:
-		_, err = s.DB.ExecContext(ctx, `INSERT INTO counters (outlet_id, kind, value) VALUES (?, ?, 1)`, outletID, kind)
-		return 1, err
-	case err != nil:
-		return 0, err
+// NextCounter atomically increments and returns the named counter for an
+// outlet. Pass a *sql.Tx as q to roll the increment back with the caller's
+// transaction (nil uses the pool).
+func (s *Store) NextCounter(ctx context.Context, q Querier, outletID, kind string) (int, error) {
+	if q == nil {
+		q = s.DB
 	}
-	v++
-	_, err = s.DB.ExecContext(ctx, `UPDATE counters SET value = ? WHERE outlet_id = ? AND kind = ?`, v, outletID, kind)
+	var v int
+	err := q.QueryRowContext(ctx, `INSERT INTO counters (outlet_id, kind, value) VALUES (?, ?, 1)
+		ON CONFLICT (outlet_id, kind) DO UPDATE SET value = counters.value + 1
+		RETURNING value`, outletID, kind).Scan(&v)
 	return v, err
+}
+
+// withTx runs fn inside a transaction, committing on nil error.
+func (s *Store) withTx(ctx context.Context, fn func(tx *sql.Tx) error) error {
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if err := fn(tx); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
