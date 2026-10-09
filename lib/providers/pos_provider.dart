@@ -2770,15 +2770,14 @@ class PosProvider extends ChangeNotifier {
     _rangeReportLoading = true;
     notifyListeners();
     try {
+      // Date-only bounds: the server counts business days in the outlet's
+      // time zone (inclusive of the end date).
+      String ymd(DateTime d) =>
+          '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
       final q = {
         'outlet_id': _currentOutlet.id,
-        'from': DateTime(range.start.year, range.start.month, range.start.day)
-            .toUtc()
-            .toIso8601String(),
-        'to': DateTime(range.end.year, range.end.month, range.end.day, 23, 59,
-                59, 999)
-            .toUtc()
-            .toIso8601String(),
+        'from': ymd(range.start),
+        'to': ymd(range.end),
       };
       final rep = await _tryRead('/api/v1/reports/dashboard', q);
       if (rep is Map) {

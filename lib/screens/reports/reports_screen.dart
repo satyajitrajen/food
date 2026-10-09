@@ -47,23 +47,25 @@ class _ReportsScreenState extends State<ReportsScreen> {
   /// Calendar range backing the selected period chip — used both for local
   /// date math and as the server request key.
   DateTimeRange get _effectiveRange {
+    // Whole calendar days (no time of day), so the same selection produces
+    // the same key all day long and the cached server report is reused.
     final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    DateTime day(DateTime d) => DateTime(d.year, d.month, d.day);
     switch (_period) {
       case '7D':
-        return DateTimeRange(
-            start: now.subtract(const Duration(days: 7)), end: now);
+        return DateTimeRange(start: today.subtract(const Duration(days: 6)), end: today);
       case '30D':
-        return DateTimeRange(
-            start: now.subtract(const Duration(days: 30)), end: now);
+        return DateTimeRange(start: today.subtract(const Duration(days: 29)), end: today);
       case 'All':
-        return DateTimeRange(start: DateTime(2000), end: now);
+        return DateTimeRange(start: DateTime(2000), end: today);
       case 'Custom':
-        return _customRange ??
-            DateTimeRange(
-                start: now.subtract(const Duration(days: 7)), end: now);
+        final r = _customRange;
+        return r == null
+            ? DateTimeRange(start: today.subtract(const Duration(days: 6)), end: today)
+            : DateTimeRange(start: day(r.start), end: day(r.end));
       default:
-        return DateTimeRange(
-            start: DateTime(now.year, now.month, now.day), end: now);
+        return DateTimeRange(start: today, end: today);
     }
   }
 
