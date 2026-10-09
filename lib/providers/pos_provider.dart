@@ -93,6 +93,36 @@ class PosProvider extends ChangeNotifier {
       _menuItems.clear();
     }
     _seedData();
+    // Clone Green Candle menu for Balawadi outlet (offline) — same 57 items, different outletId.
+    // Backend copy is done via SQL/API; this keeps offline demo consistent.
+    final balawadiExists = _outlets.any((o) => o.id == 'out-green-candle-balawadi');
+    final hasBalMenu = _menuItems.any((m) => m.outletId == 'out-green-candle-balawadi');
+    if (balawadiExists && !hasBalMenu) {
+      final gcItems = _menuItems.where((m) => m.outletId == 'out-green-candle').toList();
+      for (final m in gcItems) {
+        _menuItems.add(MenuItem(
+          id: '${m.id}-bal',
+          outletId: 'out-green-candle-balawadi',
+          name: m.name,
+          category: m.category,
+          price: m.price,
+          isVeg: m.isVeg,
+          imageUrl: m.imageUrl,
+          description: m.description,
+          variants: m.variants.map((v) => ProductVariant(id: '${v.id}-bal', name: v.name, price: v.price)).toList(),
+          modifierGroups: m.modifierGroups.map((g) => ModifierGroup(
+                id: '${g.id}-bal',
+                name: g.name,
+                isMultiSelect: g.isMultiSelect,
+                isRequired: g.isRequired,
+                items: g.items.map((i) => ModifierItem(id: '${i.id}-bal', name: i.name, price: i.price)).toList(),
+              )).toList(),
+          isBestseller: m.isBestseller,
+          isAvailable: m.isAvailable,
+        ));
+      }
+      // Also copy Balawadi menu to the existing generic Balawadi outlet (out-a23f) if present in DB but not in provider's outlet list — handled via backend API hydration.
+    }
   }
 
   void _persistSession(AuthSession? session) {
@@ -140,11 +170,31 @@ class PosProvider extends ChangeNotifier {
     });
   }
 
+  /// Public retry for the menu/catalog hydrate. Covers the real case where
+  /// the login-time [hydrateOutlet] fails (transient network) and never
+  /// retries — UI can call this on pull-to-refresh or after a failed login
+  /// hydrate. Idempotent and safe to call repeatedly.
+  Future<void> refreshMenu() async {
+    if (!apiEnabled || _api == null) return;
+    await _sync?.probe();
+    if (!(_sync?.online ?? false)) {
+      _lastSyncError = 'Server unreachable — using cached data';
+      notifyListeners();
+      return;
+    }
+    _hydrating = false;
+    await hydrateOutlet();
+    if (_menuItems.isEmpty && (_sync?.online ?? false)) {
+      await Future.delayed(const Duration(seconds: 1));
+      _hydrating = false;
+      await hydrateOutlet();
+    }
+  }
+
   Future<void> _postLoginSync() async {
     if (!apiEnabled) return;
-    await _sync!.probe();
+    await refreshMenu();
     if (_sync!.online) {
-      await hydrateOutlet();
       final token = PushNotificationService.instance.fcmToken;
       if (token != null && token.isNotEmpty && _api != null) {
         unawaited(_api!.registerDeviceToken(token));
@@ -1483,6 +1533,16 @@ class PosProvider extends ChangeNotifier {
       fssai: '11521000000125',
       phone: '+91 98765 43212',
     ),
+    Outlet(
+      id: 'out-green-candle-balawadi',
+      name: 'Hotel Green Candle - Balawadi',
+      address: 'Hotel Green Candle, Balawadi, Pune',
+      terminal: 'POS-GC-02',
+      isOnline: true,
+      gstin: '27AAAAA0000A1Z5',
+      fssai: '11521000000125',
+      phone: '+91 98765 43213',
+    ),
   ];
   List<Outlet> get outlets => _outlets;
 
@@ -1608,6 +1668,43 @@ class PosProvider extends ChangeNotifier {
       pin: '3434',
       avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100',
       mobile: '+91 98220 74567',
+    ),
+    // out-green-candle-balawadi (copy of Green Candle for Balawadi)
+    Staff(
+      id: 'st-gc-bal-01',
+      outletId: 'out-green-candle-balawadi',
+      name: 'Green Candle Balawadi Manager',
+      role: StaffRole.manager,
+      pin: '7777',
+      avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100',
+      mobile: '+91 98220 81234',
+    ),
+    Staff(
+      id: 'st-gc-bal-02',
+      outletId: 'out-green-candle-balawadi',
+      name: 'Green Candle Balawadi Cashier',
+      role: StaffRole.cashier,
+      pin: '4444',
+      avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100',
+      mobile: '+91 98220 82345',
+    ),
+    Staff(
+      id: 'st-gc-bal-03',
+      outletId: 'out-green-candle-balawadi',
+      name: 'Green Candle Balawadi Waiter',
+      role: StaffRole.waiter,
+      pin: '1212',
+      avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100',
+      mobile: '+91 98220 83456',
+    ),
+    Staff(
+      id: 'st-gc-bal-04',
+      outletId: 'out-green-candle-balawadi',
+      name: 'Green Candle Balawadi Kitchen',
+      role: StaffRole.kitchen,
+      pin: '3434',
+      avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100',
+      mobile: '+91 98220 84567',
     ),
   ];
   List<Staff> get staffList => List.unmodifiable(_staffList);
