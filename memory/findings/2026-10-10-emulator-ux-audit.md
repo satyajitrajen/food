@@ -17,7 +17,7 @@ locations verified in source. Fixes follow the approved plan
 | UX-09 | LOW | Cash | "1 entries" grammar in Cash In/Out Log | cash_drawer_screen.dart:146 | fixed |
 | UX-10 | HIGH | Inventory | Record Purchase never updates ingredient stock locally despite "Items received (updates stock):" label (backend applies stock; local mirror missing) | pos_provider.dart:3160-3197 | fixed |
 | UX-11 | MED | Staff | Add Staff empty submit silently returns (bare guard, no feedback) | staff_admin_screen.dart:472 | open |
-| UX-12 | MED | Reports | Staff Performance lists all orders under "Unassigned" — only waiter-role creators attributed | pos_provider.dart:2014-2015,1749-1750 | open |
+| UX-12 | MED | Reports | Staff Performance lists all orders under "Unassigned" — only waiter-role creators attributed | pos_provider.dart:2014-2015,1749-1750 | fixed |
 | UX-13 | MED | Reports | Expense total + estimated profit shown unfiltered when order-type filter yields 0 orders (expenses not attributable by type) | reports_screen.dart:239-249,356-401 | open |
 | UX-14 | MED | Tables | Add Table empty submit silent no-op | settings_screen.dart:927 | open |
 | UX-15 | MED | More hub | Waiter role gets completely empty More tab (0 tiles) | more_hub_screen.dart:35-37 | open |

@@ -1746,8 +1746,8 @@ class PosProvider extends ChangeNotifier {
 
   RestaurantOrder _createNewOrderForTable(RestaurantTable table) {
     _orderCounter++;
-    final waiterId = _currentStaff?.role == StaffRole.waiter ? _currentStaff?.id : null;
-    final waiterName = table.assignedWaiter ?? (_currentStaff?.role == StaffRole.waiter ? _currentStaff?.name : null);
+    final waiterId = _currentStaff?.id;
+    final waiterName = table.assignedWaiter ?? _currentStaff?.name;
     if (table.assignedWaiter == null && _currentStaff?.role == StaffRole.waiter) {
       table.assignedWaiter = _currentStaff?.name;
     }
@@ -2011,8 +2011,8 @@ class PosProvider extends ChangeNotifier {
       customerName: customerName,
       customerPhone: customerPhone,
       deliveryAddress: address,
-      waiterId: _currentStaff?.role == StaffRole.waiter ? _currentStaff?.id : null,
-      waiterName: _currentStaff?.role == StaffRole.waiter ? _currentStaff?.name : null,
+      waiterId: _currentStaff?.id,
+      waiterName: _currentStaff?.name,
       items: [],
       taxPercent: _settings.gstPercentage,
       isTaxInclusive: _settings.isGstInclusive,

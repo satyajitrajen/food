@@ -162,6 +162,23 @@ void main() {
       );
     });
 
+    test('Orders are attributed to the logged-in staff regardless of role', () async {
+      final provider = fixtureProvider();
+      // Priya is a manager: billing is attributed to her, not left unassigned.
+      expect(await provider.loginStaffById('st-02', '9999'), isTrue);
+
+      provider.startNewOrder(OrderType.takeaway);
+      expect(provider.activeOrder!.waiterId, 'st-02');
+      expect(provider.activeOrder!.waiterName, 'Priya Joshi');
+
+      // Table path: creator attribution with an assigned-waiter override.
+      final table = provider.tables.firstWhere((t) => t.tableNumber == 'T02');
+      table.assignedWaiter = 'Amit Deshmukh';
+      provider.selectTable(table);
+      expect(provider.activeOrder!.waiterId, 'st-02');
+      expect(provider.activeOrder!.waiterName, 'Amit Deshmukh');
+    });
+
     test('Cash Drawer Expected Cash formula calculates correctly', () {
       final shift = Shift(
         id: 'SH-test',
