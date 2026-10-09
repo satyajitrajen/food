@@ -6,7 +6,7 @@
 // translates at the driver boundary:
 //   - `?` placeholders → $1, $2, ... (outside string literals)
 //   - LIKE → ILIKE (SQLite LIKE is case-insensitive for ASCII)
-//   - time.Time args → RFC3339Nano strings (matches store.TimeStr)
+//   - time.Time args → fixed-width UTC strings (TimeLayout, matches store.TimeStr)
 //   - bool args → int64 0/1 (matches INTEGER columns)
 package db
 
@@ -27,6 +27,12 @@ import (
 
 //go:embed migrations/*.sql
 var migrationFS embed.FS
+
+// TimeLayout is the canonical TEXT timestamp format: fixed-width UTC with
+// microseconds, so lexical comparison of stored values equals chronological
+// order (RFC3339Nano trims trailing zeros and is variable width). Readers
+// parse with time.RFC3339Nano, which accepts both this and legacy values.
+const TimeLayout = "2006-01-02T15:04:05.000000Z"
 
 // Open connects to the PostgreSQL database using the given DSN.
 func Open(dsn string) (*sql.DB, error) {
@@ -155,14 +161,14 @@ func isSQLWordByte(b byte) bool {
 	return b == '_' || (b >= '0' && b <= '9') || (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z')
 }
 
-// Coerce converts time.Time args to RFC3339Nano strings and bools to int64
+// Coerce converts time.Time args to TimeLayout strings and bools to int64
 // so TEXT-timestamp / INTEGER-boolean columns behave like they did on SQLite.
 func Coerce(args []driver.NamedValue) []driver.NamedValue {
 	changed := false
 	for i := range args {
 		switch v := args[i].Value.(type) {
 		case time.Time:
-			args[i].Value = v.UTC().Format(time.RFC3339Nano)
+			args[i].Value = v.UTC().Format(TimeLayout)
 			changed = true
 		case bool:
 			if v {
@@ -185,7 +191,7 @@ func coerceValues(args []driver.Value) []driver.Value {
 	for i, v := range args {
 		switch t := v.(type) {
 		case time.Time:
-			args[i] = t.UTC().Format(time.RFC3339Nano)
+			args[i] = t.UTC().Format(TimeLayout)
 		case bool:
 			if t {
 				args[i] = int64(1)

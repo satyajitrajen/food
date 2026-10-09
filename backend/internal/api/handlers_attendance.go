@@ -67,8 +67,13 @@ func (s *Server) handleListAttendance(w http.ResponseWriter, r *http.Request) {
 	default:
 		staffID = c.ActorID
 	}
-	entries, err := s.Store.ListAttendance(r.Context(), c.OrgID, staffID,
-		r.URL.Query().Get("from"), r.URL.Query().Get("to"), queryInt(r, "limit", 200))
+	// Date-only bounds are calendar days in the caller's outlet timezone.
+	from, to, err := parseRangeParams(r, s.Store.OutletLocation(r.Context(), c.OutletID))
+	if err != nil {
+		httpx.ErrorJSON(w, r, err)
+		return
+	}
+	entries, err := s.Store.ListAttendance(r.Context(), c.OrgID, staffID, from, to, queryInt(r, "limit", 200))
 	if err != nil {
 		httpx.ErrorJSON(w, r, err)
 		return

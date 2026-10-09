@@ -16,7 +16,32 @@ type Outlet struct {
 	GSTIN    string `json:"gstin"`
 	FSSAI    string `json:"fssai"`
 	Phone    string `json:"phone"`
+	Email    string `json:"email"`
+	// Timezone is an IANA zone name; report "today"/date ranges use it.
+	Timezone string `json:"timezone"`
 	IsOnline bool   `json:"is_online"`
+}
+
+// OutletPatch is a partial outlet update (PATCH /outlets/{id}, manager+).
+// Strings are trimmed; timezone must be a loadable IANA zone.
+type OutletPatch struct {
+	Name     *string `json:"name,omitempty"`
+	Address  *string `json:"address,omitempty"`
+	Phone    *string `json:"phone,omitempty"`
+	Email    *string `json:"email,omitempty"`
+	GSTIN    *string `json:"gstin,omitempty"`
+	FSSAI    *string `json:"fssai,omitempty"`
+	Timezone *string `json:"timezone,omitempty"`
+}
+
+// PublicStaff is the pre-login roster entry (PIN screen): no contact data.
+// outlet_id lets a terminal show only staff who may sign in to its outlet.
+type PublicStaff struct {
+	ID        string  `json:"id"`
+	Name      string  `json:"name"`
+	Role      string  `json:"role"`
+	AvatarURL string  `json:"avatar_url"`
+	OutletID  *string `json:"outlet_id"`
 }
 
 type Staff struct {
@@ -127,6 +152,8 @@ type MenuItem struct {
 	Sort           int              `json:"sort,omitempty"`
 	Variants       []ProductVariant `json:"variants"`
 	ModifierGroups []ModifierGroup  `json:"modifier_groups"`
+	// IsDeleted marks a soft-deleted item (kept for order history FKs).
+	IsDeleted bool `json:"-"`
 }
 
 type MenuItemUpsert struct {
@@ -162,8 +189,12 @@ type OrderItem struct {
 	IsKOTSent    bool            `json:"is_kot_sent"`
 	IsCancelled  bool            `json:"is_cancelled"`
 	CancelReason *string         `json:"cancel_reason"`
-	Name         string          `json:"name"`
-	Modifiers    []OrderModifier `json:"modifiers"`
+	// Name/VariantName/IsVeg are snapshotted when the line is added, so a
+	// later menu rename or delete never rewrites a bill.
+	Name        string          `json:"name"`
+	VariantName *string         `json:"variant_name"`
+	IsVeg       bool            `json:"is_veg"`
+	Modifiers   []OrderModifier `json:"modifiers"`
 }
 
 type Order struct {
@@ -172,7 +203,7 @@ type Order struct {
 	OutletID        string      `json:"outlet_id"`
 	OrderNumber     string      `json:"order_number"`
 	Type            string      `json:"type"`   // dine_in|takeaway|delivery
-	Status          string      `json:"status"` // received|preparing|ready|served|billing|completed|cancelled
+	Status          string      `json:"status"` // received|preparing|ready|served|billing|completed|cancelled|refunded
 	TableID         *string     `json:"table_id"`
 	TableNumber     *string     `json:"table_number"`
 	CustomerName    *string     `json:"customer_name"`
@@ -190,14 +221,22 @@ type Order struct {
 	IsTaxInclusive  bool        `json:"is_tax_inclusive"`
 	TaxPaise        int64       `json:"tax_paise"`
 	ServicePaise    int64       `json:"service_charge_paise"`
+	// ServicePercent > 0 derives ServicePaise from the discounted net on every
+	// billing pass (default from settings on dine-in); a flat
+	// service_charge_paise PATCH clears it.
+	ServicePercent  float64     `json:"service_percent"`
 	PackagingPaise  int64       `json:"packaging_charge_paise"`
 	DeliveryPaise   int64       `json:"delivery_charge_paise"`
 	GrandTotalPaise int64       `json:"grand_total_paise"`
 	InvoiceNumber   *string     `json:"invoice_number"`
 	PaidAt          *time.Time  `json:"paid_at"`
-	PaymentMethod   *string     `json:"payment_method"`
+	PaymentMethod   *string     `json:"payment_method"` // cash|upi|card|credit
+	PaymentRef      *string     `json:"payment_reference"`
+	CustomerID      *string     `json:"customer_id"`
 	PaidPaise       int64       `json:"paid_paise"`
 	ChangePaise     int64       `json:"change_paise"`
+	// RefundedPaise is the cumulative refunded amount (≤ grand total).
+	RefundedPaise   int64       `json:"refunded_paise"`
 	IdempotencyKey  *string     `json:"-"`
 	CreatedAt       time.Time   `json:"created_at"`
 	UpdatedAt       time.Time   `json:"updated_at"`
@@ -244,6 +283,7 @@ type OrderPatch struct {
 	DiscountPaise   *int64   `json:"discount_paise,omitempty"`
 	DiscountReason  *string  `json:"discount_reason,omitempty"`
 	ServicePaise    *int64   `json:"service_charge_paise,omitempty"`
+	ServicePercent  *float64 `json:"service_percent,omitempty"`
 	PackagingPaise  *int64   `json:"packaging_charge_paise,omitempty"`
 	DeliveryPaise   *int64   `json:"delivery_charge_paise,omitempty"`
 	// FR-A3: manager authorization for discounts above threshold.
@@ -280,6 +320,11 @@ type KOTItem struct {
 	IsVeg       bool   `json:"is_veg"`
 }
 
+// KOTStatusPatch is the body of PATCH /kots/{id}.
+type KOTStatusPatch struct {
+	Status string `json:"status"`
+}
+
 // ---- Payments ----
 
 type PaymentSplit struct {
@@ -288,10 +333,27 @@ type PaymentSplit struct {
 }
 
 type PaymentReq struct {
-	Method    string         `json:"method"` // cash|upi|card
+	Method    string         `json:"method"` // cash|upi|card|credit
 	Received  int64          `json:"amount_received_paise"`
 	Splits    []PaymentSplit `json:"splits,omitempty"`
 	Reference *string        `json:"reference,omitempty"`
+	// CustomerID attaches the bill to a customer of this outlet (required
+	// for method "credit", which books the total to their outstanding).
+	CustomerID *string `json:"customer_id,omitempty"`
+}
+
+// Refund is one row of the refund ledger (POST /orders/{id}/refund).
+type Refund struct {
+	ID        string    `json:"id"`
+	OutletID  string    `json:"outlet_id"`
+	OrderID   string    `json:"order_id"`
+	Amount    int64     `json:"amount_paise"`
+	Mode      string    `json:"mode"`
+	Reason    string    `json:"reason"`
+	StaffID   *string   `json:"staff_id"`
+	StaffName *string   `json:"staff_name"`
+	ShiftID   *string   `json:"shift_id"`
+	Ts        time.Time `json:"ts"`
 }
 
 type RefundReq struct {
@@ -312,6 +374,8 @@ type CashDenominations struct {
 	D50  int `json:"d50"`
 	D20  int `json:"d20"`
 	D10  int `json:"d10"`
+	// CoinsPaise is the loose-coin total (not counted by denomination).
+	CoinsPaise int64 `json:"coins_paise"`
 }
 
 type Shift struct {
@@ -484,6 +548,11 @@ type PurchaseCreate struct {
 	Items       []PurchaseLine `json:"items,omitempty"`
 }
 
+// PurchasePatch is the body of PATCH /purchases/{id} (pending → paid).
+type PurchasePatch struct {
+	Status string `json:"status"`
+}
+
 type Purchase struct {
 	ID           string         `json:"id"`
 	OutletID     string         `json:"outlet_id"`
@@ -573,24 +642,47 @@ type Settings struct {
 	UPIQrImage string `json:"upi_qr_image"`
 }
 
+// DashboardReport aggregates orders paid in [from, to) (default: today in the
+// outlet's timezone). SalesPaise is gross (grand totals of completed +
+// refunded orders); NetSalesPaise = gross − refunds issued in the window.
 type DashboardReport struct {
-	SalesPaise      int64            `json:"sales_paise"`
-	OrderCount      int              `json:"order_count"`
-	AOVPaise        int64            `json:"aov_paise"`
-	ExpensesPaise   int64            `json:"expenses_paise"`
-	CashDrawerPaise int64            `json:"cash_drawer_paise"`
-	PendingKOTs     int              `json:"pending_kots"`
-	FreeTables      int              `json:"free_tables"`
-	OccupiedTables  int              `json:"occupied_tables"`
-	SalesByType     map[string]int64 `json:"sales_by_type"`
-	SalesByTender   map[string]int64 `json:"sales_by_tender"`
-	TopCategories   []CategorySales  `json:"top_categories"`
+	SalesPaise         int64            `json:"sales_paise"`
+	RefundsPaise       int64            `json:"refunds_paise"`
+	NetSalesPaise      int64            `json:"net_sales_paise"`
+	OrderCount         int              `json:"order_count"`
+	AOVPaise           int64            `json:"aov_paise"`
+	ExpensesPaise      int64            `json:"expenses_paise"`
+	CashDrawerPaise    int64            `json:"cash_drawer_paise"`
+	PendingKOTs        int              `json:"pending_kots"`
+	FreeTables         int              `json:"free_tables"`
+	OccupiedTables     int              `json:"occupied_tables"`
+	SalesByType        map[string]int64 `json:"sales_by_type"`
+	SalesByTender      map[string]int64 `json:"sales_by_tender"`
+	TopCategories      []CategorySales  `json:"top_categories"`
+	TopItems           []ItemSales      `json:"top_items"`
+	StaffSales         []StaffSales     `json:"staff_sales"`
+	ExpensesByCategory map[string]int64 `json:"expenses_by_category"`
+	From               time.Time        `json:"from"`
+	To                 time.Time        `json:"to"`
 }
 
 type CategorySales struct {
 	Category string `json:"category"`
 	Revenue  int64  `json:"revenue_paise"`
 	Quantity int    `json:"quantity"`
+}
+
+type ItemSales struct {
+	Name     string `json:"name"`
+	Quantity int    `json:"quantity"`
+	Revenue  int64  `json:"revenue_paise"`
+}
+
+type StaffSales struct {
+	StaffID    string `json:"staff_id"`
+	StaffName  string `json:"staff_name"`
+	OrderCount int    `json:"order_count"`
+	Revenue    int64  `json:"revenue_paise"`
 }
 
 type ZReport struct {

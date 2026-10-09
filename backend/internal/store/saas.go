@@ -443,7 +443,7 @@ func (s *Store) UpsertSubscription(ctx context.Context, sub *models.OrgSubscript
 // ---- Invoices ----
 
 func (s *Store) CreateSaaSInvoice(ctx context.Context, inv *models.SaaSInvoice) (*models.SaaSInvoice, error) {
-	num, err := s.NextCounter(ctx, inv.OrgID, "saas_invoice")
+	num, err := s.NextCounter(ctx, nil, inv.OrgID, "saas_invoice")
 	if err != nil {
 		return nil, err
 	}

@@ -1,16 +1,11 @@
 package api
 
 import (
-	"fmt"
 	"net/http"
 	"time"
 
-	"foodpos/backend/internal/auth"
 	"foodpos/backend/internal/httpx"
-	"foodpos/backend/internal/middleware"
 	"foodpos/backend/internal/models"
-	"foodpos/backend/internal/service"
-	"foodpos/backend/internal/store"
 )
 
 // ---- Shifts ----
@@ -72,75 +67,75 @@ func (s *Server) handleOpenShift(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleCloseShift(w http.ResponseWriter, r *http.Request) {
-	var req models.ShiftCloseReq
-	if err := httpx.Decode(r, &req); err != nil {
-		httpx.ErrorJSON(w, r, err)
-		return
-	}
-	outletID := outletScope(r)
-	if outletID == "" {
-		httpx.ErrorJSON(w, r, httpx.NewError(400, "missing_outlet", "outlet_id is required"))
-		return
-	}
-	shift, err := s.Store.GetCurrentShift(r.Context(), outletID)
-	if err != nil {
-		httpx.ErrorJSON(w, r, err)
-		return
-	}
-	if shift == nil {
-		httpx.ErrorJSON(w, r, httpx.NewError(409, "no_open_shift", "No open shift to close"))
-		return
-	}
-	closed, err := s.Store.CloseShift(r.Context(), shift.ID, req)
-	if err != nil {
-		httpx.ErrorJSON(w, r, err)
-		return
-	}
-	s.publish(r, "shift.updated", outletID, closed)
-	httpx.JSON(w, http.StatusOK, closed)
+	s.withIdempotency(w, r, func() (int, any, error) {
+		var req models.ShiftCloseReq
+		if err := httpx.Decode(r, &req); err != nil {
+			return 0, nil, err
+		}
+		if req.CountedPaise < 0 {
+			return 0, nil, httpx.ErrInvalidAmount
+		}
+		outletID := outletScope(r)
+		shift, err := s.Store.GetCurrentShift(r.Context(), outletID)
+		if err != nil {
+			return 0, nil, err
+		}
+		if shift == nil {
+			return 0, nil, httpx.NewError(409, "no_open_shift", "No open shift to close")
+		}
+		closed, err := s.Store.CloseShift(r.Context(), shift.ID, req)
+		if err != nil {
+			return 0, nil, err
+		}
+		s.publish(r, "shift.updated", outletID, closed)
+		return http.StatusOK, closed, nil
+	})
 }
 
 func (s *Server) handleCashMove(w http.ResponseWriter, r *http.Request) {
-	var req models.CashMoveReq
-	if err := httpx.Decode(r, &req); err != nil {
-		httpx.ErrorJSON(w, r, err)
-		return
-	}
-	if req.Amount <= 0 {
-		httpx.ErrorJSON(w, r, httpx.ErrInvalidAmount)
-		return
-	}
-	if req.Type != "cash_in" && req.Type != "cash_out" {
-		httpx.ErrorJSON(w, r, httpx.NewError(400, "invalid_type", "type must be cash_in or cash_out"))
-		return
-	}
-	outletID := outletScope(r)
-	shift, err := s.Store.GetCurrentShift(r.Context(), outletID)
-	if err != nil {
-		httpx.ErrorJSON(w, r, err)
-		return
-	}
-	if shift == nil {
-		httpx.ErrorJSON(w, r, httpx.NewError(409, "no_open_shift", "Open a shift before cash movements"))
-		return
-	}
-	if req.Type == "cash_out" && req.Amount > shift.ExpectedCash() {
-		httpx.ErrorJSON(w, r, httpx.NewError(400, "insufficient_drawer",
-			"Cash out exceeds the expected drawer balance"))
-		return
-	}
-	claims, _ := claimsFrom(r)
-	tx, err := s.Store.AddCashMove(r.Context(), shift.ID, claims.ActorID, claims.Name, req.Type, req.Amount, req.Reason, req.Reference, req.At)
-	if err != nil {
-		httpx.ErrorJSON(w, r, err)
-		return
-	}
-	updated, _ := s.Store.GetCurrentShift(r.Context(), outletID)
-	s.publish(r, "shift.updated", outletID, updated)
-	httpx.JSON(w, http.StatusCreated, tx)
+	s.withIdempotency(w, r, func() (int, any, error) {
+		var req models.CashMoveReq
+		if err := httpx.Decode(r, &req); err != nil {
+			return 0, nil, err
+		}
+		if req.Amount <= 0 {
+			return 0, nil, httpx.ErrInvalidAmount
+		}
+		if req.Type != "cash_in" && req.Type != "cash_out" {
+			return 0, nil, httpx.NewError(400, "invalid_type", "type must be cash_in or cash_out")
+		}
+		outletID := outletScope(r)
+		claims, _ := claimsFrom(r)
+		// Shift lookup, drawer check and booking run under one row lock.
+		tx, err := s.Store.AddCashMove(r.Context(), outletID, claims.ActorID, claims.Name, req.Type, req.Amount, req.Reason, req.Reference, req.At)
+		if err != nil {
+			return 0, nil, err
+		}
+		if updated, err := s.Store.GetShift(r.Context(), tx.ShiftID); err == nil {
+			s.publish(r, "shift.updated", outletID, updated)
+		}
+		return http.StatusCreated, tx, nil
+	})
 }
 
 // ---- Expenses ----
+
+// expenseWindow resolves ?from/?to (outlet-tz days) or the legacy
+// ?range=today|month shortcut.
+func (s *Server) expenseWindow(r *http.Request, outletID string) (*time.Time, *time.Time, error) {
+	loc := s.Store.OutletLocation(r.Context(), outletID)
+	switch r.URL.Query().Get("range") {
+	case "today":
+		from, to := dayBounds(time.Now(), loc)
+		return &from, &to, nil
+	case "month":
+		now := time.Now().In(loc)
+		from := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, loc).UTC()
+		to := time.Date(now.Year(), now.Month()+1, 1, 0, 0, 0, 0, loc).UTC()
+		return &from, &to, nil
+	}
+	return parseRangeParams(r, loc)
+}
 
 func (s *Server) handleListExpenses(w http.ResponseWriter, r *http.Request) {
 	outletID := outletScope(r)
@@ -148,7 +143,12 @@ func (s *Server) handleListExpenses(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorJSON(w, r, httpx.NewError(400, "missing_outlet", "outlet_id is required"))
 		return
 	}
-	list, err := s.Store.ListExpenses(r.Context(), outletID, r.URL.Query().Get("range"))
+	from, to, err := s.expenseWindow(r, outletID)
+	if err != nil {
+		httpx.ErrorJSON(w, r, err)
+		return
+	}
+	list, err := s.Store.ListExpenses(r.Context(), outletID, from, to)
 	if err != nil {
 		httpx.ErrorJSON(w, r, err)
 		return
@@ -164,15 +164,14 @@ func (s *Server) handleCreateExpense(w http.ResponseWriter, r *http.Request) {
 		}
 		outletID := outletScope(r)
 		claims, _ := claimsFrom(r)
-		exp, err := s.Store.CreateExpense(r.Context(), outletID, req, strPtr(claims.ActorID))
+		// A cash expense is booked onto the open shift in the same tx.
+		exp, shiftID, err := s.Store.CreateExpense(r.Context(), outletID, req, strPtr(claims.ActorID))
 		if err != nil {
 			return 0, nil, err
 		}
-		// Cash expenses reduce the drawer of the open shift.
-		if exp.Method == "Cash" || exp.Method == "cash" {
-			if shift, err := s.Store.GetCurrentShift(r.Context(), outletID); err == nil && shift != nil {
-				_ = s.Store.AddShiftExpense(r.Context(), shift.ID, exp.Amount, +1)
-				s.publish(r, "shift.updated", outletID, shift)
+		if shiftID != "" {
+			if sh, err := s.Store.GetShift(r.Context(), shiftID); err == nil {
+				s.publish(r, "shift.updated", outletID, sh)
 			}
 		}
 		return http.StatusCreated, exp, nil
@@ -185,19 +184,19 @@ func (s *Server) handleDeleteExpense(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorJSON(w, r, err)
 		return
 	}
-	if c, ok := claimsFrom(r); ok && c.Scope == auth.ScopeStaff && c.OutletID != exp.OutletID {
+	if !sameOutlet(r, exp.OutletID) {
 		httpx.ErrorJSON(w, r, httpx.ErrNotFound)
 		return
 	}
-	if _, err := s.Store.DeleteExpense(r.Context(), exp.ID); err != nil {
+	// The reversal hits the expense's OWN shift, not whichever is open now.
+	_, shiftID, err := s.Store.DeleteExpense(r.Context(), exp.ID)
+	if err != nil {
 		httpx.ErrorJSON(w, r, err)
 		return
 	}
-	// Reversal: a deleted cash expense leaves the drawer again.
-	if exp.Method == "Cash" || exp.Method == "cash" {
-		if shift, err := s.Store.GetCurrentShift(r.Context(), exp.OutletID); err == nil && shift != nil {
-			_ = s.Store.AddShiftExpense(r.Context(), shift.ID, exp.Amount, -1)
-			s.publish(r, "shift.updated", exp.OutletID, shift)
+	if shiftID != "" {
+		if sh, err := s.Store.GetShift(r.Context(), shiftID); err == nil {
+			s.publish(r, "shift.updated", exp.OutletID, sh)
 		}
 	}
 	httpx.JSON(w, http.StatusOK, map[string]any{"deleted": true})
@@ -220,18 +219,17 @@ func (s *Server) handleListCustomers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleCreateCustomer(w http.ResponseWriter, r *http.Request) {
-	var req models.CustomerCreate
-	if err := httpx.Decode(r, &req); err != nil {
-		httpx.ErrorJSON(w, r, err)
-		return
-	}
-	outletID := outletScope(r)
-	c, err := s.Store.CreateCustomer(r.Context(), outletID, req)
-	if err != nil {
-		httpx.ErrorJSON(w, r, err)
-		return
-	}
-	httpx.JSON(w, http.StatusCreated, c)
+	s.withIdempotency(w, r, func() (int, any, error) {
+		var req models.CustomerCreate
+		if err := httpx.Decode(r, &req); err != nil {
+			return 0, nil, err
+		}
+		c, err := s.Store.CreateCustomer(r.Context(), outletScope(r), req)
+		if err != nil {
+			return 0, nil, err
+		}
+		return http.StatusCreated, c, nil
+	})
 }
 
 // ---- Inventory / Suppliers / Purchases ----
@@ -252,43 +250,43 @@ func (s *Server) handleListInventory(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleCreateInventoryItem(w http.ResponseWriter, r *http.Request) {
-	var item models.InventoryItem
-	if err := httpx.Decode(r, &item); err != nil {
-		httpx.ErrorJSON(w, r, err)
-		return
-	}
-	outletID := outletScope(r)
-	if item.Name == "" || item.Unit == "" {
-		httpx.ErrorJSON(w, r, httpx.NewError(400, "invalid_item", "name and unit are required"))
-		return
-	}
-	item.OutletID = outletID
-	created, err := s.Store.CreateInventoryItem(r.Context(), outletID, item)
-	if err != nil {
-		httpx.ErrorJSON(w, r, err)
-		return
-	}
-	httpx.JSON(w, http.StatusCreated, created)
+	s.withIdempotency(w, r, func() (int, any, error) {
+		var item models.InventoryItem
+		if err := httpx.Decode(r, &item); err != nil {
+			return 0, nil, err
+		}
+		outletID := outletScope(r)
+		if item.Name == "" || item.Unit == "" {
+			return 0, nil, httpx.NewError(400, "invalid_item", "name and unit are required")
+		}
+		if item.Stock < 0 || item.MinStock < 0 || item.CostPaise < 0 {
+			return 0, nil, httpx.NewError(400, "invalid_item", "stock, min_stock and cost cannot be negative")
+		}
+		item.OutletID = outletID
+		created, err := s.Store.CreateInventoryItem(r.Context(), outletID, item)
+		if err != nil {
+			return 0, nil, err
+		}
+		return http.StatusCreated, created, nil
+	})
 }
 
 func (s *Server) handleAdjustStock(w http.ResponseWriter, r *http.Request) {
-	var req models.StockAdjust
-	if err := httpx.Decode(r, &req); err != nil {
-		httpx.ErrorJSON(w, r, err)
-		return
-	}
-	if req.Reason == "" {
-		httpx.ErrorJSON(w, r, httpx.NewError(400, "missing_reason", "An adjustment reason is required (audit)"))
-		return
-	}
-	outletID := outletScope(r)
-	claims, _ := claimsFrom(r)
-	item, err := s.Store.AdjustStock(r.Context(), outletID, pathID(r, "id"), req.Delta, req.Reason, claims.ActorID, claims.Name)
-	if err != nil {
-		httpx.ErrorJSON(w, r, err)
-		return
-	}
-	httpx.JSON(w, http.StatusOK, item)
+	s.withIdempotency(w, r, func() (int, any, error) {
+		var req models.StockAdjust
+		if err := httpx.Decode(r, &req); err != nil {
+			return 0, nil, err
+		}
+		if req.Reason == "" {
+			return 0, nil, httpx.NewError(400, "missing_reason", "An adjustment reason is required (audit)")
+		}
+		claims, _ := claimsFrom(r)
+		item, err := s.Store.AdjustStock(r.Context(), outletScope(r), pathID(r, "id"), req.Delta, req.Reason, claims.ActorID, claims.Name)
+		if err != nil {
+			return 0, nil, err
+		}
+		return http.StatusOK, item, nil
+	})
 }
 
 func (s *Server) handleListSuppliers(w http.ResponseWriter, r *http.Request) {
@@ -306,18 +304,17 @@ func (s *Server) handleListSuppliers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleCreateSupplier(w http.ResponseWriter, r *http.Request) {
-	var req models.SupplierCreate
-	if err := httpx.Decode(r, &req); err != nil {
-		httpx.ErrorJSON(w, r, err)
-		return
-	}
-	outletID := outletScope(r)
-	sup, err := s.Store.CreateSupplier(r.Context(), outletID, req)
-	if err != nil {
-		httpx.ErrorJSON(w, r, err)
-		return
-	}
-	httpx.JSON(w, http.StatusCreated, sup)
+	s.withIdempotency(w, r, func() (int, any, error) {
+		var req models.SupplierCreate
+		if err := httpx.Decode(r, &req); err != nil {
+			return 0, nil, err
+		}
+		sup, err := s.Store.CreateSupplier(r.Context(), outletScope(r), req)
+		if err != nil {
+			return 0, nil, err
+		}
+		return http.StatusCreated, sup, nil
+	})
 }
 
 func (s *Server) handleListPurchases(w http.ResponseWriter, r *http.Request) {
@@ -354,9 +351,7 @@ func (s *Server) handleCreatePurchase(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handlePatchPurchase(w http.ResponseWriter, r *http.Request) {
-	var body struct {
-		Status string `json:"status"`
-	}
+	var body models.PurchasePatch
 	if err := httpx.Decode(r, &body); err != nil {
 		httpx.ErrorJSON(w, r, err)
 		return
@@ -366,8 +361,12 @@ func (s *Server) handlePatchPurchase(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorJSON(w, r, err)
 		return
 	}
-	if c, ok := claimsFrom(r); ok && c.Scope == auth.ScopeStaff && c.OutletID != existing.OutletID {
+	if !sameOutlet(r, existing.OutletID) {
 		httpx.ErrorJSON(w, r, httpx.ErrNotFound)
+		return
+	}
+	if body.Status != "paid" && body.Status != "pending" {
+		httpx.ErrorJSON(w, r, httpx.NewError(400, "invalid_status", "status must be paid or pending"))
 		return
 	}
 	p, err := s.Store.PatchPurchaseStatus(r.Context(), existing.ID, body.Status)
@@ -427,179 +426,67 @@ func (s *Server) handleListCreditLog(w http.ResponseWriter, r *http.Request) {
 
 // ---- Reports (all derived from real data — PRD FR-R1..R3) ----
 
-// parseReportRange accepts "YYYY-MM-DD" or RFC3339 timestamps. A date-only
-// `to` bound is widened to that day's last second so the range is inclusive.
-func parseReportRange(fromStr, toStr string) (time.Time, time.Time, error) {
-	parse := func(s string, isEnd bool) (time.Time, error) {
-		if s == "" {
-			if isEnd {
-				return time.Date(9999, 12, 31, 23, 59, 59, 0, time.UTC), nil
-			}
-			return time.Time{}, nil
-		}
-		if t, err := time.Parse(time.RFC3339Nano, s); err == nil {
-			return t.UTC(), nil
-		}
-		if t, err := time.Parse("2006-01-02", s); err == nil {
-			if isEnd {
-				t = t.Add(24*time.Hour - time.Second)
-			}
-			return t.UTC(), nil
-		}
-		return time.Time{}, fmt.Errorf("invalid timestamp %q", s)
-	}
-	from, err := parse(fromStr, false)
-	if err != nil {
-		return time.Time{}, time.Time{}, err
-	}
-	to, err := parse(toStr, true)
-	if err != nil {
-		return time.Time{}, time.Time{}, err
-	}
-	return from, to, nil
+// dayBounds returns [local midnight, next local midnight) of t's day in loc,
+// as UTC instants.
+func dayBounds(t time.Time, loc *time.Location) (time.Time, time.Time) {
+	lt := t.In(loc)
+	start := time.Date(lt.Year(), lt.Month(), lt.Day(), 0, 0, 0, 0, loc)
+	return start.UTC(), start.AddDate(0, 0, 1).UTC()
 }
 
+// handleDashboardReport aggregates orders paid in [from, to) — date-only
+// bounds are outlet-timezone days (to includes its whole day); no range means
+// today in the outlet's timezone. All sums run in SQL.
 func (s *Server) handleDashboardReport(w http.ResponseWriter, r *http.Request) {
 	outletID := outletScope(r)
 	if outletID == "" {
 		httpx.ErrorJSON(w, r, httpx.NewError(400, "missing_outlet", "outlet_id is required"))
 		return
 	}
-	rep := models.DashboardReport{
-		SalesByType:   map[string]int64{},
-		SalesByTender: map[string]int64{},
-		TopCategories: []models.CategorySales{},
-	}
-
-	// Optional from/to range: when present the report is computed over orders
-	// paid within [from, to] and expenses dated in that window, instead of the
-	// default current-shift scope. Accepts YYYY-MM-DD or RFC3339.
-	fromStr, toStr := r.URL.Query().Get("from"), r.URL.Query().Get("to")
-	hasRange := fromStr != "" || toStr != ""
-	var fromT, toT time.Time
-	if hasRange {
-		var err error
-		fromT, toT, err = parseReportRange(fromStr, toStr)
-		if err != nil {
-			httpx.ErrorJSON(w, r, httpx.NewError(400, "bad_range", "invalid from/to — use YYYY-MM-DD or RFC3339"))
-			return
-		}
-	}
-
-	shift, _ := s.Store.GetCurrentShift(r.Context(), outletID)
-	if shift != nil {
-		rep.CashDrawerPaise = shift.ExpectedCash()
-	}
-	orderLimit := 500
-	if hasRange {
-		// Wide ranges pull more history for accurate aggregates.
-		orderLimit = 2000
-	}
-	completed, err := s.Store.ListOrders(r.Context(), outletID, "completed", "", orderLimit)
+	loc := s.Store.OutletLocation(r.Context(), outletID)
+	fromP, toP, err := parseRangeParams(r, loc)
 	if err != nil {
 		httpx.ErrorJSON(w, r, err)
 		return
 	}
-	revenue := map[string]int64{}
-	qty := map[string]int{}
-	if hasRange {
-		var rangeSales int64
-		rangeOrders := 0
-		for i := range completed {
-			o := &completed[i]
-			if o.PaidAt == nil {
-				continue
-			}
-			t := *o.PaidAt
-			if t.Before(fromT) || t.After(toT) {
-				continue
-			}
-			rangeOrders++
-			rangeSales += o.GrandTotalPaise
-			rep.SalesByType[o.Type] += o.GrandTotalPaise
-			if o.PaymentMethod != nil {
-				rep.SalesByTender[*o.PaymentMethod] += o.GrandTotalPaise
-			}
-			for _, it := range o.Items {
-				if it.IsCancelled {
-					continue
-				}
-				revenue[it.Name] += it.TotalPaise
-				qty[it.Name] += it.Quantity
-			}
+	from, to := dayBounds(time.Now(), loc)
+	if fromP != nil || toP != nil {
+		from, to = time.Unix(0, 0).UTC(), time.Now().UTC().Add(time.Second)
+		if fromP != nil {
+			from = *fromP
 		}
-		rep.SalesPaise = rangeSales
-		rep.OrderCount = rangeOrders
-		if rangeOrders > 0 {
-			rep.AOVPaise = rangeSales / int64(rangeOrders)
+		if toP != nil {
+			to = *toP
 		}
-		exp, _ := s.Store.SumExpensesBetween(r.Context(), outletID, store.TimeStr(fromT), store.TimeStr(toT))
-		rep.ExpensesPaise = exp
-	} else {
-		// Only orders paid during this shift count toward the shift AOV.
-		shiftStart := "0000-01-01"
-		if shift != nil {
-			shiftStart = store.TimeStr(shift.StartedAt)
-		}
-		var shiftSales int64
-		shiftOrders := 0
-		for i := range completed {
-			o := &completed[i]
-			if o.PaidAt != nil && store.TimeStr(*o.PaidAt) >= shiftStart {
-				shiftOrders++
-				shiftSales += o.GrandTotalPaise
-			}
-			rep.SalesByType[o.Type] += o.GrandTotalPaise
-			if o.PaymentMethod != nil {
-				rep.SalesByTender[*o.PaymentMethod] += o.GrandTotalPaise
-			}
-			for _, it := range o.Items {
-				if it.IsCancelled {
-					continue
-				}
-				revenue[it.Name] += it.TotalPaise
-				qty[it.Name] += it.Quantity
-			}
-		}
-		if shift != nil {
-			rep.SalesPaise = shiftSales
-		}
-		rep.OrderCount = shiftOrders
-		if rep.OrderCount > 0 {
-			rep.AOVPaise = rep.SalesPaise / int64(rep.OrderCount)
-		}
-		exp, _ := s.Store.SumExpenses(r.Context(), outletID, "today")
-		rep.ExpensesPaise = exp
 	}
-
-	tables, _ := s.Store.ListTables(r.Context(), outletID, "")
+	rep := models.DashboardReport{
+		SalesByType:        map[string]int64{},
+		SalesByTender:      map[string]int64{},
+		TopCategories:      []models.CategorySales{},
+		TopItems:           []models.ItemSales{},
+		StaffSales:         []models.StaffSales{},
+		ExpensesByCategory: map[string]int64{},
+		From:               from,
+		To:                 to,
+	}
+	if err := s.Store.FillDashboard(r.Context(), outletID, from, to, &rep); err != nil {
+		httpx.ErrorJSON(w, r, err)
+		return
+	}
+	if shift, _ := s.Store.GetCurrentShift(r.Context(), outletID); shift != nil {
+		rep.CashDrawerPaise = shift.ExpectedCash()
+	}
+	tables, err := s.Store.ListTables(r.Context(), outletID, "")
+	if err != nil {
+		httpx.ErrorJSON(w, r, err)
+		return
+	}
 	for _, t := range tables {
 		if t.Status == "available" {
 			rep.FreeTables++
 		} else if t.Status == "occupied" || t.Status == "billing" {
 			rep.OccupiedTables++
 		}
-	}
-	kots, _ := s.Store.ListKOTs(r.Context(), outletID, "")
-	for _, k := range kots {
-		if k.Status != "served" && k.Status != "cancelled" {
-			rep.PendingKOTs++
-		}
-	}
-
-	// Top categories by item revenue (top 5).
-	for name, rev := range revenue {
-		rep.TopCategories = append(rep.TopCategories, models.CategorySales{Category: name, Revenue: rev, Quantity: qty[name]})
-	}
-	for i := 0; i < len(rep.TopCategories); i++ {
-		for j := i + 1; j < len(rep.TopCategories); j++ {
-			if rep.TopCategories[j].Revenue > rep.TopCategories[i].Revenue {
-				rep.TopCategories[i], rep.TopCategories[j] = rep.TopCategories[j], rep.TopCategories[i]
-			}
-		}
-	}
-	if len(rep.TopCategories) > 5 {
-		rep.TopCategories = rep.TopCategories[:5]
 	}
 	httpx.JSON(w, http.StatusOK, rep)
 }
@@ -610,7 +497,7 @@ func (s *Server) handleZReport(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorJSON(w, r, err)
 		return
 	}
-	if c, ok := claimsFrom(r); ok && c.Scope == auth.ScopeStaff && c.OutletID != shift.OutletID {
+	if !sameOutlet(r, shift.OutletID) {
 		httpx.ErrorJSON(w, r, httpx.ErrNotFound)
 		return
 	}
@@ -626,6 +513,3 @@ func (s *Server) handleZReport(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, z)
 }
 
-// compile-time guard that the service package is linked in (KOT FSM lives there).
-var _ = service.ValidateKOTTransition
-var _ = middleware.Auth

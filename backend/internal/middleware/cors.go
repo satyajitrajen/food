@@ -1,9 +1,9 @@
 package middleware
 
 // CORS middleware for the owner/superadmin web console. Configurable via
-// FOODPOS_CORS_ORIGINS: "*" (default) allows any origin — bearer JWTs are the
-// real gate; a comma-separated list restricts to specific origins; empty
-// disables CORS entirely (same-origin reverse proxy).
+// FOODPOS_CORS_ORIGINS: empty (default) disables CORS entirely (same-origin
+// reverse proxy); a comma-separated list restricts to specific origins; "*"
+// allows any origin.
 
 import (
 	"net/http"
@@ -35,7 +35,7 @@ func CORS(origins string) func(http.Handler) http.Handler {
 						h.Set("Access-Control-Allow-Origin", origin)
 						h.Set("Vary", "Origin")
 					}
-					h.Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
+					h.Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 					h.Set("Access-Control-Allow-Headers", "Content-Type, Authorization, Idempotency-Key")
 					h.Set("Access-Control-Max-Age", "600")
 				}

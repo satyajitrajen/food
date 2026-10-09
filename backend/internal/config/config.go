@@ -10,17 +10,15 @@ type Config struct {
 	Port       string
 	DSN        string
 	JWTSecret  string
-	Seed       bool
 	BcryptCost int
 	UploadDir  string
 
-	// Env is the deployment environment: "development" (default) or
-	// "production". Production flips the secure defaults on: the JWT secret
-	// becomes mandatory and wildcard CORS is dropped.
+	// Env is the deployment environment label ("development" default,
+	// "production"). Security never depends on it alone: see Dev.
 	Env string
-	// Dev enables developer conveniences (e.g. echoing password-reset tokens
-	// when SMTP is off). Default true outside production; override with
-	// FOODPOS_DEV=1 (on) or FOODPOS_DEV=0 (off).
+	// Dev enables developer conveniences (echoing password-reset tokens when
+	// SMTP is off, the built-in dev JWT secret). Off unless FOODPOS_DEV=1 and
+	// never on when FOODPOS_ENV=production.
 	Dev bool
 
 	// SaaS billing + security.
@@ -40,35 +38,29 @@ type Config struct {
 	SMTPFrom string
 	// AppBaseURL is the console/portal origin used in mail links.
 	AppBaseURL string
-	// CORSOrigins: '*' allows any origin (default — bearer tokens protect the
-	// API); a comma-separated list restricts to specific origins; empty disables
-	// CORS (use a same-origin reverse proxy).
+	// CORSOrigins: empty (default) disables CORS (same-origin reverse
+	// proxy); a comma-separated list allows those origins; '*' any origin.
 	CORSOrigins string
 
-	// Firebase Cloud Messaging (FCM)
-	FCMProjectID string
-	FCMServerKey string
+	// FCMCredentials is the path of a Google service-account JSON for FCM
+	// HTTP v1 push. Empty = push disabled (silent no-op).
+	FCMCredentials string
 }
+
+// DevJWTSecret is the built-in secret; accepted only when Dev is on.
+const DevJWTSecret = "dev-secret-change-me"
 
 func Load() Config {
 	envName := env("FOODPOS_ENV", "development")
-	dev := false
-	switch {
-	case os.Getenv("FOODPOS_DEV") != "":
-		dev = os.Getenv("FOODPOS_DEV") == "1"
-	case envName != "production":
-		dev = true
-	}
-	cors := env("FOODPOS_CORS_ORIGINS", "*")
-	if envName == "production" && cors == "*" {
-		// Same-origin reverse proxy instead of an open wildcard.
-		cors = ""
+	dev := os.Getenv("FOODPOS_DEV") == "1" && envName != "production"
+	jwtSecret := os.Getenv("FOODPOS_JWT_SECRET")
+	if jwtSecret == "" && dev {
+		jwtSecret = DevJWTSecret
 	}
 	return Config{
 		Port:       env("FOODPOS_PORT", "8080"),
 		DSN:        env("FOODPOS_DSN", ""),
-		JWTSecret:  env("FOODPOS_JWT_SECRET", "dev-secret-change-me"),
-		Seed:       env("FOODPOS_SEED", "0") == "1",
+		JWTSecret:  jwtSecret,
 		BcryptCost: envInt("FOODPOS_BCRYPT_COST", 10),
 		UploadDir:  env("FOODPOS_UPLOAD_DIR", "./uploads"),
 		Env:        envName,
@@ -88,20 +80,23 @@ func Load() Config {
 		SMTPPass:    env("FOODPOS_SMTP_PASS", ""),
 		SMTPFrom:    env("FOODPOS_SMTP_FROM", "Hishobkr <no-reply@hishobkr.com>"),
 		AppBaseURL:  env("FOODPOS_APP_BASE_URL", "https://food.nexorytechnologies.com"),
-		CORSOrigins: cors,
+		CORSOrigins: os.Getenv("FOODPOS_CORS_ORIGINS"),
 
-		FCMProjectID: env("FOODPOS_FCM_PROJECT_ID", "hishobkr-pos"),
-		FCMServerKey: env("FOODPOS_FCM_SERVER_KEY", ""),
+		FCMCredentials: os.Getenv("FOODPOS_FCM_CREDENTIALS"),
 	}
 }
 
-// Validate rejects configurations that are unsafe to boot in production.
+// Validate rejects configurations that are unsafe to boot: outside explicit
+// dev mode (FOODPOS_DEV=1) the JWT secret must be set and not the dev default.
 func (c Config) Validate() error {
-	if c.Env != "production" {
+	if c.Dev {
 		return nil
 	}
-	if c.JWTSecret == "" || c.JWTSecret == "dev-secret-change-me" {
-		return fmt.Errorf("FOODPOS_JWT_SECRET must be set to a strong secret when FOODPOS_ENV=production")
+	if c.JWTSecret == "" || c.JWTSecret == DevJWTSecret {
+		return fmt.Errorf("FOODPOS_JWT_SECRET must be set to a strong secret (or run with FOODPOS_DEV=1 for local development)")
+	}
+	if len(c.JWTSecret) < 16 {
+		return fmt.Errorf("FOODPOS_JWT_SECRET must be at least 16 characters")
 	}
 	return nil
 }

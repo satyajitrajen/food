@@ -54,6 +54,12 @@ func ApplyBilling(o *models.Order) {
 		net = 0
 	}
 
+	// A service percent (settings default on dine-in) derives the charge
+	// from the discounted net on every pass; 0 keeps the flat amount.
+	if o.ServicePercent > 0 {
+		pct := math.Min(o.ServicePercent, 100)
+		o.ServicePaise = int64(math.Round(float64(net) * pct / 100))
+	}
 	charges := o.ServicePaise
 	if charges < 0 {
 		charges = 0
@@ -112,47 +118,94 @@ func ValidateKOTTransition(from, to string) error {
 
 // ---- Payment validation ----
 
+// IsClosed reports whether an order can no longer be paid or edited.
+func IsClosed(status string) bool {
+	return status == "completed" || status == "cancelled" || status == "refunded"
+}
+
+// payTolerance absorbs sub-rupee rounding between client and server totals.
+const payTolerance = 5
+
 // ValidatePayment checks FR-P1/P2 rules before a payment is applied.
 func ValidatePayment(o *models.Order, req models.PaymentReq) error {
-	if o.Status == "completed" || o.Status == "cancelled" {
-		return httpx.NewError(409, "invalid_state", "Order already closed")
+	_, err := PlanPayment(o, req)
+	return err
+}
+
+// PaymentPlan is what a validated payment books: the tender legs (sum ≈
+// grand total, change already taken off the cash leg), what the customer
+// handed over and the change returned.
+type PaymentPlan struct {
+	Legs     []models.PaymentSplit
+	Received int64
+	Change   int64
+}
+
+// PlanPayment validates a payment against an order and derives the legs to
+// book per tender. Credit has no legs (the total goes to the customer's
+// outstanding instead of the drawer).
+func PlanPayment(o *models.Order, req models.PaymentReq) (PaymentPlan, error) {
+	total := o.GrandTotalPaise
+	if IsClosed(o.Status) {
+		return PaymentPlan{}, httpx.NewError(409, "already_paid", "Order is already paid or closed")
 	}
 	if len(req.Splits) > 0 {
-		// Split tender: sum of splits must cover the total; each split
-		// names a valid tender.
 		sum := int64(0)
+		legs := make([]models.PaymentSplit, 0, len(req.Splits))
+		cashIdx := -1
 		for _, sp := range req.Splits {
 			switch sp.Method {
 			case "cash", "upi", "card":
 			default:
-				return httpx.NewError(400, "invalid_method", "split method must be cash, upi or card")
+				return PaymentPlan{}, httpx.NewError(400, "invalid_method", "split method must be cash, upi or card")
 			}
 			if sp.Paise < 0 {
-				return httpx.ErrInvalidAmount
+				return PaymentPlan{}, httpx.ErrInvalidAmount
 			}
 			sum += sp.Paise
+			if sp.Method == "cash" && cashIdx < 0 {
+				cashIdx = len(legs)
+			}
+			legs = append(legs, sp)
 		}
-		if sum+5 < o.GrandTotalPaise {
-			return httpx.ErrShortPayment
+		if sum+payTolerance < total {
+			return PaymentPlan{}, httpx.ErrShortPayment
 		}
-		return nil
+		change := int64(0)
+		if over := sum - total; over > 0 {
+			// Only cash can be over-tendered (change comes out of the drawer).
+			if cashIdx < 0 || legs[cashIdx].Paise < over {
+				return PaymentPlan{}, httpx.NewError(400, "overpayment", "Digital split legs exceed the bill total")
+			}
+			legs[cashIdx].Paise -= over
+			change = over
+		}
+		return PaymentPlan{Legs: legs, Received: sum, Change: change}, nil
 	}
 	switch req.Method {
-	case "cash", "upi", "card":
+	case "cash":
+		if req.Received <= 0 && total > 0 {
+			return PaymentPlan{}, httpx.ErrInvalidAmount
+		}
+		if req.Received+payTolerance < total { // FR-P2: cash must cover the total
+			return PaymentPlan{}, httpx.ErrShortPayment
+		}
+		change := req.Received - total
+		if change < 0 {
+			change = 0
+		}
+		return PaymentPlan{Legs: []models.PaymentSplit{{Method: "cash", Paise: total}}, Received: req.Received, Change: change}, nil
+	case "upi", "card":
+		// Digital tenders settle for the exact total; Received is informational.
+		return PaymentPlan{Legs: []models.PaymentSplit{{Method: req.Method, Paise: total}}, Received: total}, nil
+	case "credit":
+		if req.CustomerID == nil || *req.CustomerID == "" {
+			return PaymentPlan{}, httpx.NewError(400, "invalid_customer", "customer_id is required for credit payments")
+		}
+		return PaymentPlan{}, nil
 	default:
-		return httpx.NewError(400, "invalid_method", "method must be cash, upi or card")
+		return PaymentPlan{}, httpx.NewError(400, "invalid_method", "method must be cash, upi, card or credit")
 	}
-	if req.Method == "cash" {
-		// Cash must cover the total (FR-P2).
-		if req.Received+5 < o.GrandTotalPaise { // 5p tolerance
-			return httpx.ErrShortPayment
-		}
-		if req.Received <= 0 && o.GrandTotalPaise > 0 {
-			return httpx.ErrInvalidAmount
-		}
-	}
-	// Digital tenders settle for the exact total; Received is informational.
-	return nil
 }
 
 // ComputeChange returns change due for a cash payment (0 for digital).
@@ -167,20 +220,27 @@ func ComputeChange(o *models.Order, req models.PaymentReq) (received int64, chan
 	return o.GrandTotalPaise, 0
 }
 
-// ValidateRefund checks FR-P4: 0 < amount ≤ paid; order must be refundable.
+// ValidateRefund checks FR-P4: 0 < amount ≤ total − refunded (a full refund
+// may omit the amount); order must be refundable.
 func ValidateRefund(o *models.Order, req models.RefundReq) error {
+	if req.IsFull && req.AmountPaise == 0 {
+		req.AmountPaise = o.GrandTotalPaise - o.RefundedPaise
+	}
 	if req.AmountPaise <= 0 {
 		return httpx.ErrInvalidAmount
 	}
-	paid := o.PaidPaise
-	if paid <= 0 {
-		paid = o.GrandTotalPaise
+	switch req.Mode {
+	case "", "cash", "upi", "original":
+	default:
+		return httpx.NewError(400, "invalid_mode", "mode must be cash, upi or original")
 	}
-	if req.AmountPaise > paid {
-		return httpx.NewError(400, "refund_exceeds_paid", "Refund amount exceeds the amount paid")
-	}
-	if o.Status == "cancelled" {
+	if o.Status == "cancelled" || o.Status == "refunded" {
 		return httpx.NewError(409, "invalid_state", "Order is already cancelled/refunded")
+	}
+	// Cap = grand total − already refunded (never paid_paise: that includes
+	// cash change handed back).
+	if req.AmountPaise > o.GrandTotalPaise-o.RefundedPaise {
+		return httpx.NewError(400, "refund_exceeds_total", "Refund exceeds the bill total still refundable")
 	}
 	return nil
 }
