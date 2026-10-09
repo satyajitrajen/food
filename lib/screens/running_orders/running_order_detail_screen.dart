@@ -80,7 +80,7 @@ class RunningOrderDetailScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Waiter: ${currentOrder.waiterName ?? provider.currentStaff?.name ?? "Staff"} · ${currentOrder.guestCount} Guests',
+                        'Waiter: ${currentOrder.waiterName ?? provider.currentStaff?.name ?? "Staff"} · ${plural(currentOrder.guestCount, 'Guest')}',
                         style: const TextStyle(color: AppColors.textMuted, fontSize: 13),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -118,7 +118,7 @@ class RunningOrderDetailScreen extends StatelessWidget {
                       style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 22, color: AppColors.primaryGreen),
                     ),
                     Text(
-                      '${currentOrder.totalItemCount} Items',
+                      plural(currentOrder.totalItemCount, 'item'),
                       style: const TextStyle(color: AppColors.textLight, fontSize: 12),
                     ),
                   ],

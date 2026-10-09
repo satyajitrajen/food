@@ -143,7 +143,7 @@ class _CashDrawerScreenState extends State<CashDrawerScreen> {
                 Text(
                   provider.cashTransactions.isEmpty
                       ? ''
-                      : '${provider.cashTransactions.length} entries',
+                      : plural(provider.cashTransactions.length, 'entry', 'entries'),
                   style: const TextStyle(color: AppColors.textMuted, fontSize: 12, fontWeight: FontWeight.w600),
                 ),
               ],

@@ -338,7 +338,7 @@ class _PosMenuScreenState extends State<PosMenuScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '${activeOrder.totalItemCount} items · ${formatInr(activeOrder.subtotal)} + tax',
+                          '${plural(activeOrder.totalItemCount, 'item')} · ${formatInr(activeOrder.subtotal)} + tax',
                           style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: AppColors.textDark),
                         ),
                         Text(

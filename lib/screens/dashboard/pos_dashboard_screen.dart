@@ -316,7 +316,7 @@ class PosDashboardScreen extends StatelessWidget {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    '${order.totalItemCount} Items · $timeStr · ${order.statusLabel}',
+                                    '${plural(order.totalItemCount, 'item')} · $timeStr · ${order.statusLabel}',
                                     style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,

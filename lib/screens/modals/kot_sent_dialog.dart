@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/format.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/kot_model.dart';
 import '../../providers/pos_provider.dart';
@@ -77,7 +78,7 @@ class KOTSentDialog extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                '${live.totalQuantity} items dispatched to kitchen station.',
+                '${plural(live.totalQuantity, 'item')} dispatched to kitchen station.',
                 style: const TextStyle(color: AppColors.textMuted, fontSize: 13),
               ),
               const SizedBox(height: 24),

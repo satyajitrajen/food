@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import '../../core/format.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/pos_provider.dart';
 import '../../models/kot_model.dart';
@@ -219,7 +220,7 @@ class _KitchenBoardScreenState extends State<KitchenBoardScreen>
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Time: $timeStr · Waiter: ${kot.waiterName} · ${kot.totalQuantity} items',
+                    'Time: $timeStr · Waiter: ${kot.waiterName} · ${plural(kot.totalQuantity, 'item')}',
                     style: const TextStyle(
                       color: AppColors.textLight,
                       fontSize: 12,

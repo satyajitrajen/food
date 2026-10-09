@@ -203,7 +203,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                           TextButton.icon(
                             onPressed: () => setState(() => _itemsExpanded = !_itemsExpanded),
                             icon: Icon(_itemsExpanded ? Icons.expand_less : Icons.expand_more),
-                            label: Text('${order.totalItemCount} items'),
+                            label: Text(plural(order.totalItemCount, 'item')),
                           ),
                         ],
                       ),

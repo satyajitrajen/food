@@ -19,6 +19,9 @@ String rupeeInput(double amount) {
   return cents % 100 == 0 ? (cents ~/ 100).toString() : (cents / 100).toStringAsFixed(2);
 }
 
+String plural(int count, String singular, [String? pluralWord]) =>
+    count == 1 ? singular : (pluralWord ?? '${singular}s');
+
 final DateFormat _date = DateFormat('d MMM yyyy');
 final DateFormat _dateTime = DateFormat('d MMM yyyy, h:mm a');
 final DateFormat _time = DateFormat('h:mm a');

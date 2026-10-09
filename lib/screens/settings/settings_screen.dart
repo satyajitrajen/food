@@ -165,7 +165,7 @@ class SettingsScreen extends StatelessWidget {
         _buildSettingItem('Configured Sections', sections.join(' · ')),
         _buildSettingItem(
           'Total Tables',
-          '${provider.tables.length} Tables (${provider.tables.fold<int>(0, (s, t) => s + t.seats)} Total Seats)',
+          '${plural(provider.tables.length, 'Table')} (${provider.tables.fold<int>(0, (s, t) => s + t.seats)} Total ${plural(provider.tables.fold<int>(0, (s, t) => s + t.seats), 'Seat')})',
         ),
         if (canManage) ...[
           const Divider(height: 20, color: AppColors.borderLight),

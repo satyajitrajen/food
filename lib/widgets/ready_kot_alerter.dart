@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import '../core/format.dart';
 import '../core/theme/app_theme.dart';
 import '../models/kot_model.dart';
 import '../providers/pos_provider.dart';
@@ -107,7 +108,7 @@ class _ReadyBanner extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${kot.kotNumber} · ${kot.tableNumber != null ? 'Table ${kot.tableNumber}' : kot.orderType.name.toUpperCase()} · ${kot.totalQuantity} items',
+                      '${kot.kotNumber} · ${kot.tableNumber != null ? 'Table ${kot.tableNumber}' : kot.orderType.name.toUpperCase()} · ${plural(kot.totalQuantity, 'item')}',
                       style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
                     ),
                   ],

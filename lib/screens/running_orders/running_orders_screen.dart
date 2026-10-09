@@ -346,7 +346,7 @@ class _RunningOrdersScreenState extends State<RunningOrdersScreen>
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '${order.totalItemCount} Items · ${formatInr(order.grandTotal)} · Waiter: ${order.waiterName ?? "Staff"}',
+                    '${plural(order.totalItemCount, 'item')} · ${formatInr(order.grandTotal)} · Waiter: ${order.waiterName ?? "Staff"}',
                     style: const TextStyle(
                       color: AppColors.textMuted,
                       fontSize: 13,

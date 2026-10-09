@@ -516,7 +516,7 @@ class MenuAdminScreen extends StatelessWidget {
                           children: groups
                               .map((g) => Chip(
                                     label: Text(
-                                      '${g.name}${g.isRequired ? ' (required)' : ''} · ${g.items.length} item(s)',
+                                      '${g.name}${g.isRequired ? ' (required)' : ''} · ${plural(g.items.length, 'item')}',
                                     ),
                                     visualDensity: VisualDensity.compact,
                                     labelStyle: const TextStyle(fontSize: 11),

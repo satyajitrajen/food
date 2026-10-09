@@ -496,7 +496,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                                   _buildCategoryRow(
                                     cat.name,
                                     formatInr(cat.revenue),
-                                    '${cat.itemQty} Items',
+                                    plural(cat.itemQty, 'item'),
                                   ),
                                 ],
                               ],
@@ -540,7 +540,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                                   _buildCategoryRow(
                                     w.name,
                                     formatInr(w.revenue),
-                                    '${w.itemQty} Orders',
+                                    plural(w.itemQty, 'order'),
                                   ),
                                 ],
                               ],

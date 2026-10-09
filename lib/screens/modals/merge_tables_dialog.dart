@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/format.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/pos_provider.dart';
 import '../../models/table_model.dart';
@@ -139,7 +140,7 @@ class _MergeTablesDialogState extends State<MergeTablesDialog> {
                               Navigator.of(context).pop();
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text('✓ Merged ${_selectedSecondaryIds.length} tables with ${widget.primaryTable.tableNumber}'),
+                                  content: Text('✓ Merged ${plural(_selectedSecondaryIds.length, 'table')} with ${widget.primaryTable.tableNumber}'),
                                   backgroundColor: AppColors.vegGreen,
                                 ),
                               );
