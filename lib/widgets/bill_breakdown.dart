@@ -69,6 +69,15 @@ class BillBreakdown extends StatelessWidget {
                 _row('Paid (${leg.method})', formatInr(leg.amount), muted: true))
           else if (o.paymentMethod != null)
             _row('Paid by', o.paymentMethod!, muted: true),
+          if (o.hasApprovalReference)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Approval: ${o.paymentReference}',
+                    style: const TextStyle(fontSize: 13, color: AppColors.textMuted)),
+              ),
+            ),
           if (o.totalPaid > o.grandTotal + 0.005)
             _row('Change returned', formatInr(o.totalPaid - o.grandTotal), muted: true),
           if (o.refundedAmount > 0)
