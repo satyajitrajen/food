@@ -611,9 +611,16 @@ func (s *Store) EntitlementOK(ctx context.Context, orgID string) (bool, error) {
 	if err != nil {
 		return false, nil // missing subscription = not entitled
 	}
+	// The status alone is not enough: the daily job may not have flipped an
+	// ended trial/period yet, so the dates are checked here (with the same
+	// grace window the signed offline entitlement carries).
+	now := Now()
+	grace := time.Duration(GraceDays) * 24 * time.Hour
 	switch sub.Status {
-	case models.SubTrial, models.SubActive:
-		return true, nil
+	case models.SubTrial:
+		return sub.TrialEndsAt == nil || now.Before(sub.TrialEndsAt.Add(grace)), nil
+	case models.SubActive:
+		return sub.CurrentPeriodEnd == nil || now.Before(sub.CurrentPeriodEnd.Add(grace)), nil
 	default:
 		return false, nil
 	}

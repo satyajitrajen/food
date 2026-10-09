@@ -290,8 +290,7 @@ func (s *Store) CreateTable(ctx context.Context, t models.Table) (*models.Table,
 }
 
 func (s *Store) PatchTable(ctx context.Context, id string, p models.TablePatch) (*models.Table, error) {
-	t, err := s.GetTable(ctx, id)
-	if err != nil {
+	if _, err := s.GetTable(ctx, id); err != nil {
 		return nil, err
 	}
 	if p.Status != nil {
@@ -320,7 +319,6 @@ func (s *Store) PatchTable(ctx context.Context, id string, p models.TablePatch) 
 			return nil, err
 		}
 	}
-	_ = t
 	return s.GetTable(ctx, id)
 }
 

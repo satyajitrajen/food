@@ -42,16 +42,14 @@ type Hub struct {
 	clients  map[*client]struct{}
 	history  map[string][]Event
 	counters map[string]uint64
-	authMgr  *auth.Manager
 	tickets  *auth.TicketStore
 }
 
-func NewHub(authMgr *auth.Manager) *Hub {
+func NewHub() *Hub {
 	return &Hub{
 		clients:  map[*client]struct{}{},
 		history:  map[string][]Event{},
 		counters: map[string]uint64{},
-		authMgr:  authMgr,
 	}
 }
 

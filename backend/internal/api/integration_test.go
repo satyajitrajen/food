@@ -42,7 +42,7 @@ func newEnvWithCfg(t *testing.T, cfg config.Config) *env {
 	database := openTestDB(t)
 	st := store.New(database)
 	mgr := auth.New("test-secret", 4)
-	hub := ws.NewHub(mgr)
+	hub := ws.NewHub()
 	tickets := auth.NewTicketStore(auth.SSETicketTTL)
 	hub.SetTicketStore(tickets)
 	seedServer(st, mgr)

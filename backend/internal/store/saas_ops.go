@@ -17,6 +17,23 @@ const SaaSGSTPercent = 18.0
 
 func roundPaise(v float64) int64 { return int64(math.Round(v)) }
 
+// renewalBase is where a newly paid period starts: the later of now and the
+// end of what the org already has (active/past-due period, or trial).
+func renewalBase(sub *models.OrgSubscription, now time.Time) time.Time {
+	base := now
+	switch sub.Status {
+	case models.SubActive, models.SubPastDue:
+		if sub.CurrentPeriodEnd != nil && sub.CurrentPeriodEnd.After(base) {
+			base = *sub.CurrentPeriodEnd
+		}
+	case models.SubTrial:
+		if sub.TrialEndsAt != nil && sub.TrialEndsAt.After(base) {
+			base = *sub.TrialEndsAt
+		}
+	}
+	return base
+}
+
 // ActivateOrg opens (or reopens) a paid period for an org: org + subscription
 // -> active, a fresh period starting now, and a recorded paid invoice.
 func (s *Store) ActivateOrg(ctx context.Context, orgID, actor, method string, periodDays int, amountPaise int64, reference, notes string) (*models.OrgSubscription, *models.SaaSInvoice, error) {
@@ -35,7 +52,10 @@ func (s *Store) ActivateOrg(ctx context.Context, orgID, actor, method string, pe
 		amountPaise = plan.PricePaise
 	}
 	now := Now()
-	start, end := now, now.AddDate(0, 0, periodDays)
+	// A renewal extends from max(now, current paid-up end): paying early
+	// never forfeits the days already bought (or the running trial).
+	start := renewalBase(sub, now)
+	end := start.AddDate(0, 0, periodDays)
 
 	next := *sub
 	next.Status = models.SubActive

@@ -58,7 +58,7 @@ func main() {
 		slog.Error("superadmin setup failed", "err", err)
 		os.Exit(1)
 	}
-	hub := ws.NewHub(authMgr)
+	hub := ws.NewHub()
 	tickets := auth.NewTicketStore(auth.SSETicketTTL)
 	hub.SetTicketStore(tickets)
 
