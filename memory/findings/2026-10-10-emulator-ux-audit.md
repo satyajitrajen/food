@@ -25,6 +25,7 @@ locations verified in source. Fixes follow the approved plan
 | UX-17 | LOW | KDS | "Preparing (N)" tab label clipped (TabBar not scrollable) | kitchen_board_screen.dart:94-113 | fixed |
 | UX-18 | LOW | Customers | "Customer Directory" title truncates; "Phone · Visits" wraps | customer_screen.dart:336-352,428-430 | fixed |
 | UX-19 | LOW | Docs | flows.md role-tab tables don't match actual tabs (waiter has no Home; kitchen bypasses shell) | docs/flows.md:37-42,142-143 | fixed |
+| UX-20 | HIGH | Orders | CRASH starting a delivery order: `_pickOrderType` disposed the dialog's TextEditingControllers right after `showDialog` resolved, while the exit animation still had the TextFields mounted (keyboard close rebuilds them) → `_dependents.isEmpty` assertion, red error screen. Found during batch-10 verification, not in the original audit. | pos_menu_screen.dart:59-101 | fixed |
 
 Notes:
 - UX-15 fix shows waiters 3 safe tiles (Transactions, Customer Directory,

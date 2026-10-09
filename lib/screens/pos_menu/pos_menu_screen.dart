@@ -61,43 +61,13 @@ class _PosMenuScreenState extends State<PosMenuScreen> {
       provider.setNewOrderType(type);
       return;
     }
-    final address = TextEditingController();
-    final phone = TextEditingController();
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delivery details'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: phone,
-              keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(labelText: 'Customer mobile'),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: address,
-              maxLines: 2,
-              decoration: const InputDecoration(labelText: 'Delivery address'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Start delivery order')),
-        ],
-      ),
+    final details = await DeliveryDetailsDialog.show(context);
+    if (details == null) return;
+    provider.setNewOrderType(
+      OrderType.delivery,
+      customerPhone: details.phone,
+      address: details.address,
     );
-    if (ok == true) {
-      provider.setNewOrderType(
-        OrderType.delivery,
-        customerPhone: phone.text.trim().isEmpty ? null : phone.text.trim(),
-        address: address.text.trim().isEmpty ? null : address.text.trim(),
-      );
-    }
-    address.dispose();
-    phone.dispose();
   }
 
   @override
@@ -603,4 +573,73 @@ class _PosMenuScreenState extends State<PosMenuScreen> {
     ),
   );
 }
+}
+
+class DeliveryDetails {
+  const DeliveryDetails({this.phone, this.address});
+
+  final String? phone;
+  final String? address;
+}
+
+/// Controllers are owned by the dialog State: disposing them right after
+/// `showDialog` resolves races the route's exit animation (the TextFields are
+/// still mounted during it) and crashes with a use-after-dispose assertion.
+class DeliveryDetailsDialog extends StatefulWidget {
+  const DeliveryDetailsDialog({super.key});
+
+  static Future<DeliveryDetails?> show(BuildContext context) {
+    return showDialog<DeliveryDetails>(
+      context: context,
+      builder: (_) => const DeliveryDetailsDialog(),
+    );
+  }
+
+  @override
+  State<DeliveryDetailsDialog> createState() => _DeliveryDetailsDialogState();
+}
+
+class _DeliveryDetailsDialogState extends State<DeliveryDetailsDialog> {
+  final _phone = TextEditingController();
+  final _address = TextEditingController();
+
+  @override
+  void dispose() {
+    _phone.dispose();
+    _address.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Delivery details'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _phone,
+            keyboardType: TextInputType.phone,
+            decoration: const InputDecoration(labelText: 'Customer mobile'),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _address,
+            maxLines: 2,
+            decoration: const InputDecoration(labelText: 'Delivery address'),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(DeliveryDetails(
+            phone: _phone.text.trim().isEmpty ? null : _phone.text.trim(),
+            address: _address.text.trim().isEmpty ? null : _address.text.trim(),
+          )),
+          child: const Text('Start delivery order'),
+        ),
+      ],
+    );
+  }
 }
