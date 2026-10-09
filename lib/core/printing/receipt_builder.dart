@@ -1,6 +1,7 @@
 import '../../models/kot_model.dart';
 import '../../models/order_model.dart';
 import '../../models/settings_model.dart';
+import '../../models/shift_model.dart';
 import 'esc_pos_builder.dart';
 
 /// Renders a customer receipt as ESC/POS bytes (80mm / 32 columns).
@@ -11,17 +12,23 @@ List<int> buildReceiptBytes(RestaurantOrder order, RestaurantSettings settings) 
     ..doubleSize(true)
     ..bold(true)
     ..text(settings.restaurantName)
-    ..doubleSize(false)
-    ..text(settings.address)
-    ..text('GSTIN: ${settings.gstin}  FSSAI: ${settings.fssai}')
+    ..doubleSize(false);
+  if (settings.address.isNotEmpty) center.text(settings.address);
+  if (settings.phone.isNotEmpty) center.text('Ph: ${settings.phone}');
+  final ids = [
+    if (settings.gstin.isNotEmpty) 'GSTIN: ${settings.gstin}',
+    if (settings.fssai.isNotEmpty) 'FSSAI: ${settings.fssai}',
+  ];
+  if (ids.isNotEmpty) center.text(ids.join('  '));
+  center
     ..divider()
     ..align(0);
 
   b
-    ..text('Invoice: ${order.invoiceNumber ?? '-'}')
+    ..text('Invoice: ${order.invoiceNumber ?? 'pending sync'}')
     ..text('Order: ${order.orderNumber}   ${order.orderTypeLabel}'
         '${order.tableNumber != null ? ' (Table ${order.tableNumber})' : ''}')
-    ..text('Date: ${order.paidAt ?? order.createdAt}')
+    ..text('Date: ${_stamp(order.paidAt ?? order.createdAt)}')
     ..text('Server: ${order.waiterName ?? '-'}')
     ..divider();
 
@@ -52,6 +59,7 @@ List<int> buildReceiptBytes(RestaurantOrder order, RestaurantSettings settings) 
   if (order.serviceCharge > 0) row('Service Charge', order.serviceCharge.toStringAsFixed(2));
   if (order.packagingCharge > 0) row('Packaging', order.packagingCharge.toStringAsFixed(2));
   if (order.deliveryCharge > 0) row('Delivery', order.deliveryCharge.toStringAsFixed(2));
+  if (order.refundedAmount > 0) row('Refunded', '-${order.refundedAmount.toStringAsFixed(2)}');
   b.bold(true);
   row('TOTAL', 'Rs. ${order.grandTotal.toStringAsFixed(2)}');
   b.bold(false);
@@ -121,6 +129,68 @@ List<int> buildTestPageBytes() {
     ..divider()
     ..text('Printer test — connection OK')
     ..text('Printed: ${DateTime.now()}')
+    ..feed(3)
+    ..cut();
+  return b.build();
+}
+
+String _stamp(DateTime d) {
+  final l = d.toLocal();
+  String two(int v) => v.toString().padLeft(2, '0');
+  return '${two(l.day)}/${two(l.month)}/${l.year} ${two(l.hour)}:${two(l.minute)}';
+}
+
+/// Z-report (end of shift) as ESC/POS bytes. [server] is the server's
+/// Z-report when available; the terminal's own figures are printed otherwise.
+List<int> buildZReportBytes(Shift shift, RestaurantSettings settings, {Map<String, dynamic>? server}) {
+  final b = EscPosBuilder();
+  b
+    ..align(1)
+    ..bold(true)
+    ..text(settings.restaurantName)
+    ..text('Z-REPORT')
+    ..bold(false)
+    ..divider()
+    ..align(0);
+  void row(String label, double v) {
+    b.align(0).text(label);
+    b.align(2).text(v.toStringAsFixed(2)).align(0);
+  }
+
+  double paise(String k) => ((server?[k] as num?)?.toDouble() ?? 0) / 100.0;
+  b
+    ..text('Staff: ${shift.staffName}')
+    ..text('Opened: ${_stamp(shift.startedAt)}')
+    ..text('Closed: ${_stamp(shift.closedAt ?? DateTime.now())}')
+    ..divider();
+  row('Opening cash', shift.openingCash);
+  row('Cash sales', shift.cashSales);
+  row('UPI sales', shift.upiSales);
+  row('Card sales', shift.cardSales);
+  row('Cash refunds', -shift.refundsCash);
+  row('Digital refunds', -shift.refundsDigital);
+  row('Expenses (cash)', -shift.expenses);
+  row('Cash in', shift.cashIn);
+  row('Cash out', -shift.cashOut);
+  b.divider();
+  final expected = server != null ? paise('expected_cash_paise') : shift.expectedCash;
+  final counted = server != null ? paise('counted_cash_paise') : (shift.actualCashClosed ?? 0);
+  b.bold(true);
+  row('Expected cash', expected);
+  row('Counted cash', counted);
+  row('Difference', counted - expected);
+  b.bold(false);
+  if (server == null) {
+    b
+      ..divider()
+      ..text('Offline copy - server totals pending');
+  }
+  if (shift.closingNotes != null && shift.closingNotes!.isNotEmpty) {
+    b
+      ..divider()
+      ..text('Notes: ${shift.closingNotes}');
+  }
+  b
     ..feed(3)
     ..cut();
   return b.build();

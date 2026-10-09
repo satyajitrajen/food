@@ -1509,11 +1509,14 @@ class PosProvider extends ChangeNotifier {
     });
   }
 
-  void closeShift({
+  /// Closes the shift locally and sends it; completes once the server has
+  /// acknowledged (or right away when offline), so a Z-report fetched
+  /// afterwards reflects the closed shift.
+  Future<void> closeShift({
     required double actualCash,
     String? notes,
     CashDenomination? denominations,
-  }) {
+  }) async {
     if (_currentShift != null) {
       _currentShift!.closedAt = DateTime.now();
       _currentShift!.actualCashClosed = actualCash;
@@ -1523,7 +1526,7 @@ class PosProvider extends ChangeNotifier {
       _shiftHistory.insert(0, _currentShift!);
       _currentShift = null;
       notifyListeners();
-      _push('shift.close', {
+      await _push('shift.close', {
         'counted_paise': toPaise(actualCash),
         if (notes != null && notes.isNotEmpty) 'notes': notes,
         if (denominations != null) 'denominations': denominationsToApi(denominations),
@@ -1940,6 +1943,31 @@ class PosProvider extends ChangeNotifier {
     return null;
   }
 
+  /// Order type for the next order started without a table (POS header).
+  OrderType _newOrderType = OrderType.takeaway;
+  OrderType get newOrderType => _newOrderType;
+
+  /// Switches the counter order type. An open table-less order that has not
+  /// been sent anywhere yet is converted in place (charges re-defaulted).
+  void setNewOrderType(OrderType type, {String? customerPhone, String? address}) {
+    if (type == OrderType.dineIn) return; // dine-in starts from a table
+    _newOrderType = type;
+    final o = _activeOrder;
+    if (o != null && o.tableId == null && _draftOrders.contains(o.id)) {
+      final keepItems = o.items;
+      _draftOrders.remove(o.id);
+      startNewOrder(type, customerPhone: customerPhone, address: address);
+      _activeOrder!.items.addAll(keepItems);
+      return;
+    }
+    if (o != null && o.tableId == null && o.items.isEmpty && !o.isClosed) {
+      _orders.removeWhere((x) => x.id == o.id);
+      startNewOrder(type, customerPhone: customerPhone, address: address);
+      return;
+    }
+    notifyListeners();
+  }
+
   void startNewOrder(OrderType type, {String? customerName, String? customerPhone, String? address}) {
     _orderCounter++;
     // Mirror the outlet settings defaults (same rules the server applies on
@@ -1974,7 +2002,8 @@ class PosProvider extends ChangeNotifier {
     int quantity = 1,
   }) {
     if (_activeOrder == null) {
-      startNewOrder(OrderType.dineIn);
+      // No table picked: a counter sale. Dine-in always needs a table.
+      startNewOrder(_newOrderType == OrderType.dineIn ? OrderType.takeaway : _newOrderType);
     }
     if (quantity <= 0) return;
 
@@ -3197,10 +3226,28 @@ class PosProvider extends ChangeNotifier {
     final id = _serverIdFor(localShiftId);
     if (id == null) return null;
     try {
-      final data = await _api!.request('GET', '/api/v1/reports/shift/$id/zreport');
+      final data = await _api!.request('GET', '/api/v1/reports/shift/$id/zreport',
+          query: {'outlet_id': _currentOutlet.id});
       return data is Map ? data.cast<String, dynamic>() : null;
     } on ApiException catch (_) {
       return null;
+    } on NetworkException catch (_) {
+      return null;
+    }
+  }
+
+  /// Prints the Z-report on the billing printer. False with [printerError]
+  /// set when no printer is configured or printing fails.
+  Future<bool> printZReport(Shift shift, {Map<String, dynamic>? server}) async {
+    try {
+      await _effectivePrinter.send(buildZReportBytes(shift, _settings, server: server));
+      _printerError = null;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _printerError = '$e';
+      notifyListeners();
+      return false;
     }
   }
 

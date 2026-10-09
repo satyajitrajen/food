@@ -654,6 +654,7 @@ Map<String, dynamic>? denominationsToApi(CashDenomination? d) {
     'd50': d.count50,
     'd20': d.count20,
     'd10': d.count10,
+    'coins_paise': toPaise(d.coins),
   };
 }
 

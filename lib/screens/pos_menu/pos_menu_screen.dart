@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/format.dart';
 import '../../core/theme/app_theme.dart';
+import '../../models/order_model.dart';
 import '../../core/media.dart';
 import '../../providers/pos_provider.dart';
 import '../../models/menu_model.dart';
@@ -29,14 +31,15 @@ class _PosMenuScreenState extends State<PosMenuScreen> {
 
   bool _adding = false;
 
-  void _handleItemTap(BuildContext context, MenuItem item, PosProvider provider) {
-    // Debounce: a double-fire on the ADD button must not insert the same
-    // dish twice (each tap goes through one dialog round-trip).
+  /// Plain dishes add in one tap; dishes with variants/add-ons (or a long
+  /// press on any dish, for a note) open the customisation dialog.
+  void _handleItemTap(BuildContext context, MenuItem item, PosProvider provider,
+      {bool customise = false}) {
     if (_adding) return;
-    // Always ask: every add (simple dish, variant dish, spice/add-on dish)
-    // goes through the customization dialog so each quantity/variant gets
-    // its own variant + modifiers + note choice. addToCart merges identical
-    // picks into one line with the chosen quantity.
+    if (!customise && !item.hasVariants && !item.hasModifiers) {
+      provider.addToCart(item);
+      return;
+    }
     _adding = true;
     VariantAndModifiersDialog.show(
       context,
@@ -53,27 +56,66 @@ class _PosMenuScreenState extends State<PosMenuScreen> {
     ).whenComplete(() => _adding = false);
   }
 
+  Future<void> _pickOrderType(BuildContext context, PosProvider provider, OrderType type) async {
+    if (type != OrderType.delivery) {
+      provider.setNewOrderType(type);
+      return;
+    }
+    final address = TextEditingController();
+    final phone = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delivery details'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: phone,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(labelText: 'Customer mobile'),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: address,
+              maxLines: 2,
+              decoration: const InputDecoration(labelText: 'Delivery address'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Start delivery order')),
+        ],
+      ),
+    );
+    if (ok == true) {
+      provider.setNewOrderType(
+        OrderType.delivery,
+        customerPhone: phone.text.trim().isEmpty ? null : phone.text.trim(),
+        address: address.text.trim().isEmpty ? null : address.text.trim(),
+      );
+    }
+    address.dispose();
+    phone.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<PosProvider>();
     final activeOrder = provider.activeOrder;
-    final tableName = activeOrder?.tableNumber ?? provider.selectedTable?.tableNumber ?? 'Counter';
+    final tableNumber = activeOrder?.tableNumber ?? provider.selectedTable?.tableNumber;
+    final orderLabel = tableNumber != null
+        ? 'Table $tableNumber'
+        : (activeOrder?.orderTypeLabel ?? provider.newOrderType.label);
+    final cartCount = activeOrder?.totalItemCount ?? 0;
 
     return Scaffold(
       backgroundColor: AppColors.creamBg,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            if (Navigator.of(context).canPop()) {
-              Navigator.of(context).pop();
-            } else {
-              provider.goToHome(); // return to role home
-            }
-          },
-        ),
+        automaticallyImplyLeading: Navigator.of(context).canPop(),
         title: InkWell(
           onTap: () {
             Navigator.of(context).push(
@@ -87,7 +129,7 @@ class _PosMenuScreenState extends State<PosMenuScreen> {
               children: [
                 Flexible(
                   child: Text(
-                    'Table $tableName',
+                    orderLabel,
                     style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: AppColors.textDark),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -109,7 +151,12 @@ class _PosMenuScreenState extends State<PosMenuScreen> {
             onPressed: () => provider.toggleVegOnly(),
           ),
           IconButton(
-            icon: const Icon(Icons.shopping_bag_outlined),
+            tooltip: 'View order',
+            icon: Badge(
+              isLabelVisible: cartCount > 0,
+              label: Text('$cartCount'),
+              child: const Icon(Icons.shopping_bag_outlined),
+            ),
             onPressed: () {
               Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const CartViewScreen()),
@@ -121,6 +168,31 @@ class _PosMenuScreenState extends State<PosMenuScreen> {
       ),
       body: Column(
         children: [
+          if (tableNumber == null)
+            Container(
+              width: double.infinity,
+              color: Colors.white,
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: SegmentedButton<OrderType>(
+                showSelectedIcon: false,
+                segments: const [
+                  ButtonSegment(value: OrderType.takeaway, icon: Icon(Icons.shopping_bag_outlined), label: Text('Takeaway')),
+                  ButtonSegment(value: OrderType.delivery, icon: Icon(Icons.delivery_dining_outlined), label: Text('Delivery')),
+                  ButtonSegment(value: OrderType.dineIn, icon: Icon(Icons.table_restaurant_outlined), label: Text('Table')),
+                ],
+                selected: {activeOrder?.orderType ?? provider.newOrderType},
+                onSelectionChanged: (sel) {
+                  final type = sel.first;
+                  if (type == OrderType.dineIn) {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const TableSelectionScreen(isSelectingForOrder: true)),
+                    );
+                  } else {
+                    _pickOrderType(context, provider, type);
+                  }
+                },
+              ),
+            ),
           // Search Box
           Container(
             color: Colors.white,
@@ -246,11 +318,11 @@ class _PosMenuScreenState extends State<PosMenuScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '${activeOrder.totalItemCount} Items · ₹${activeOrder.subtotal.toStringAsFixed(0)}',
+                          '${activeOrder.totalItemCount} items · ${formatInr(activeOrder.subtotal)} + tax',
                           style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: AppColors.textDark),
                         ),
                         Text(
-                          'Table $tableName',
+                          orderLabel,
                           style: const TextStyle(color: AppColors.primaryGreen, fontWeight: FontWeight.w600, fontSize: 12),
                         ),
                       ],
@@ -295,6 +367,7 @@ class _PosMenuScreenState extends State<PosMenuScreen> {
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: () => _handleItemTap(context, item, provider),
+        onLongPress: () => _handleItemTap(context, item, provider, customise: true),
         borderRadius: BorderRadius.circular(16),
         child: Container(
           decoration: BoxDecoration(

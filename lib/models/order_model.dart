@@ -1,6 +1,14 @@
 import 'menu_model.dart';
 
 enum OrderType { dineIn, takeaway, delivery }
+
+extension OrderTypeX on OrderType {
+  String get label => switch (this) {
+        OrderType.dineIn => 'Dine-in',
+        OrderType.takeaway => 'Takeaway',
+        OrderType.delivery => 'Delivery',
+      };
+}
 enum OrderStatus { received, preparing, ready, served, billing, completed, cancelled, refunded }
 
 /// `credit` = pay later, booked against a customer's ledger.

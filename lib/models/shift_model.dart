@@ -6,6 +6,9 @@ class CashDenomination {
   final int count20;
   final int count10;
 
+  /// Loose coins (₹1/2/5/10 coins, ₹1–5 notes) counted as one rupee amount.
+  final double coins;
+
   CashDenomination({
     this.count500 = 0,
     this.count200 = 0,
@@ -13,16 +16,18 @@ class CashDenomination {
     this.count50 = 0,
     this.count20 = 0,
     this.count10 = 0,
+    this.coins = 0,
   });
 
   double get total =>
       (count500 * 500 +
-          count200 * 200 +
-          count100 * 100 +
-          count50 * 50 +
-          count20 * 20 +
-          count10 * 10)
-          .toDouble();
+              count200 * 200 +
+              count100 * 100 +
+              count50 * 50 +
+              count20 * 20 +
+              count10 * 10)
+          .toDouble() +
+      coins;
 
   CashDenomination copyWith({
     int? count500,
@@ -31,6 +36,7 @@ class CashDenomination {
     int? count50,
     int? count20,
     int? count10,
+    double? coins,
   }) {
     return CashDenomination(
       count500: count500 ?? this.count500,
@@ -39,6 +45,7 @@ class CashDenomination {
       count50: count50 ?? this.count50,
       count20: count20 ?? this.count20,
       count10: count10 ?? this.count10,
+      coins: coins ?? this.coins,
     );
   }
 }

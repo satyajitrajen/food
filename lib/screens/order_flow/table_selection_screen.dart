@@ -12,7 +12,7 @@ import '../running_orders/running_order_detail_screen.dart';
 class TableSelectionScreen extends StatelessWidget {
   final bool isSelectingForOrder;
 
-  const TableSelectionScreen({super.key, this.isSelectingForOrder = true});
+  const TableSelectionScreen({super.key, this.isSelectingForOrder = false});
 
   @override
   Widget build(BuildContext context) {
@@ -180,14 +180,21 @@ class TableSelectionScreen extends StatelessWidget {
           GuestDetailsDialog.show(
             context,
             onStartOrder: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const PosMenuScreen()),
-              );
+              // Picked from the POS: go back to it rather than stacking a
+              // second POS screen on top.
+              if (isSelectingForOrder && Navigator.of(context).canPop()) {
+                Navigator.of(context).pop();
+              } else {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const PosMenuScreen()),
+                );
+              }
             },
           );
         } else if (table.status == TableStatus.occupied || table.status == TableStatus.billing) {
-          // Open Running Order
-          if (provider.activeOrder != null) {
+          if (isSelectingForOrder && Navigator.of(context).canPop()) {
+            Navigator.of(context).pop();
+          } else if (provider.activeOrder != null) {
             Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => RunningOrderDetailScreen(order: provider.activeOrder!)),
             );
