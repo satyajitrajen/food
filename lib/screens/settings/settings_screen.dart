@@ -924,7 +924,15 @@ class SettingsScreen extends StatelessWidget {
                     );
                   }
                 }
-                if (num.isEmpty || seats <= 0 || section.isEmpty) return;
+                if (num.isEmpty || seats <= 0 || section.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Enter a table number, seats and a section'),
+                      backgroundColor: AppColors.danger,
+                    ),
+                  );
+                  return;
+                }
                 provider.addTable(tableNumber: num, seats: seats, floor: section);
                 Navigator.of(ctx).pop();
               },

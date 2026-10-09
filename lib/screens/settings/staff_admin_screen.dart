@@ -469,7 +469,24 @@ class StaffAdminScreen extends StatelessWidget {
                   );
                   return;
                 }
-                if (name.isEmpty || pin.length < 4 || pin.length > 6 || !RegExp(r'^\d+$').hasMatch(pin)) return;
+                if (name.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Enter a staff name'),
+                      backgroundColor: AppColors.nonVegRed,
+                    ),
+                  );
+                  return;
+                }
+                if (pin.length < 4 || pin.length > 6 || !RegExp(r'^\d+$').hasMatch(pin)) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('PIN must be 4–6 digits'),
+                      backgroundColor: AppColors.nonVegRed,
+                    ),
+                  );
+                  return;
+                }
                 if ((role == StaffRole.waiter || role == StaffRole.kitchen) &&
                     (selectedOutletId == null || selectedOutletId!.isEmpty)) {
                   ScaffoldMessenger.of(context).showSnackBar(

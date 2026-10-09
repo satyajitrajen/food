@@ -504,6 +504,14 @@ class _CreditCustomerPickerState extends State<_CreditCustomerPicker> {
   bool _adding = false;
 
   @override
+  void initState() {
+    super.initState();
+    // Rebuild on name keystrokes so Add & select enables as soon as the
+    // name + 10-digit requirements are met.
+    _name.addListener(() => setState(() {}));
+  }
+
+  @override
   void dispose() {
     _query.dispose();
     _name.dispose();
@@ -571,10 +579,9 @@ class _CreditCustomerPickerState extends State<_CreditCustomerPicker> {
           Align(
             alignment: Alignment.centerRight,
             child: FilledButton(
-              onPressed: _name.text.trim().isEmpty && digits.length < 10
+              onPressed: _name.text.trim().isEmpty || digits.length < 10
                   ? null
                   : () {
-                      if (_name.text.trim().isEmpty || digits.length < 10) return;
                       final c = Customer(
                         id: 'cust-${DateTime.now().millisecondsSinceEpoch}',
                         name: _name.text.trim(),
