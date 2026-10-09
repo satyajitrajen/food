@@ -25,8 +25,8 @@ depend on.
     pay/refund/items, tables writes, shifts, expenses, customers, inventory,
     suppliers/purchases, settings PUT, `verify-manager-pin`), plus the
     revenue dashboard and Z-report reads.
-- Seed (`cmd/server/main.go`) adds a demo kitchen profile **Chef Sharma, PIN
-  `5555`** (only when `FOODPOS_SEED=1`).
+- The dev demo seed (`go run ./cmd/seed`) adds a kitchen profile **Chef Sharma, PIN
+  `5555`**.
 
 ### 2. Overall revenue dashboard is Admin-only
 - `GET /reports/dashboard` now requires `RequireRole("admin")`.

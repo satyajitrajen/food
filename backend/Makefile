@@ -12,13 +12,14 @@ web:
 	cp -R ../landing/dist/. internal/web/webroot/
 
 run:
+	@echo "local dev: FOODPOS_DEV=1 (or set FOODPOS_JWT_SECRET)"
 	go run ./cmd/server
 
-run-seed:
-	FOODPOS_SEED=1 go run ./cmd/server
+seed:
+	go run ./cmd/seed
 
 clean:
 	go clean
 	-rm -f foodpos.db foodpos.db-wal foodpos.db-shm
 
-.PHONY: verify run run-seed clean
+.PHONY: verify run seed clean
