@@ -20,13 +20,17 @@ locations verified in source. Fixes follow the approved plan
 | UX-12 | MED | Reports | Staff Performance lists all orders under "Unassigned" — only waiter-role creators attributed | pos_provider.dart:2014-2015,1749-1750 | fixed |
 | UX-13 | MED | Reports | Expense total + estimated profit shown unfiltered when order-type filter yields 0 orders (expenses not attributable by type) | reports_screen.dart:239-249,356-401 | fixed |
 | UX-14 | MED | Tables | Add Table empty submit silent no-op | settings_screen.dart:927 | fixed |
-| UX-15 | MED | More hub | Waiter role gets completely empty More tab (0 tiles) | more_hub_screen.dart:35-37 | open |
+| UX-15 | MED | More hub | Waiter role gets completely empty More tab (0 tiles) | more_hub_screen.dart:35-37 | fixed |
 | UX-16 | LOW | Printing | Print-failure snackbars surface raw SocketException text | pos_provider.dart:3316,3388,3415,3437 | open |
 | UX-17 | LOW | KDS | "Preparing (N)" tab label clipped (TabBar not scrollable) | kitchen_board_screen.dart:94-113 | open |
 | UX-18 | LOW | Customers | "Customer Directory" title truncates; "Phone · Visits" wraps | customer_screen.dart:336-352,428-430 | open |
 | UX-19 | LOW | Docs | flows.md role-tab tables don't match actual tabs (waiter has no Home; kitchen bypasses shell) | docs/flows.md:37-42,142-143 | open |
 
 Notes:
+- UX-15 fix shows waiters 3 safe tiles (Transactions, Customer Directory,
+  Customer Menu QR); inner money actions gated — refund button hidden for
+  waiters in transactions_screen, credit book/settle hidden in customer_sheet
+  (Add Customer + credit history stay visible).
 - UX-07 verified wired end-to-end (startNewOrder applies defaultDeliveryCharge;
   totals include it; backend stores delivery_paise). No code change.
 - UX-03/05 fix adds backend `payments` echo on single-order GET; design brief

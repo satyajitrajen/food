@@ -22,9 +22,11 @@ import 'customer_menu_qr_screen.dart';
 
 /// Secondary operations hub. Tiles are filtered by role — Admin sees the
 /// overall revenue area (Reports) that Manager/Cashier cannot, and back-office
-/// tiles (menu/staff/settings) are management-only. Outlet-bound staff
-/// (waiters/kitchen assigned to one outlet) get a minimal hub (profile + lock,
-/// no outlet switch); org-wide floaters keep the outlet switch tile.
+/// tiles (menu/staff/settings) are management-only. Waiters also get three
+/// safe tiles (Transactions, Customer Directory, Customer Menu QR); their
+/// money actions (refunds, credit ledger) stay ops-only. Outlet-bound staff
+/// (waiters/kitchen assigned to one outlet) get no outlet switch tile;
+/// org-wide floaters keep the outlet switch tile.
 class MoreHubScreen extends StatelessWidget {
   const MoreHubScreen({super.key});
 
@@ -35,6 +37,7 @@ class MoreHubScreen extends StatelessWidget {
     final isOps = role == StaffRole.admin || role == StaffRole.manager || role == StaffRole.cashier;
     final isAdmin = role == StaffRole.admin;
     final canManage = role == StaffRole.admin || role == StaffRole.manager;
+    final isWaiter = role == StaffRole.waiter;
 
     final tiles = <Widget>[
       if (isOps)
@@ -57,7 +60,7 @@ class MoreHubScreen extends StatelessWidget {
           bgColor: AppColors.infoBlueBg,
           screen: const KitchenBoardScreen(),
         ),
-      if (isOps)
+      if (isOps || isWaiter)
         _tile(
           context: context,
           title: 'Past Transactions & Invoices',
@@ -87,7 +90,7 @@ class MoreHubScreen extends StatelessWidget {
           bgColor: AppColors.saffronAmberBg,
           screen: const CashDrawerScreen(),
         ),
-      if (isOps)
+      if (isOps || isWaiter)
         _tile(
           context: context,
           title: 'Customer Directory',
@@ -117,7 +120,7 @@ class MoreHubScreen extends StatelessWidget {
           bgColor: AppColors.primaryGreenLight,
           screen: const AttendanceScreen(),
         ),
-      if (isOps)
+      if (isOps || isWaiter)
         _tile(
           context: context,
           title: 'Customer Menu QR',

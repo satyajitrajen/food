@@ -4,6 +4,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/validation.dart';
 import '../../providers/pos_provider.dart';
 import '../../models/customer_model.dart';
+import '../../models/staff_model.dart';
 import '../../widgets/confirm_dialog.dart';
 import '../../widgets/empty_state.dart';
 import '../../core/format.dart';
@@ -323,6 +324,12 @@ class _CustomerScreenState extends State<CustomerScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<PosProvider>();
+    // Waiters browse the directory and add customers; booking credit and
+    // settling outstanding balances stay ops-only.
+    final role = provider.currentStaff?.role;
+    final canManageCredit = role == StaffRole.admin ||
+        role == StaffRole.manager ||
+        role == StaffRole.cashier;
     final customers = provider.customers.where((c) {
       if (_searchController.text.isNotEmpty) {
         final q = _searchController.text.toLowerCase();
@@ -466,32 +473,14 @@ class _CustomerScreenState extends State<CustomerScreen> {
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       const SizedBox(height: 8),
-                                      ListTile(
-                                        leading: const Icon(
-                                          Icons.add_card,
-                                          color: AppColors.primaryGreen,
-                                        ),
-                                        title: const Text(
-                                          'Book credit sale (house tab)',
-                                        ),
-                                        onTap: () {
-                                          Navigator.of(bctx).pop();
-                                          _showCreditDialog(
-                                            context,
-                                            provider,
-                                            cust,
-                                            'sale',
-                                          );
-                                        },
-                                      ),
-                                      if (cust.outstandingCredit > 0)
+                                      if (canManageCredit) ...[
                                         ListTile(
                                           leading: const Icon(
-                                            Icons.payments,
-                                            color: AppColors.vegGreen,
+                                            Icons.add_card,
+                                            color: AppColors.primaryGreen,
                                           ),
-                                          title: Text(
-                                            'Settle outstanding (${formatInr(cust.outstandingCredit)})',
+                                          title: const Text(
+                                            'Book credit sale (house tab)',
                                           ),
                                           onTap: () {
                                             Navigator.of(bctx).pop();
@@ -499,10 +488,30 @@ class _CustomerScreenState extends State<CustomerScreen> {
                                               context,
                                               provider,
                                               cust,
-                                              'settlement',
+                                              'sale',
                                             );
                                           },
                                         ),
+                                        if (cust.outstandingCredit > 0)
+                                          ListTile(
+                                            leading: const Icon(
+                                              Icons.payments,
+                                              color: AppColors.vegGreen,
+                                            ),
+                                            title: Text(
+                                              'Settle outstanding (${formatInr(cust.outstandingCredit)})',
+                                            ),
+                                            onTap: () {
+                                              Navigator.of(bctx).pop();
+                                              _showCreditDialog(
+                                                context,
+                                                provider,
+                                                cust,
+                                                'settlement',
+                                              );
+                                            },
+                                          ),
+                                      ],
                                       ListTile(
                                         leading: const Icon(
                                           Icons.history,

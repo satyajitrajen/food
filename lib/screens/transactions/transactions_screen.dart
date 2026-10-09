@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/format.dart';
 import '../../models/order_model.dart';
+import '../../models/staff_model.dart';
 import '../../providers/pos_provider.dart';
 import '../modals/refund_dialog.dart';
 import '../receipt/payment_success_screen.dart';
@@ -84,6 +85,12 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<PosProvider>();
+    // Waiters can view/reprint bills; issuing refunds stays ops-only
+    // (the refund dialog itself is also PIN-gated).
+    final role = provider.currentStaff?.role;
+    final canRefund = role == StaffRole.admin ||
+        role == StaffRole.manager ||
+        role == StaffRole.cashier;
     final transactions = provider.completedTransactions;
 
     final filtered = transactions.where((tx) {
@@ -366,34 +373,36 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                           style: TextStyle(fontSize: 12),
                                         ),
                                       ),
-                                      const SizedBox(width: 8),
-                                      OutlinedButton.icon(
-                                        style: OutlinedButton.styleFrom(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 12,
-                                            vertical: 6,
+                                      if (canRefund) ...[
+                                        const SizedBox(width: 8),
+                                        OutlinedButton.icon(
+                                          style: OutlinedButton.styleFrom(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 12,
+                                              vertical: 6,
+                                            ),
+                                            side: const BorderSide(
+                                              color: AppColors.nonVegRed,
+                                            ),
+                                            foregroundColor: AppColors.nonVegRed,
                                           ),
-                                          side: const BorderSide(
-                                            color: AppColors.nonVegRed,
+                                          onPressed:
+                                              tx.status == OrderStatus.refunded
+                                              ? null
+                                              : () => RefundDialog.show(
+                                                  context,
+                                                  tx,
+                                                ),
+                                          icon: const Icon(
+                                            Icons.currency_exchange,
+                                            size: 14,
                                           ),
-                                          foregroundColor: AppColors.nonVegRed,
+                                          label: const Text(
+                                            'Refund',
+                                            style: TextStyle(fontSize: 12),
+                                          ),
                                         ),
-                                        onPressed:
-                                            tx.status == OrderStatus.refunded
-                                            ? null
-                                            : () => RefundDialog.show(
-                                                context,
-                                                tx,
-                                              ),
-                                        icon: const Icon(
-                                          Icons.currency_exchange,
-                                          size: 14,
-                                        ),
-                                        label: const Text(
-                                          'Refund',
-                                          style: TextStyle(fontSize: 12),
-                                        ),
-                                      ),
+                                      ],
                                       const SizedBox(width: 8),
                                       ElevatedButton.icon(
                                         style: ElevatedButton.styleFrom(
