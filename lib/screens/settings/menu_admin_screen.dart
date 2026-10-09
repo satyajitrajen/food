@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/media.dart';
+import '../../core/format.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/menu_model.dart';
 import '../../providers/pos_provider.dart';
@@ -194,10 +195,16 @@ class MenuAdminScreen extends StatelessWidget {
   Future<void> _showEditDialog(BuildContext context, [MenuItem? existing]) async {
     final provider = context.read<PosProvider>();
     final nameC = TextEditingController(text: existing?.name ?? '');
-    final priceC = TextEditingController(text: existing == null ? '' : existing.price.toStringAsFixed(0));
+    final priceC = TextEditingController(text: existing == null ? '' : rupeeInput(existing.price));
     final descC = TextEditingController(text: existing?.description ?? '');
     final categories = provider.categories.where((c) => c != 'All').toList();
-    var category = existing?.category.isNotEmpty == true ? existing!.category : (categories.isNotEmpty ? categories.first : 'Starters');
+    // Free text with suggestions: a brand-new outlet has no categories yet,
+    // so the first item must be able to create one.
+    final categoryC = TextEditingController(
+        text: existing?.category.isNotEmpty == true ? existing!.category : (categories.isNotEmpty ? categories.first : ''));
+    String? nameErr;
+    String? priceErr;
+    String? categoryErr;
     var isVeg = existing?.isVeg ?? true;
     var isBestseller = existing?.isBestseller ?? false;
     // Working copies of add-ons edited via the sub-dialogs.
@@ -213,7 +220,7 @@ class MenuAdminScreen extends StatelessWidget {
     await showDialog(
       context: context,
       builder: (ctx) => DialogControllerScope(
-        controllers: [nameC, priceC, descC],
+        controllers: [nameC, priceC, descC, categoryC],
         builder: (ctx, setDialogState) {
           final existingUrl = resolveMediaUrl(
             (removedImage ? '' : existing?.imageUrl ?? ''),
@@ -243,8 +250,14 @@ class MenuAdminScreen extends StatelessWidget {
 
           Future<void> save() async {
             final name = nameC.text.trim();
-            final price = double.tryParse(priceC.text) ?? 0;
-            if (name.isEmpty || price <= 0) return;
+            final price = double.tryParse(priceC.text.trim()) ?? 0;
+            final category = categoryC.text.trim();
+            setDialogState(() {
+              nameErr = name.isEmpty ? 'Enter the dish name' : null;
+              priceErr = price <= 0 ? 'Enter a price above ₹0' : null;
+              categoryErr = category.isEmpty ? 'Pick or type a category' : null;
+            });
+            if (nameErr != null || priceErr != null || categoryErr != null) return;
             setDialogState(() => saving = true);
 
             var finalImage = removedImage ? '' : (existing?.imageUrl ?? '');
@@ -313,19 +326,43 @@ class MenuAdminScreen extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    TextField(controller: nameC, decoration: const InputDecoration(labelText: 'Name')),
-                    const SizedBox(height: 10),
-                    DropdownButtonFormField<String>(
-                      initialValue: category,
-                      decoration: const InputDecoration(labelText: 'Category'),
-                      items: categories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
-                      onChanged: (v) => setDialogState(() => category = v ?? category),
+                    TextField(
+                      controller: nameC,
+                      textCapitalization: TextCapitalization.words,
+                      decoration: InputDecoration(labelText: 'Name', errorText: nameErr),
                     ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: categoryC,
+                      textCapitalization: TextCapitalization.words,
+                      decoration: InputDecoration(
+                        labelText: 'Category',
+                        hintText: 'e.g. Starters',
+                        errorText: categoryErr,
+                      ),
+                      onChanged: (_) => setDialogState(() {}),
+                    ),
+                    if (categories.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            for (final c in categories)
+                              ChoiceChip(
+                                label: Text(c),
+                                selected: categoryC.text.trim() == c,
+                                onSelected: (_) => setDialogState(() => categoryC.text = c),
+                              ),
+                          ],
+                        ),
+                      ),
                     const SizedBox(height: 10),
                     TextField(
                       controller: priceC,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(labelText: 'Base Price (₹)'),
+                      decoration: InputDecoration(labelText: 'Base price', prefixText: '₹ ', errorText: priceErr),
                     ),
                     const SizedBox(height: 10),
                     TextField(

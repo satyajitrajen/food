@@ -1829,15 +1829,9 @@ class PosProvider extends ChangeNotifier {
   }
 
   void mergeTables(String primaryTableId, String secondaryTableId) {
-    final primary = _tables.firstWhere(
-      (t) => t.id == primaryTableId,
-      orElse: () => throw StateError('Primary table not found'),
-    );
-    final secondary = _tables.firstWhere(
-      (t) => t.id == secondaryTableId,
-      orElse: () => throw StateError('Secondary table not found'),
-    );
-    if (primary.id == secondary.id) return;
+    final primary = _tables.where((t) => t.id == primaryTableId).firstOrNull;
+    final secondary = _tables.where((t) => t.id == secondaryTableId).firstOrNull;
+    if (primary == null || secondary == null || primary.id == secondary.id) return;
 
     // Re-home the secondary table's active order onto the primary so no
     // order is orphaned by the merge.
@@ -2322,10 +2316,7 @@ class PosProvider extends ChangeNotifier {
   void openRunningOrder(RestaurantOrder order) {
     _activeOrder = order;
     if (order.tableId != null) {
-      _selectedTable = _tables.firstWhere(
-        (t) => t.id == order.tableId,
-        orElse: () => _tables.first,
-      );
+      _selectedTable = _tables.where((t) => t.id == order.tableId).firstOrNull;
     }
     notifyListeners();
   }
@@ -3223,12 +3214,18 @@ class PosProvider extends ChangeNotifier {
   Future<List<Map<String, dynamic>>> fetchCreditLog(String customerId) async {
     if (!apiEnabled || _api == null || !_sync!.online) return const [];
     final id = _serverIdFor(customerId);
-    final data = await _api!.request(
-      'GET', '/api/v1/customers/$id/credit-log',
-      query: {'outlet_id': _currentOutlet.id},
-    );
-    if (data is Map && data['entries'] is List) {
-      return (data['entries'] as List).whereType<Map>().map((e) => e.cast<String, dynamic>()).toList();
+    try {
+      final data = await _api!.request(
+        'GET', '/api/v1/customers/$id/credit-log',
+        query: {'outlet_id': _currentOutlet.id},
+      );
+      if (data is Map && data['entries'] is List) {
+        return (data['entries'] as List).whereType<Map>().map((e) => e.cast<String, dynamic>()).toList();
+      }
+    } on ApiException catch (e) {
+      _lastSyncError = e.message;
+    } on NetworkException catch (_) {
+      // Offline: the log simply isn't available right now.
     }
     return const [];
   }
@@ -3236,12 +3233,18 @@ class PosProvider extends ChangeNotifier {
   /// FR-I1: server-side stock adjustment audit log.
   Future<List<Map<String, dynamic>>> fetchStockAdjustments() async {
     if (!apiEnabled || _api == null || !_sync!.online) return const [];
-    final data = await _api!.request(
-      'GET', '/api/v1/inventory/adjustments',
-      query: {'outlet_id': _currentOutlet.id},
-    );
-    if (data is Map && data['adjustments'] is List) {
-      return (data['adjustments'] as List).whereType<Map>().map((e) => e.cast<String, dynamic>()).toList();
+    try {
+      final data = await _api!.request(
+        'GET', '/api/v1/inventory/adjustments',
+        query: {'outlet_id': _currentOutlet.id},
+      );
+      if (data is Map && data['adjustments'] is List) {
+        return (data['adjustments'] as List).whereType<Map>().map((e) => e.cast<String, dynamic>()).toList();
+      }
+    } on ApiException catch (e) {
+      _lastSyncError = e.message;
+    } on NetworkException catch (_) {
+      // Offline: the log simply isn't available right now.
     }
     return const [];
   }

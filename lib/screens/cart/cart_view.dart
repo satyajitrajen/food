@@ -356,7 +356,8 @@ class CartViewScreen extends StatelessWidget {
                                       kot: kot,
                                       // The dialog pops itself; callbacks must
                                       // not pop again (they navigate instead).
-                                      onAddMoreItems: () {},
+                                      // Back to the menu to keep adding.
+                                      onAddMoreItems: () => Navigator.of(context).maybePop(),
                                       onViewOrder: () {
                                         if (order == null) return;
                                         // Replace the cart with the order

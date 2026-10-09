@@ -130,6 +130,12 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                     controller: vendorCtrl,
                     decoration: const InputDecoration(labelText: 'Vendor / Beneficiary'),
                   ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: descCtrl,
+                    maxLines: 2,
+                    decoration: const InputDecoration(labelText: 'Notes / bill no. (optional)'),
+                  ),
                 ],
               ),
             ),
