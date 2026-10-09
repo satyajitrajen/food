@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'fixtures/pos_fixtures.dart';
 import 'package:food_pos/main.dart';
-import 'package:food_pos/providers/pos_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:food_pos/models/shift_model.dart';
 import 'package:food_pos/models/table_model.dart';
@@ -95,12 +95,12 @@ void main() {
       expect(find.text('Syncing local catalog & offline state...'), findsOneWidget);
       await tester.pump(const Duration(milliseconds: 500));
       await tester.pumpAndSettle(const Duration(seconds: 2));
-      // After splash, should transition to staff login with avatar & title
-      expect(find.text('Rahul Sharma'), findsOneWidget);
+      // No demo data ships: an unbound terminal leaves the splash for setup.
+      expect(find.text('Syncing local catalog & offline state...'), findsNothing);
     });
 
     testWidgets('POS Dashboard displays operational KPIs and floor glance', (WidgetTester tester) async {
-      final provider = PosProvider();
+      final provider = fixtureProvider();
       await tester.pumpWidget(
         ChangeNotifierProvider.value(
           value: provider,
@@ -116,7 +116,7 @@ void main() {
     });
 
     testWidgets('Table Selection screen displays floor tables', (WidgetTester tester) async {
-      final provider = PosProvider();
+      final provider = fixtureProvider();
       await tester.pumpWidget(
         ChangeNotifierProvider.value(
           value: provider,
@@ -176,7 +176,7 @@ void main() {
     });
 
     test('PosProvider cart and billing calculations', () {
-      final provider = PosProvider();
+      final provider = fixtureProvider();
       expect(provider.tables.isNotEmpty, true);
       expect(provider.menuItems.isNotEmpty, true);
 
@@ -201,7 +201,7 @@ void main() {
     });
 
     test('Full End-to-End Operational Lifecycle: Open Shift -> Order -> KOT -> Kitchen -> Payment -> Expense -> Close Shift', () {
-      final provider = PosProvider();
+      final provider = fixtureProvider();
 
       // 1. Open Shift with float of 5000
       provider.openShift(openingCash: 5000.0, notes: 'Morning Breakfast Shift');

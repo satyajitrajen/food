@@ -37,6 +37,7 @@ class OutboxOp {
 class OutboxStore {
   static const _storageKey = 'foodpos.outbox.v1';
   static const _sessionKey = 'foodpos.session.v1';
+  static const _idMapKey = 'foodpos.idmap.v1';
 
   Future<List<OutboxOp>> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -63,6 +64,24 @@ class OutboxStore {
         jsonEncode(ops.map((o) => o.toJson()).toList()),
       );
     }
+  }
+
+  /// Local→server id map, persisted so ops queued before a restart that
+  /// reference a since-acked local id still resolve to the server id.
+  Future<Map<String, String>> loadIdMap() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_idMapKey);
+    if (raw == null || raw.isEmpty) return {};
+    try {
+      return (jsonDecode(raw) as Map).map((k, v) => MapEntry(k.toString(), v.toString()));
+    } catch (_) {
+      return {};
+    }
+  }
+
+  Future<void> saveIdMap(Map<String, String> map) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_idMapKey, jsonEncode(map));
   }
 
   Future<void> saveSession(String? accessToken, String? refreshToken) async {

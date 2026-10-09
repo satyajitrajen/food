@@ -158,4 +158,121 @@ void main() {
     expect(engine.online, isFalse);
     expect(engine.pending, 1);
   });
+
+  test('online pushes stay FIFO: add_item waits for order.create to ack', () async {
+    final client = clientWith((req) async => http.Response('{"status":"ok"}', 200));
+    final engine = SyncEngine(api: client, store: store);
+    await engine.initialize();
+    final log = <String>[];
+    engine.register('order.create', (p) async {
+      log.add('create:start');
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      log.add('create:end');
+      return {'id': 'ord-srv-1'};
+    });
+    engine.register('order.add_item', (p) async {
+      log.add('add:${p['order_id']}');
+      return {'id': 'ord-srv-1', 'item_id': 'it-srv-1'};
+    });
+    engine.register('item.qty', (p) async {
+      log.add('qty:${p['item_id']}');
+      return null;
+    });
+    await engine.probe();
+
+    // Fire without awaiting, the way the provider does.
+    final f1 = engine.push('order.create', {'local_id': 'ord-local-1'});
+    final f2 = engine.push('order.add_item', {'order_id': 'ord-local-1', 'local_item_id': 'it-local-1'});
+    final f3 = engine.push('item.qty', {'order_id': 'ord-local-1', 'item_id': 'it-local-1'});
+    await Future.wait([f1, f2, f3]);
+
+    expect(log, ['create:start', 'create:end', 'add:ord-srv-1', 'qty:it-srv-1']);
+    expect(engine.pending, 0);
+  });
+
+  test('item ids map from the echoed client_id when item_id is absent', () async {
+    final client = clientWith((req) async => http.Response('{"status":"ok"}', 200));
+    final engine = SyncEngine(api: client, store: store);
+    await engine.initialize();
+    engine.register('order.add_item', (p) async => {
+          'id': 'ord-1',
+          'items': [
+            {'id': 'it-srv-7', 'client_id': 'it-local-7'},
+          ],
+        });
+    await engine.probe();
+    await engine.push('order.add_item', {'order_id': 'ord-1', 'local_item_id': 'it-local-7'});
+    expect(engine.resolveId('it-local-7'), 'it-srv-7');
+  });
+
+  test('id map survives a restart', () async {
+    final client = clientWith((req) async => http.Response('{"status":"ok"}', 200));
+    final engine = SyncEngine(api: client, store: store);
+    await engine.initialize();
+    engine.register('customer.create', (p) async => {'id': 'cust-srv-1'});
+    await engine.probe();
+    await engine.push('customer.create', {'local_id': 'cust-local-1'});
+
+    final restarted = SyncEngine(api: client, store: store);
+    await restarted.initialize();
+    expect(restarted.resolveId('cust-local-1'), 'cust-srv-1');
+  });
+
+  test('5xx and expired subscription keep the op queued instead of dropping it', () async {
+    var status = 503;
+    final client = clientWith((req) async {
+      if (req.url.path == '/healthz') return http.Response('{"status":"ok"}', 200);
+      return http.Response(
+          jsonEncode({
+            'error': {'code': status == 402 ? 'subscription_expired' : 'unavailable', 'message': 'x'}
+          }),
+          status);
+    });
+    final rejected = <String>[];
+    final engine = SyncEngine(
+      api: client,
+      store: store,
+      onRejected: (op, e) => rejected.add(op.type),
+    );
+    await engine.initialize();
+    engine.register('order.pay', (p) async {
+      await engine.api.request('POST', '/api/v1/orders/o1/pay', body: {'method': 'cash'});
+      return null;
+    });
+    await engine.probe();
+    await engine.push('order.pay', {'order_id': 'o1'});
+    expect(engine.pending, 1);
+    expect(engine.blockedReason, isNotNull);
+
+    status = 402;
+    await engine.probe();
+    expect(engine.pending, 1);
+    expect(rejected, isEmpty);
+  });
+
+  test('a 4xx rejection reports the op so the caller can roll back', () async {
+    final client = clientWith((req) async {
+      if (req.url.path == '/healthz') return http.Response('{"status":"ok"}', 200);
+      return http.Response(
+          jsonEncode({
+            'error': {'code': 'table_occupied', 'message': 'busy'}
+          }),
+          409);
+    });
+    final rejected = <String>[];
+    final engine = SyncEngine(
+      api: client,
+      store: store,
+      onRejected: (op, e) => rejected.add('${op.type}:${e.code}'),
+    );
+    await engine.initialize();
+    engine.register('order.create', (p) async {
+      await engine.api.request('POST', '/api/v1/orders', body: {'type': 'dine_in'});
+      return null;
+    });
+    await engine.probe();
+    await engine.push('order.create', {'local_id': 'ord-local-1'});
+    expect(rejected, ['order.create:table_occupied']);
+    expect(engine.pending, 0);
+  });
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'fixtures/pos_fixtures.dart';
 import 'package:food_pos/providers/pos_provider.dart';
 import 'package:food_pos/screens/auth/pin_login_screen.dart';
 import 'package:provider/provider.dart';
@@ -14,16 +15,16 @@ Widget _wrap(PosProvider provider) =>
 
 void main() {
   testWidgets('picker button shows the counter staff count', (tester) async {
-    await tester.pumpWidget(_wrap(PosProvider()));
+    await tester.pumpWidget(_wrap(fixtureProvider()));
     await tester.pumpAndSettle();
 
     expect(find.textContaining('Switch profile'), findsOneWidget);
-    expect(find.textContaining('6 on this counter'), findsOneWidget);
+    expect(find.textContaining('5 on this counter'), findsOneWidget);
   });
 
   testWidgets('sheet searches and switches the signing-in profile',
       (tester) async {
-    await tester.pumpWidget(_wrap(PosProvider()));
+    await tester.pumpWidget(_wrap(fixtureProvider()));
     await tester.pumpAndSettle();
 
     final picker = find.textContaining('Switch profile');
@@ -38,7 +39,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(ListTile), findsOneWidget);
     expect(find.text('Priya Joshi'), findsWidgets);
-    expect(find.text('1 of 6'), findsOneWidget);
+    expect(find.text('1 of 5'), findsOneWidget);
 
     // Tapping switches the top profile, resets the PIN and closes the sheet.
     await tester.tap(find.text('Priya Joshi'));
@@ -49,7 +50,7 @@ void main() {
   });
 
   testWidgets('empty search shows the empty state', (tester) async {
-    await tester.pumpWidget(_wrap(PosProvider()));
+    await tester.pumpWidget(_wrap(fixtureProvider()));
     await tester.pumpAndSettle();
 
     final picker = find.textContaining('Switch profile');

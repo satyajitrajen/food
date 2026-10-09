@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'fixtures/pos_fixtures.dart';
 import 'package:food_pos/core/auth/session_store.dart';
-import 'package:food_pos/providers/pos_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -53,14 +53,14 @@ void main() {
   group('restoreSavedLogin', () {
     test('returns false with no saved snapshot (PIN login stays)', () async {
       SharedPreferences.setMockInitialValues({});
-      final provider = PosProvider();
+      final provider = fixtureProvider();
       expect(await provider.restoreSavedLogin(), isFalse);
       expect(provider.currentStaff, isNull);
     });
 
     test('demo login persists the snapshot until logout', () async {
       SharedPreferences.setMockInitialValues({});
-      final provider = PosProvider();
+      final provider = fixtureProvider();
       final staff = provider.currentOutletStaff.first;
       final ok = await provider.loginStaffById(staff.id, staff.pin);
       expect(ok, isTrue);

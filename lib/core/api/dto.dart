@@ -235,6 +235,8 @@ Outlet outletFromApi(Map<String, dynamic> j) => Outlet(
       gstin: _str(j['gstin']),
       fssai: _str(j['fssai']),
       phone: _str(j['phone']),
+      email: _str(j['email']),
+      timezone: _str(j['timezone']).isEmpty ? 'Asia/Kolkata' : _str(j['timezone']),
     );
 
 Staff staffFromApi(Map<String, dynamic> j) {

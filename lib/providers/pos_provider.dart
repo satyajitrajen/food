@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import '../core/api/api_client.dart';
 import '../core/api/dto.dart';
@@ -10,6 +9,7 @@ import '../core/auth/tenant.dart';
 import '../core/notifications/push_notification_service.dart';
 import '../core/printing/printing.dart';
 import '../core/printing/receipt_builder.dart';
+import '../core/sync/op_specs.dart';
 import '../core/sync/outbox.dart';
 import '../core/sync/realtime.dart';
 import '../core/sync/sync_engine.dart';
@@ -59,7 +59,20 @@ class PosProvider extends ChangeNotifier {
   bool get bootstrapDone => _bootstrapped;
 
   String? get lastSyncError => _lastSyncError;
-  DateTime? get lastSyncAt => _lastSyncAt;
+  DateTime? get lastSyncAt => _sync?.lastSyncAt ?? _lastSyncAt;
+
+  /// Why the outbox is parked (expired session/subscription, server error).
+  String? get syncBlockedReason => _sync?.blockedReason;
+
+  /// Writes the server refused for good, newest first — shown in the sync
+  /// panel so a rejected payment or refund is never invisible.
+  final List<SyncRejection> _rejections = [];
+  List<SyncRejection> get syncRejections => List.unmodifiable(_rejections);
+  void clearSyncRejections() {
+    _rejections.clear();
+    _lastSyncError = null;
+    notifyListeners();
+  }
   String? get printerError => _printerError;
 
   PosProvider({this.apiEnabled = false, PrinterAdapter? printer}) {
@@ -80,49 +93,19 @@ class PosProvider extends ChangeNotifier {
           _lastSyncError = message;
           notifyListeners();
         },
+        onRejected: _onOpRejected,
       );
       _registerOps();
+      _sync!.startAutoRetry();
       _readyFuture = _bootstrap();
     }
-    if (!kDebugMode) {
-      // Release binaries ship without the demo dataset (fake staff, plaintext
-      // demo PINs, fabricated GSTINs); real data arrives via hydration.
-      _outlets.clear();
-      _staffList.clear();
-      _tables.clear();
-      _menuItems.clear();
-    }
-    _seedData();
-    // Clone Green Candle menu for Balawadi outlet (offline) — same 57 items, different outletId.
-    // Backend copy is done via SQL/API; this keeps offline demo consistent.
-    final balawadiExists = _outlets.any((o) => o.id == 'out-green-candle-balawadi');
-    final hasBalMenu = _menuItems.any((m) => m.outletId == 'out-green-candle-balawadi');
-    if (balawadiExists && !hasBalMenu) {
-      final gcItems = _menuItems.where((m) => m.outletId == 'out-green-candle').toList();
-      for (final m in gcItems) {
-        _menuItems.add(MenuItem(
-          id: '${m.id}-bal',
-          outletId: 'out-green-candle-balawadi',
-          name: m.name,
-          category: m.category,
-          price: m.price,
-          isVeg: m.isVeg,
-          imageUrl: m.imageUrl,
-          description: m.description,
-          variants: m.variants.map((v) => ProductVariant(id: '${v.id}-bal', name: v.name, price: v.price)).toList(),
-          modifierGroups: m.modifierGroups.map((g) => ModifierGroup(
-                id: '${g.id}-bal',
-                name: g.name,
-                isMultiSelect: g.isMultiSelect,
-                isRequired: g.isRequired,
-                items: g.items.map((i) => ModifierItem(id: '${i.id}-bal', name: i.name, price: i.price)).toList(),
-              )).toList(),
-          isBestseller: m.isBestseller,
-          isAvailable: m.isAvailable,
-        ));
-      }
-      // Also copy Balawadi menu to the existing generic Balawadi outlet (out-a23f) if present in DB but not in provider's outlet list — handled via backend API hydration.
-    }
+  }
+
+  @override
+  void dispose() {
+    _sync?.dispose();
+    unawaited(_realtime?.disconnect());
+    super.dispose();
   }
 
   void _persistSession(AuthSession? session) {
@@ -940,6 +923,32 @@ class PosProvider extends ChangeNotifier {
     }
   }
 
+  /// Test-only: loads a fixed catalog the way a hydrate would. Production
+  /// state only ever comes from the server.
+  @visibleForTesting
+  void loadFixture({
+    List<Outlet> outlets = const [],
+    List<Staff> staff = const [],
+    List<RestaurantTable> tables = const [],
+    List<MenuItem> menu = const [],
+  }) {
+    _outlets
+      ..clear()
+      ..addAll(outlets);
+    if (outlets.isNotEmpty) _currentOutlet = outlets.first;
+    _staffList
+      ..clear()
+      ..addAll(staff);
+    _tables
+      ..clear()
+      ..addAll(tables);
+    _menuItems
+      ..clear()
+      ..addAll(menu);
+    _rebuildCategories();
+    notifyListeners();
+  }
+
   void _rebuildCategories() {
     final cats = _menuItems
         .where((m) => m.outletId == null || m.outletId == _currentOutlet.id)
@@ -958,396 +967,67 @@ class PosProvider extends ChangeNotifier {
 
   // ---- Op registry: payload → API call ----
 
-  Map<String, dynamic> _bodyOf(Map<String, dynamic> p) {
-    final body = Map<String, dynamic>.from(p)
-      ..remove('__key')
-      ..remove('local_id')
-      ..remove('local_item_id');
-    return body;
+  /// Queues a server write for the current outlet. The outlet is captured
+  /// now, not at replay time, so ops queued before an outlet switch still
+  /// land on the outlet they were made on.
+  Future<void> _push(String type, Map<String, dynamic> payload) {
+    final sync = _sync;
+    if (sync == null) return Future.value();
+    return sync.push(type, {'outlet_id': _currentOutlet.id, ...payload});
   }
 
   void _registerOps() {
     final api = _api!;
     final sync = _sync!;
-
-    sync.register('order.create', (p) async {
-      final resp = await api.request(
-        'POST',
-        '/api/v1/orders',
-        query: {'outlet_id': _currentOutlet.id},
-        body: {
-          'type': p['type'],
-          'client_id': p['local_id'],
-          if (p['table_id'] != null) 'table_id': p['table_id'],
-          if (p['customer_name'] != null) 'customer_name': p['customer_name'],
-          if (p['customer_phone'] != null) 'customer_phone': p['customer_phone'],
-          if (p['delivery_address'] != null) 'delivery_address': p['delivery_address'],
-          if (p['waiter_id'] != null) 'waiter_id': p['waiter_id'],
-          if (p['waiter_name'] != null) 'waiter_name': p['waiter_name'],
-          if (p['guest_count'] != null) 'guest_count': p['guest_count'],
-          if (p['order_note'] != null) 'order_note': p['order_note'],
-        },
-        idempotencyKey: p['__key']?.toString(),
-      );
-      return resp is Map ? resp.cast<String, dynamic>() : null;
-    });
-
-    sync.register('order.patch', (p) async {
-      final resp = await api.request(
-        'PATCH',
-        '/api/v1/orders/${p['order_id']}',
-        query: {'outlet_id': _currentOutlet.id},
-        body: _bodyOf(p),
-      );
-      return resp is Map ? resp.cast<String, dynamic>() : null;
-    });
-
-    sync.register('order.add_item', (p) async {
-      final resp = await api.request(
-        'POST',
-        '/api/v1/orders/${p['order_id']}/items',
-        query: {'outlet_id': _currentOutlet.id},
-        body: {
-          'menu_item_id': p['menu_item_id'],
-          'client_id': p['local_item_id'],
-          if (p['variant_id'] != null) 'variant_id': p['variant_id'],
-          'quantity': p['quantity'] ?? 1,
-          if (p['note'] != null) 'note': p['note'],
-          if (p['modifiers'] is List && (p['modifiers'] as List).isNotEmpty)
-            'modifiers': (p['modifiers'] as List)
-                .map((m) => {'modifier_item_id': m})
-                .toList(),
-        },
-        idempotencyKey: p['__key']?.toString(),
-      );
-      return resp is Map ? resp.cast<String, dynamic>() : null;
-    });
-
-    sync.register('item.qty', (p) async {
-      final resp = await api.request(
-        'PATCH',
-        '/api/v1/orders/${p['order_id']}/items/${p['item_id']}',
-        query: {'outlet_id': _currentOutlet.id},
-        body: {'quantity': p['quantity'] ?? 1},
-      );
-      return resp is Map ? resp.cast<String, dynamic>() : null;
-    });
-
-    sync.register('item.cancel', (p) async {
-      final resp = await api.request(
-        'POST',
-        '/api/v1/orders/${p['order_id']}/items/${p['item_id']}/cancel',
-        query: {'outlet_id': _currentOutlet.id},
-        body: {'reason': p['reason'] ?? 'Cancelled'},
-      );
-      return resp is Map ? resp.cast<String, dynamic>() : null;
-    });
-
-    sync.register('kot.fire', (p) async {
-      final resp = await api.request(
-        'POST',
-        '/api/v1/orders/${p['order_id']}/kot',
-        query: {'outlet_id': _currentOutlet.id},
-        body: <String, dynamic>{},
-        idempotencyKey: p['__key']?.toString(),
-      );
-      return resp is Map ? resp.cast<String, dynamic>() : null;
-    });
-
-    sync.register('kot.status', (p) async {
-      final resp = await api.request(
-        'PATCH',
-        '/api/v1/kots/${p['kot_id']}',
-        query: {'outlet_id': _currentOutlet.id},
-        body: {'status': p['status']},
-      );
-      return resp is Map ? resp.cast<String, dynamic>() : null;
-    });
-
-    sync.register('order.pay', (p) async {
-      final resp = await api.request(
-        'POST',
-        '/api/v1/orders/${p['order_id']}/pay',
-        query: {'outlet_id': _currentOutlet.id},
-        body: _bodyOf(p),
-        idempotencyKey: p['__key']?.toString(),
-      );
-      return resp is Map ? resp.cast<String, dynamic>() : null;
-    });
-
-    sync.register('order.refund', (p) async {
-      final resp = await api.request(
-        'POST',
-        '/api/v1/orders/${p['order_id']}/refund',
-        query: {'outlet_id': _currentOutlet.id},
-        body: _bodyOf(p),
-      );
-      if (resp is Map && resp['order'] is Map) {
-        return (resp['order'] as Map).cast<String, dynamic>();
-      }
-      return null;
-    });
-
-    sync.register('shift.open', (p) async {
-      final resp = await api.request(
-        'POST',
-        '/api/v1/shifts/open',
-        query: {'outlet_id': _currentOutlet.id},
-        body: _bodyOf(p),
-        idempotencyKey: p['__key']?.toString(),
-      );
-      return resp is Map ? resp.cast<String, dynamic>() : null;
-    });
-
-    sync.register('shift.close', (p) async {
-      final resp = await api.request(
-        'POST',
-        '/api/v1/shifts/current/close',
-        query: {'outlet_id': _currentOutlet.id},
-        body: _bodyOf(p),
-      );
-      return resp is Map ? resp.cast<String, dynamic>() : null;
-    });
-
-    sync.register('cash.move', (p) async {
-      await api.request(
-        'POST',
-        '/api/v1/shifts/current/cash-move',
-        query: {'outlet_id': _currentOutlet.id},
-        body: _bodyOf(p),
-      );
-      return null;
-    });
-
-    sync.register('expense.create', (p) async {
-      final resp = await api.request(
-        'POST',
-        '/api/v1/expenses',
-        query: {'outlet_id': _currentOutlet.id},
-        body: _bodyOf(p),
-        idempotencyKey: p['__key']?.toString(),
-      );
-      return resp is Map ? resp.cast<String, dynamic>() : null;
-    });
-
-    sync.register('expense.delete', (p) async {
-      await api.request(
-        'DELETE',
-        '/api/v1/expenses/${p['expense_id']}',
-        query: {'outlet_id': _currentOutlet.id},
-      );
-      return null;
-    });
-
-    sync.register('customer.create', (p) async {
-      final resp = await api.request(
-        'POST',
-        '/api/v1/customers',
-        query: {'outlet_id': _currentOutlet.id},
-        body: _bodyOf(p),
-        idempotencyKey: p['__key']?.toString(),
-      );
-      return resp is Map ? resp.cast<String, dynamic>() : null;
-    });
-
-    sync.register('credit.book', (p) async {
-      final resp = await api.request(
-        'POST',
-        '/api/v1/customers/${p['customer_id']}/credit',
-        query: {'outlet_id': _currentOutlet.id},
-        body: _bodyOf(p),
-        idempotencyKey: p['__key']?.toString(),
-      );
-      return resp is Map ? resp.cast<String, dynamic>() : null;
-    });
-
-    sync.register('stock.adjust', (p) async {
-      final resp = await api.request(
-        'POST',
-        '/api/v1/inventory/${p['item_id']}/adjust',
-        query: {'outlet_id': _currentOutlet.id},
-        body: _bodyOf(p),
-      );
-      return resp is Map ? resp.cast<String, dynamic>() : null;
-    });
-
-    sync.register('table.status', (p) async {
-      final resp = await api.request(
-        'PATCH',
-        '/api/v1/tables/${p['table_id']}',
-        query: {'outlet_id': _currentOutlet.id},
-        body: {'status': p['status']},
-      );
-      return resp is Map ? resp.cast<String, dynamic>() : null;
-    });
-
-    sync.register('table.patch', (p) async {
-      final resp = await api.request(
-        'PATCH',
-        '/api/v1/tables/${p['table_id']}',
-        query: {'outlet_id': _currentOutlet.id},
-        body: {'floor': p['floor']},
-      );
-      return resp is Map ? resp.cast<String, dynamic>() : null;
-    });
-
-    sync.register('table.move', (p) async {
-      final resp = await api.request(
-        'POST',
-        '/api/v1/tables/${p['from_table_id']}/move',
-        query: {'outlet_id': _currentOutlet.id},
-        body: {'to_table_id': p['to_table_id']},
-      );
-      return resp is Map ? resp.cast<String, dynamic>() : null;
-    });
-
-    sync.register('table.merge', (p) async {
-      final resp = await api.request(
-        'POST',
-        '/api/v1/tables/${p['primary_table_id']}/merge',
-        query: {'outlet_id': _currentOutlet.id},
-        body: {'secondary_table_id': p['secondary_table_id']},
-      );
-      return resp is Map ? resp.cast<String, dynamic>() : null;
-    });
-
-    sync.register('table.unmerge', (p) async {
-      await api.request(
-        'POST',
-        '/api/v1/tables/${p['table_id']}/unmerge',
-        query: {'outlet_id': _currentOutlet.id},
-        body: <String, dynamic>{},
-      );
-      return null;
-    });
-
-    sync.register('settings.update', (p) async {
-      await api.request(
-        'PUT',
-        '/api/v1/settings',
-        query: {'outlet_id': _currentOutlet.id},
-        body: p,
-      );
-      return null;
-    });
-
-    // ---- Back-office ops (W2/W3/W4/W5/W11) — manager-gated server-side ----
-
-    sync.register('menu.create', (p) async {
-      final resp = await api.request(
-        'POST',
-        '/api/v1/menu',
-        query: {'outlet_id': _currentOutlet.id},
-        body: _bodyOf(p),
-        idempotencyKey: p['__key']?.toString(),
-      );
-      return resp is Map ? resp.cast<String, dynamic>() : null;
-    });
-
-    sync.register('menu.update', (p) async {
-      final resp = await api.request(
-        'PATCH',
-        '/api/v1/menu/${p['menu_item_id']}',
-        query: {'outlet_id': _currentOutlet.id},
-        body: _bodyOf(p),
-      );
-      return resp is Map ? resp.cast<String, dynamic>() : null;
-    });
-
-    sync.register('menu.delete', (p) async {
-      await api.request(
-        'DELETE',
-        '/api/v1/menu/${p['menu_item_id']}',
-        query: {'outlet_id': _currentOutlet.id},
-      );
-      return null;
-    });
-
-    sync.register('staff.create', (p) async {
-      final resp = await api.request(
-        'POST',
-        '/api/v1/staff',
-        query: {'outlet_id': _currentOutlet.id},
-        body: _bodyOf(p),
-        idempotencyKey: p['__key']?.toString(),
-      );
-      return resp is Map ? resp.cast<String, dynamic>() : null;
-    });
-
-    sync.register('staff.patch', (p) async {
-      final resp = await api.request(
-        'PATCH',
-        '/api/v1/staff/${p['staff_id']}',
-        query: {'outlet_id': _currentOutlet.id},
-        body: _bodyOf(p),
-      );
-      return resp is Map ? resp.cast<String, dynamic>() : null;
-    });
-
-    sync.register('inventory.create', (p) async {
-      final resp = await api.request(
-        'POST',
-        '/api/v1/inventory',
-        query: {'outlet_id': _currentOutlet.id},
-        body: _bodyOf(p),
-      );
-      return resp is Map ? resp.cast<String, dynamic>() : null;
-    });
-
-    sync.register('supplier.create', (p) async {
-      final resp = await api.request(
-        'POST',
-        '/api/v1/suppliers',
-        query: {'outlet_id': _currentOutlet.id},
-        body: _bodyOf(p),
-      );
-      return resp is Map ? resp.cast<String, dynamic>() : null;
-    });
-
-    // Direct supplier payout: the server atomically reduces the outstanding
-    // due and returns {payment, supplier} (server truth for the ledger).
-    sync.register('supplier.payment', (p) async {
-      final resp = await api.request(
-        'POST',
-        '/api/v1/suppliers/${p['supplier_id']}/payments',
-        query: {'outlet_id': _currentOutlet.id},
-        body: _bodyOf(p),
-        idempotencyKey: p['__key']?.toString(),
-      );
-      return resp is Map ? resp.cast<String, dynamic>() : null;
-    });
-
-    sync.register('purchase.create', (p) async {
-      final resp = await api.request(
-        'POST',
-        '/api/v1/purchases',
-        query: {'outlet_id': _currentOutlet.id},
-        body: _bodyOf(p),
-        idempotencyKey: p['__key']?.toString(),
-      );
-      return resp is Map ? resp.cast<String, dynamic>() : null;
-    });
-
-    sync.register('purchase.patch', (p) async {
-      final resp = await api.request(
-        'PATCH',
-        '/api/v1/purchases/${p['purchase_id']}',
-        query: {'outlet_id': _currentOutlet.id},
-        body: {'status': p['status']},
-      );
-      return resp is Map ? resp.cast<String, dynamic>() : null;
-    });
-
-    sync.register('table.create', (p) async {
-      final resp = await api.request(
-        'POST',
-        '/api/v1/tables',
-        query: {'outlet_id': _currentOutlet.id},
-        body: _bodyOf(p),
-      );
-      return resp is Map ? resp.cast<String, dynamic>() : null;
-    });
+    for (final type in knownOpTypes) {
+      sync.register(type, (p) async {
+        final req = buildOpRequest(type, p);
+        final outletId = (p['outlet_id'] ?? _currentOutlet.id).toString();
+        final resp = await api.request(
+          req.method,
+          req.path,
+          query: {'outlet_id': outletId},
+          body: req.body,
+          idempotencyKey: req.idempotent ? p['__key']?.toString() : null,
+        );
+        if (resp is! Map) return null;
+        final map = resp.cast<String, dynamic>();
+        // Refunds answer {order, refunded_paise, ...}; acks want the order.
+        if (type == 'order.refund' && map['order'] is Map) {
+          return (map['order'] as Map).cast<String, dynamic>();
+        }
+        return map;
+      });
+    }
   }
+
+  /// Rolls back the optimistic local state of a write the server refused,
+  /// then re-reads the outlet so the screen shows server truth again.
+  void _onOpRejected(OutboxOp op, ApiException e) {
+    _rejections.insert(0, SyncRejection(op.type, e.message, DateTime.now()));
+    if (_rejections.length > 20) _rejections.removeLast();
+    switch (op.type) {
+      case 'order.create':
+        final localId = op.payload['local_id']?.toString();
+        _orders.removeWhere((o) => o.id == localId);
+        for (final t in _tables.where((t) => t.activeOrderId == localId)) {
+          t
+            ..status = TableStatus.available
+            ..activeOrderId = null
+            ..currentOrderAmount = 0.0;
+        }
+        if (_activeOrder?.id == localId) _activeOrder = null;
+        break;
+      default:
+        break;
+    }
+    notifyListeners();
+    if (_sync?.online ?? false) {
+      _hydrating = false;
+      unawaited(hydrateOutlet());
+    }
+  }
+
   // Navigation — role-driven. The index points into [navDestinations], the
   // canonical ordered destination list for the signed-in role.
   int _currentNavIndex = 0;
@@ -1490,223 +1170,17 @@ class PosProvider extends ChangeNotifier {
   Staff? _currentStaff;
   Staff? get currentStaff => _currentStaff;
 
-  Outlet _currentOutlet = Outlet(
-    id: 'out-01',
-    name: 'Baner Outlet',
-    address: 'Plot 42, High Street, Baner, Pune - 411045',
-    terminal: 'POS-01',
-    isOnline: true,
-    gstin: '27AAAAA0000A1Z5',
-    fssai: '11521000000123',
-    phone: '+91 98765 43210',
-  );
+  Outlet _currentOutlet = Outlet.none;
+
   Outlet get currentOutlet => _currentOutlet;
 
-  final List<Outlet> _outlets = [
-    Outlet(
-      id: 'out-01',
-      name: 'Baner Outlet',
-      address: 'Plot 42, High Street, Baner, Pune - 411045',
-      terminal: 'POS-01',
-      isOnline: true,
-      gstin: '27AAAAA0000A1Z5',
-      fssai: '11521000000123',
-      phone: '+91 98765 43210',
-    ),
-    Outlet(
-      id: 'out-02',
-      name: 'Kothrud Outlet',
-      address: 'Shop 12, Paud Road, Kothrud, Pune',
-      terminal: 'POS-02',
-      isOnline: true,
-      gstin: '27AAAAA0000A1Z5',
-      fssai: '11521000000124',
-      phone: '+91 98765 43211',
-    ),
-    Outlet(
-      id: 'out-green-candle',
-      name: 'Hotel Green Candle',
-      address: 'Hotel Green Candle, Main Road, Maharashtra',
-      terminal: 'POS-GC-01',
-      isOnline: true,
-      gstin: '27AAAAA0000A1Z5',
-      fssai: '11521000000125',
-      phone: '+91 98765 43212',
-    ),
-    Outlet(
-      id: 'out-green-candle-balawadi',
-      name: 'Hotel Green Candle - Balawadi',
-      address: 'Hotel Green Candle, Balawadi, Pune',
-      terminal: 'POS-GC-02',
-      isOnline: true,
-      gstin: '27AAAAA0000A1Z5',
-      fssai: '11521000000125',
-      phone: '+91 98765 43213',
-    ),
-  ];
+  final List<Outlet> _outlets = [];
   List<Outlet> get outlets => _outlets;
 
   void selectOutlet(Outlet outlet) => _switchOutlet(outlet);
 
   // Staff Directory & Authentication — 5 uniq roles for out-01 + 4 for out-02 (admin org-wide)
-  final List<Staff> _staffList = [
-    Staff(
-      id: 'st-01',
-      outletId: 'out-01',
-      name: 'Rahul Sharma',
-      role: StaffRole.cashier,
-      pin: '1234',
-      avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100',
-      mobile: '+91 98220 11223',
-    ),
-    Staff(
-      id: 'st-02',
-      outletId: 'out-01',
-      name: 'Priya Joshi',
-      role: StaffRole.manager,
-      pin: '9999',
-      avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100',
-      mobile: '+91 98220 22334',
-    ),
-    Staff(
-      id: 'st-03',
-      name: 'Vikram Singh',
-      role: StaffRole.admin,
-      pin: '0000',
-      avatarUrl: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=100',
-      mobile: '+91 98220 33445',
-      isProtected: true,
-    ),
-    Staff(
-      id: 'st-04',
-      outletId: 'out-01',
-      name: 'Amit Deshmukh',
-      role: StaffRole.waiter,
-      pin: '1111',
-      avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100',
-      mobile: '+91 98220 44556',
-    ),
-    Staff(
-      id: 'st-06',
-      outletId: 'out-01',
-      name: 'Chef Sharma',
-      role: StaffRole.kitchen,
-      pin: '5555',
-      avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100',
-      mobile: '+91 98220 66778',
-    ),
-    // out-02 (Kothrud) — mirrors out-01 roles per outlet
-    Staff(
-      id: 'st-452d-4558ff',
-      outletId: 'out-02',
-      name: 'Neha Kulkarni',
-      role: StaffRole.manager,
-      pin: '8888',
-      avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100',
-      mobile: '+91 98220 77889',
-    ),
-    Staff(
-      id: 'st-9226-ae5f97',
-      outletId: 'out-02',
-      name: 'Suresh Patel',
-      role: StaffRole.cashier,
-      pin: '3333',
-      avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100',
-      mobile: '+91 98220 88990',
-    ),
-    Staff(
-      id: 'st-ffd8-832499',
-      outletId: 'out-02',
-      name: 'Kiran More',
-      role: StaffRole.waiter,
-      pin: '2222',
-      avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100',
-      mobile: '+91 98220 99001',
-    ),
-    Staff(
-      id: 'st-f92e-2a769a',
-      outletId: 'out-02',
-      name: 'Sunita Rao',
-      role: StaffRole.kitchen,
-      pin: '6666',
-      avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100',
-      mobile: '+91 98220 10112',
-    ),
-    // out-green-candle (Hotel Green Candle) — dedicated staff
-    Staff(
-      id: 'st-gc-01',
-      outletId: 'out-green-candle',
-      name: 'Green Candle Manager',
-      role: StaffRole.manager,
-      pin: '7777',
-      avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100',
-      mobile: '+91 98220 71234',
-    ),
-    Staff(
-      id: 'st-gc-02',
-      outletId: 'out-green-candle',
-      name: 'Green Candle Cashier',
-      role: StaffRole.cashier,
-      pin: '4444',
-      avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100',
-      mobile: '+91 98220 72345',
-    ),
-    Staff(
-      id: 'st-gc-03',
-      outletId: 'out-green-candle',
-      name: 'Green Candle Waiter',
-      role: StaffRole.waiter,
-      pin: '1212',
-      avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100',
-      mobile: '+91 98220 73456',
-    ),
-    Staff(
-      id: 'st-gc-04',
-      outletId: 'out-green-candle',
-      name: 'Green Candle Kitchen',
-      role: StaffRole.kitchen,
-      pin: '3434',
-      avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100',
-      mobile: '+91 98220 74567',
-    ),
-    // out-green-candle-balawadi (copy of Green Candle for Balawadi)
-    Staff(
-      id: 'st-gc-bal-01',
-      outletId: 'out-green-candle-balawadi',
-      name: 'Green Candle Balawadi Manager',
-      role: StaffRole.manager,
-      pin: '7777',
-      avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100',
-      mobile: '+91 98220 81234',
-    ),
-    Staff(
-      id: 'st-gc-bal-02',
-      outletId: 'out-green-candle-balawadi',
-      name: 'Green Candle Balawadi Cashier',
-      role: StaffRole.cashier,
-      pin: '4444',
-      avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100',
-      mobile: '+91 98220 82345',
-    ),
-    Staff(
-      id: 'st-gc-bal-03',
-      outletId: 'out-green-candle-balawadi',
-      name: 'Green Candle Balawadi Waiter',
-      role: StaffRole.waiter,
-      pin: '1212',
-      avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100',
-      mobile: '+91 98220 83456',
-    ),
-    Staff(
-      id: 'st-gc-bal-04',
-      outletId: 'out-green-candle-balawadi',
-      name: 'Green Candle Balawadi Kitchen',
-      role: StaffRole.kitchen,
-      pin: '3434',
-      avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100',
-      mobile: '+91 98220 84567',
-    ),
-  ];
+  final List<Staff> _staffList = [];
   List<Staff> get staffList => List.unmodifiable(_staffList);
 
   /// Returns staff eligible for the currently selected outlet.
@@ -1961,7 +1435,7 @@ class PosProvider extends ChangeNotifier {
     );
     _currentShift = shift;
     notifyListeners();
-    _sync?.push('shift.open', {
+    _push('shift.open', {
       'local_id': shift.id,
       'opening_paise': toPaise(openingCash),
       if (notes != null && notes.isNotEmpty) 'notes': notes,
@@ -1983,7 +1457,7 @@ class PosProvider extends ChangeNotifier {
       _shiftHistory.insert(0, _currentShift!);
       _currentShift = null;
       notifyListeners();
-      _sync?.push('shift.close', {
+      _push('shift.close', {
         'counted_paise': toPaise(actualCash),
         if (notes != null && notes.isNotEmpty) 'notes': notes,
         if (denominations != null) 'denominations': denominationsToApi(denominations),
@@ -2058,7 +1532,7 @@ class PosProvider extends ChangeNotifier {
     // ledger timestamp (the `at` date is display/audit only).
     _currentShift?.cashIn += amount;
     notifyListeners();
-    _sync?.push('cash.move', {
+    _push('cash.move', {
       'type': 'cash_in',
       'amount_paise': toPaise(amount),
       'reason': reason,
@@ -2082,7 +1556,7 @@ class PosProvider extends ChangeNotifier {
     _cashTransactions.insert(0, tx);
     _currentShift?.cashOut += amount;
     notifyListeners();
-    _sync?.push('cash.move', {
+    _push('cash.move', {
       'type': 'cash_out',
       'amount_paise': toPaise(amount),
       'reason': reason,
@@ -2114,20 +1588,7 @@ class PosProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  final List<RestaurantTable> _tables = [
-    RestaurantTable(id: 't-01', tableNumber: 'T01', seats: 2, floor: 'Ground Floor', status: TableStatus.available),
-    RestaurantTable(id: 't-02', tableNumber: 'T02', seats: 4, floor: 'Ground Floor', status: TableStatus.occupied, currentOrderAmount: 850.0, runningMinutes: 24, guestCount: 3, assignedWaiter: 'Rahul'),
-    RestaurantTable(id: 't-03', tableNumber: 'T03', seats: 4, floor: 'Ground Floor', status: TableStatus.reserved, guestCount: 4),
-    RestaurantTable(id: 't-04', tableNumber: 'T04', seats: 6, floor: 'Ground Floor', status: TableStatus.billing, currentOrderAmount: 2450.0, runningMinutes: 52, guestCount: 5, assignedWaiter: 'Amit'),
-    RestaurantTable(id: 't-05', tableNumber: 'T05', seats: 4, floor: 'Ground Floor', status: TableStatus.available),
-    RestaurantTable(id: 't-06', tableNumber: 'T06', seats: 4, floor: 'Ground Floor', status: TableStatus.available),
-    RestaurantTable(id: 't-07', tableNumber: 'T07', seats: 2, floor: 'First Floor', status: TableStatus.available),
-    RestaurantTable(id: 't-08', tableNumber: 'T08', seats: 6, floor: 'First Floor', status: TableStatus.occupied, currentOrderAmount: 1650.0, runningMinutes: 18, guestCount: 4, assignedWaiter: 'Amit'),
-    RestaurantTable(id: 't-09', tableNumber: 'T09', seats: 8, floor: 'First Floor', status: TableStatus.available),
-    RestaurantTable(id: 't-10', tableNumber: 'T10', seats: 4, floor: 'Outdoor', status: TableStatus.cleaning),
-    RestaurantTable(id: 't-11', tableNumber: 'T11', seats: 2, floor: 'Outdoor', status: TableStatus.available),
-    RestaurantTable(id: 't-12', tableNumber: 'T12', seats: 4, floor: 'Outdoor', status: TableStatus.available),
-  ];
+  final List<RestaurantTable> _tables = [];
   List<RestaurantTable> get tables => List.unmodifiable(_tables);
 
   List<RestaurantTable> get filteredTables {
@@ -2156,7 +1617,7 @@ class PosProvider extends ChangeNotifier {
       _activeOrder = null;
     }
     notifyListeners();
-    _sync?.push('table.status', {
+    _push('table.status', {
       'table_id': t.id,
       'status': tableStatusToApi(TableStatus.available),
     });
@@ -2206,7 +1667,7 @@ class PosProvider extends ChangeNotifier {
   }
 
   void _pushOrderCreate(RestaurantOrder order) {
-    _sync?.push('order.create', {
+    _push('order.create', {
       'local_id': order.id,
       'type': orderTypeToApi(order.orderType),
       if (order.tableId != null) 'table_id': order.tableId,
@@ -2235,7 +1696,7 @@ class PosProvider extends ChangeNotifier {
   }
 
   void _pushAddItem(RestaurantOrder order, OrderItem item) {
-    _sync?.push('order.add_item', {
+    _push('order.add_item', {
       'order_id': order.id,
       'local_item_id': item.id,
       'menu_item_id': item.menuItem.id,
@@ -2247,7 +1708,7 @@ class PosProvider extends ChangeNotifier {
   }
 
   void _pushItemQty(RestaurantOrder order, OrderItem item) {
-    _sync?.push('item.qty', {
+    _push('item.qty', {
       'order_id': order.id,
       'item_id': item.id,
       'quantity': item.quantity,
@@ -2277,7 +1738,7 @@ class PosProvider extends ChangeNotifier {
       _selectedTable = toTable;
     }
     notifyListeners();
-    _sync?.push('table.move', {
+    _push('table.move', {
       'from_table_id': fromTableId,
       'to_table_id': toTableId,
     });
@@ -2312,7 +1773,7 @@ class PosProvider extends ChangeNotifier {
     secondary.mergedWithTableId = primary.id;
     secondary.status = TableStatus.occupied;
     notifyListeners();
-    _sync?.push('table.merge', {
+    _push('table.merge', {
       'primary_table_id': primaryTableId,
       'secondary_table_id': secondaryTableId,
     });
@@ -2326,7 +1787,7 @@ class PosProvider extends ChangeNotifier {
       table.status = TableStatus.available;
     }
     notifyListeners();
-    _sync?.push('table.unmerge', {'table_id': tableId});
+    _push('table.unmerge', {'table_id': tableId});
   }
 
   void assignWaiterToTable(String tableId, String waiterName) {
@@ -2361,816 +1822,9 @@ class PosProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  final List<String> categories = [
-    'All',
-    'Starters',
-    'Soups',
-    'Main Course',
-    'Biryani',
-    'Chinese',
-    'Pizza',
-    'Drinks',
-    'Desserts',
-  ];
+  final List<String> categories = ['All'];
 
-  final List<MenuItem> _menuItems = [
-    MenuItem(
-      id: 'm-01',
-      name: 'Paneer Tikka',
-      category: 'Starters',
-      price: 280.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1599488615731-7e5c2823ff28?w=300',
-      description: 'Marinated cottage cheese char-grilled with capsicum & onions.',
-      isBestseller: true,
-      modifierGroups: [
-        ModifierGroup(
-          id: 'mg-01',
-          name: 'Spice Level',
-          isMultiSelect: false,
-          isRequired: true,
-          items: [
-            ModifierItem(id: 'sp-1', name: 'Medium Spicy', price: 0, isSelected: true),
-            ModifierItem(id: 'sp-2', name: 'Extra Spicy', price: 0),
-            ModifierItem(id: 'sp-3', name: 'Mild / Jain', price: 0),
-          ],
-        ),
-        ModifierGroup(
-          id: 'mg-02',
-          name: 'Add-ons',
-          isMultiSelect: true,
-          items: [
-            ModifierItem(id: 'ad-1', name: 'Extra Mint Chutney', price: 20),
-            ModifierItem(id: 'ad-2', name: 'Laccha Onions', price: 15),
-            ModifierItem(id: 'ad-3', name: 'Extra Butter Coat', price: 30),
-          ],
-        ),
-      ],
-    ),
-    MenuItem(
-      id: 'm-02',
-      name: 'Chicken Tandoori',
-      category: 'Starters',
-      price: 360.0,
-      isVeg: false,
-      imageUrl: 'https://images.unsplash.com/photo-1599488615731-7e5c2823ff28?w=300',
-      description: 'Whole chicken cut pieces cured in aromatic tandoori masala.',
-      isBestseller: true,
-      variants: [
-        ProductVariant(id: 'v-c1', name: 'Half (4 pcs)', price: 240),
-        ProductVariant(id: 'v-c2', name: 'Full (8 pcs)', price: 420),
-      ],
-    ),
-    MenuItem(
-      id: 'm-03',
-      name: 'Tomato Dhaniya Shorba',
-      category: 'Soups',
-      price: 160.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1547592166-23ac45744acd?w=300',
-      description: 'Fresh plum tomato broth spiced with fresh coriander and cumin.',
-    ),
-    MenuItem(
-      id: 'm-04',
-      name: 'Butter Chicken',
-      category: 'Main Course',
-      price: 350.0,
-      isVeg: false,
-      imageUrl: 'https://images.unsplash.com/photo-1603894584373-5ac82b2ae398?w=300',
-      description: 'Slow-cooked chicken pieces simmered in silky buttery tomato gravy.',
-      isBestseller: true,
-    ),
-    MenuItem(
-      id: 'm-05',
-      name: 'Dal Makhani',
-      category: 'Main Course',
-      price: 240.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=300',
-      description: 'Black lentils overnight slow cooked with butter and fresh cream.',
-      isBestseller: true,
-    ),
-    MenuItem(
-      id: 'm-06',
-      name: 'Butter Naan',
-      category: 'Main Course',
-      price: 50.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1601050690597-df0568f70950?w=300',
-      description: 'Crisp, pillowy leavened flatbread brushed with salted butter.',
-    ),
-    MenuItem(
-      id: 'm-07',
-      name: 'Veg Dum Biryani',
-      category: 'Biryani',
-      price: 260.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=300',
-      description: 'Long grain basmati rice layered with garden vegetables and saffron.',
-    ),
-    MenuItem(
-      id: 'm-08',
-      name: 'Chicken Dum Biryani',
-      category: 'Biryani',
-      price: 330.0,
-      isVeg: false,
-      imageUrl: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=300',
-      description: 'Hyderabadi style slow dum cooked aromatic chicken biryani.',
-      isBestseller: true,
-    ),
-    MenuItem(
-      id: 'm-09',
-      name: 'Margherita Pizza',
-      category: 'Pizza',
-      price: 199.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1604382354936-07c5d9983bd3?w=300',
-      description: 'Classic stone-baked sourdough with San Marzano tomatoes and mozzarella.',
-      variants: [
-        ProductVariant(id: 'p-reg', name: 'Regular', price: 199),
-        ProductVariant(id: 'p-med', name: 'Medium', price: 299),
-        ProductVariant(id: 'p-lrg', name: 'Large', price: 399),
-      ],
-      modifierGroups: [
-        ModifierGroup(
-          id: 'mg-pz1',
-          name: 'Extra Toppings',
-          isMultiSelect: true,
-          items: [
-            ModifierItem(id: 'top-1', name: 'Extra Cheese', price: 50),
-            ModifierItem(id: 'top-2', name: 'Jalapeño', price: 30),
-            ModifierItem(id: 'top-3', name: 'Mushroom', price: 40),
-            ModifierItem(id: 'top-4', name: 'Black Olives', price: 35),
-          ],
-        ),
-        ModifierGroup(
-          id: 'mg-pz2',
-          name: 'Crust & Bake',
-          isMultiSelect: false,
-          items: [
-            ModifierItem(id: 'bk-1', name: 'Normal Bake', price: 0, isSelected: true),
-            ModifierItem(id: 'bk-2', name: 'Well Done / Crispy', price: 0),
-          ],
-        ),
-      ],
-    ),
-    MenuItem(
-      id: 'm-10',
-      name: 'Crispy Veg Chilli',
-      category: 'Chinese',
-      price: 220.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1585032226651-759b368d7246?w=300',
-      description: 'Crisp wok tossed exotic vegetables in dark garlic soya glaze.',
-    ),
-    MenuItem(
-      id: 'm-11',
-      name: 'Fresh Lime Soda',
-      category: 'Drinks',
-      price: 90.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?w=300',
-      description: 'Fresh squeezed lime with soda or water (Sweet/Salt/Mix).',
-    ),
-    MenuItem(
-      id: 'm-12',
-      name: 'Gulab Jamun (2 Pcs)',
-      category: 'Desserts',
-      price: 110.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1541781774459-bb2af2f05b55?w=300',
-      description: 'Warm golden milk dumplings soaked in fragrant cardamom rose syrup.',
-    ),
-    // ============================================================
-    // Hotel Green Candle — Complete Menu (Page 1) — 57 items
-    // Outlet: out-green-candle | All Veg | Variants for Half/Full etc.
-    // Auto-generated from Hotel Green Candle menu page 1.
-    // Categories: अरख्खा मसूर स्पेशल, दाल फ्राय स्पेशल, इंडियन व्हेज स्पेशल,
-    // काजू स्पेशल, व्हेज स्पेशल, राईस स्पेशल, रोटी स्पेशल, थंडाई स्पेशल, पापड स्पेशल
-    // ============================================================
-    MenuItem(
-      id: 'gc-01',
-      outletId: 'out-green-candle',
-      name: 'स्पेशल अरख्खा मसूर',
-      category: 'अरख्खा मसूर स्पेशल',
-      price: 100.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Hotel Green Candle special Arakha Masoor',
-      variants: [
-        ProductVariant(id: 'v-gc-01-half', name: 'Half', price: 60.0),
-        ProductVariant(id: 'v-gc-01-full', name: 'Full', price: 100.0),
-      ],
-    ),
-    MenuItem(
-      id: 'gc-02',
-      outletId: 'out-green-candle',
-      name: 'स्पेशल अरख्खा मसूर तेज',
-      category: 'अरख्खा मसूर स्पेशल',
-      price: 110.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Spicy Arakha Masoor - extra tart',
-      variants: [
-        ProductVariant(id: 'v-gc-02-half', name: 'Half', price: 70.0),
-        ProductVariant(id: 'v-gc-02-full', name: 'Full', price: 110.0),
-      ],
-    ),
-    MenuItem(
-      id: 'gc-03',
-      outletId: 'out-green-candle',
-      name: 'अरख्खा मसूर लसूण तडका',
-      category: 'अरख्खा मसूर स्पेशल',
-      price: 120.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Arakha Masoor with garlic tadka',
-      variants: [
-        ProductVariant(id: 'v-gc-03-half', name: 'Half', price: 70.0),
-        ProductVariant(id: 'v-gc-03-full', name: 'Full', price: 120.0),
-      ],
-    ),
-    MenuItem(
-      id: 'gc-04',
-      outletId: 'out-green-candle',
-      name: 'दाल फ्राय',
-      category: 'दाल फ्राय स्पेशल',
-      price: 100.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Dal Fry - lentils tempered with spices',
-      variants: [
-        ProductVariant(id: 'v-gc-04-half', name: 'Half', price: 60.0),
-        ProductVariant(id: 'v-gc-04-full', name: 'Full', price: 100.0),
-      ],
-    ),
-    MenuItem(
-      id: 'gc-05',
-      outletId: 'out-green-candle',
-      name: 'दाल तडका',
-      category: 'दाल फ्राय स्पेशल',
-      price: 110.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Dal Tadka with ghee & garlic',
-      variants: [
-        ProductVariant(id: 'v-gc-05-half', name: 'Half', price: 70.0),
-        ProductVariant(id: 'v-gc-05-full', name: 'Full', price: 110.0),
-      ],
-    ),
-    MenuItem(
-      id: 'gc-06',
-      outletId: 'out-green-candle',
-      name: 'पनीर मसाला',
-      category: 'इंडियन व्हेज स्पेशल',
-      price: 180.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Paneer cubes in rich masala gravy',
-    ),
-    MenuItem(
-      id: 'gc-07',
-      outletId: 'out-green-candle',
-      name: 'पनीर तवा',
-      category: 'इंडियन व्हेज स्पेशल',
-      price: 230.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Paneer Tawa - semi-dry tawa preparation',
-    ),
-    MenuItem(
-      id: 'gc-08',
-      outletId: 'out-green-candle',
-      name: 'पनीर पसंदा',
-      category: 'इंडियन व्हेज स्पेशल',
-      price: 240.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Paneer Pasanda - stuffed paneer in cashew gravy',
-    ),
-    MenuItem(
-      id: 'gc-09',
-      outletId: 'out-green-candle',
-      name: 'पनीर बटर मसाला',
-      category: 'इंडियन व्हेज स्पेशल',
-      price: 250.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Creamy butter masala with paneer',
-    ),
-    MenuItem(
-      id: 'gc-10',
-      outletId: 'out-green-candle',
-      name: 'पनीर कढाई',
-      category: 'इंडियन व्हेज स्पेशल',
-      price: 190.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Kadhai Paneer with capsicum & onions',
-    ),
-    MenuItem(
-      id: 'gc-11',
-      outletId: 'out-green-candle',
-      name: 'पनीर टिक्का मसाला',
-      category: 'इंडियन व्हेज स्पेशल',
-      price: 240.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Grilled paneer tikka in masala gravy',
-    ),
-    MenuItem(
-      id: 'gc-12',
-      outletId: 'out-green-candle',
-      name: 'पनीर भुर्जी',
-      category: 'इंडियन व्हेज स्पेशल',
-      price: 190.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Scrambled paneer with spices',
-    ),
-    MenuItem(
-      id: 'gc-13',
-      outletId: 'out-green-candle',
-      name: 'मटर पनीर',
-      category: 'इंडियन व्हेज स्पेशल',
-      price: 230.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Green peas & paneer in tomato gravy',
-    ),
-    MenuItem(
-      id: 'gc-14',
-      outletId: 'out-green-candle',
-      name: 'पालक पनीर',
-      category: 'इंडियन व्हेज स्पेशल',
-      price: 220.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Paneer in smooth spinach gravy',
-    ),
-    MenuItem(
-      id: 'gc-15',
-      outletId: 'out-green-candle',
-      name: 'काजू पनीर मसाला',
-      category: 'इंडियन व्हेज स्पेशल',
-      price: 220.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Cashew & paneer in rich gravy',
-    ),
-    MenuItem(
-      id: 'gc-16',
-      outletId: 'out-green-candle',
-      name: 'काजू मसाला',
-      category: 'काजू स्पेशल',
-      price: 190.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Cashew masala curry',
-    ),
-    MenuItem(
-      id: 'gc-17',
-      outletId: 'out-green-candle',
-      name: 'काजू करी',
-      category: 'काजू स्पेशल',
-      price: 190.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Kaju Curry - creamy cashew gravy',
-    ),
-    MenuItem(
-      id: 'gc-18',
-      outletId: 'out-green-candle',
-      name: 'काजू कुर्मा',
-      category: 'काजू स्पेशल',
-      price: 210.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Mild Kaju Kurma with cashew paste',
-    ),
-    MenuItem(
-      id: 'gc-19',
-      outletId: 'out-green-candle',
-      name: 'काजू कढाई',
-      category: 'काजू स्पेशल',
-      price: 230.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Kadhai style cashew with bell peppers',
-    ),
-    MenuItem(
-      id: 'gc-20',
-      outletId: 'out-green-candle',
-      name: 'ग्रीन कँडल स्पेशल',
-      category: 'व्हेज स्पेशल',
-      price: 299.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Signature Green Candle house special veg platter',
-      isBestseller: true,
-    ),
-    MenuItem(
-      id: 'gc-21',
-      outletId: 'out-green-candle',
-      name: 'मिक्स व्हेज',
-      category: 'व्हेज स्पेशल',
-      price: 170.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Mixed vegetables in masala gravy',
-    ),
-    MenuItem(
-      id: 'gc-22',
-      outletId: 'out-green-candle',
-      name: 'व्हेज कोल्हापुरी',
-      category: 'व्हेज स्पेशल',
-      price: 180.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Kolhapuri style spicy veg',
-    ),
-    MenuItem(
-      id: 'gc-23',
-      outletId: 'out-green-candle',
-      name: 'व्हेज रसा',
-      category: 'व्हेज स्पेशल',
-      price: 80.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Light veg rassa / curry',
-    ),
-    MenuItem(
-      id: 'gc-24',
-      outletId: 'out-green-candle',
-      name: 'व्हेज तवा',
-      category: 'व्हेज स्पेशल',
-      price: 230.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Veg Tawa - tawa fried veg',
-    ),
-    MenuItem(
-      id: 'gc-25',
-      outletId: 'out-green-candle',
-      name: 'गोभी मसाला',
-      category: 'व्हेज स्पेशल',
-      price: 220.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Gobi Masala - cauliflower in gravy',
-    ),
-    MenuItem(
-      id: 'gc-26',
-      outletId: 'out-green-candle',
-      name: 'आलू मटर मसाला',
-      category: 'व्हेज स्पेशल',
-      price: 220.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Potato & peas masala',
-    ),
-    MenuItem(
-      id: 'gc-27',
-      outletId: 'out-green-candle',
-      name: 'व्हेज पतियाला',
-      category: 'व्हेज स्पेशल',
-      price: 280.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Veg Patiala - rich royal gravy',
-    ),
-    MenuItem(
-      id: 'gc-28',
-      outletId: 'out-green-candle',
-      name: 'शेव भाजी',
-      category: 'व्हेज स्पेशल',
-      price: 160.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Shev Bhaji - sev in spicy gravy',
-    ),
-    MenuItem(
-      id: 'gc-29',
-      outletId: 'out-green-candle',
-      name: 'दुधातील शेव भाजी',
-      category: 'व्हेज स्पेशल',
-      price: 180.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Shev Bhaji in milk/white gravy',
-    ),
-    MenuItem(
-      id: 'gc-30',
-      outletId: 'out-green-candle',
-      name: 'प्लेन राईस',
-      category: 'राईस स्पेशल',
-      price: 80.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Steamed plain rice',
-      variants: [
-        ProductVariant(id: 'v-gc-30-half', name: 'Half', price: 40.0),
-        ProductVariant(id: 'v-gc-30-full', name: 'Full', price: 80.0),
-      ],
-    ),
-    MenuItem(
-      id: 'gc-31',
-      outletId: 'out-green-candle',
-      name: 'जीरा राईस',
-      category: 'राईस स्पेशल',
-      price: 90.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Jeera rice - cumin tempered basmati',
-      variants: [
-        ProductVariant(id: 'v-gc-31-half', name: 'Half', price: 50.0),
-        ProductVariant(id: 'v-gc-31-full', name: 'Full', price: 90.0),
-      ],
-    ),
-    MenuItem(
-      id: 'gc-32',
-      outletId: 'out-green-candle',
-      name: 'घी राईस',
-      category: 'राईस स्पेशल',
-      price: 130.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Ghee Rice - basmati with ghee',
-    ),
-    MenuItem(
-      id: 'gc-33',
-      outletId: 'out-green-candle',
-      name: 'खुशका राईस',
-      category: 'राईस स्पेशल',
-      price: 100.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Khushka rice - lightly spiced',
-      variants: [
-        ProductVariant(id: 'v-gc-33-half', name: 'Half', price: 70.0),
-        ProductVariant(id: 'v-gc-33-full', name: 'Full', price: 100.0),
-      ],
-    ),
-    MenuItem(
-      id: 'gc-34',
-      outletId: 'out-green-candle',
-      name: 'व्हेज पुलाव',
-      category: 'राईस स्पेशल',
-      price: 150.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Veg Pulao with vegetables',
-    ),
-    MenuItem(
-      id: 'gc-35',
-      outletId: 'out-green-candle',
-      name: 'पनीर पुलाव',
-      category: 'राईस स्पेशल',
-      price: 170.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Paneer Pulao with paneer cubes',
-    ),
-    MenuItem(
-      id: 'gc-36',
-      outletId: 'out-green-candle',
-      name: 'व्हेज बिर्याणी',
-      category: 'राईस स्पेशल',
-      price: 210.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Veg Biryani - dum cooked',
-    ),
-    MenuItem(
-      id: 'gc-37',
-      outletId: 'out-green-candle',
-      name: 'दाल खिचडी',
-      category: 'राईस स्पेशल',
-      price: 110.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Dal Khichdi comfort rice & lentils',
-    ),
-    MenuItem(
-      id: 'gc-38',
-      outletId: 'out-green-candle',
-      name: 'कढी राईस',
-      category: 'राईस स्पेशल',
-      price: 120.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Kadhi chawal',
-    ),
-    MenuItem(
-      id: 'gc-39',
-      outletId: 'out-green-candle',
-      name: 'गव्हाची रोटी',
-      category: 'रोटी स्पेशल',
-      price: 25.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Wheat roti - plain or butter',
-      variants: [
-        ProductVariant(id: 'v-gc-39-sadhi', name: 'साधी', price: 20.0),
-        ProductVariant(id: 'v-gc-39-butter', name: 'बटर', price: 25.0),
-      ],
-    ),
-    MenuItem(
-      id: 'gc-40',
-      outletId: 'out-green-candle',
-      name: 'तंदूर रोटी',
-      category: 'रोटी स्पेशल',
-      price: 25.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Tandoor baked roti',
-      variants: [
-        ProductVariant(id: 'v-gc-40-sadhi', name: 'साधी', price: 20.0),
-        ProductVariant(id: 'v-gc-40-butter', name: 'बटर', price: 25.0),
-      ],
-    ),
-    MenuItem(
-      id: 'gc-41',
-      outletId: 'out-green-candle',
-      name: 'नान रोटी',
-      category: 'रोटी स्पेशल',
-      price: 45.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Soft Naan',
-    ),
-    MenuItem(
-      id: 'gc-42',
-      outletId: 'out-green-candle',
-      name: 'कुलचा',
-      category: 'रोटी स्पेशल',
-      price: 35.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Kulcha - leavened bread',
-      variants: [
-        ProductVariant(id: 'v-gc-42-regular', name: 'रेग्युलर', price: 30.0),
-        ProductVariant(id: 'v-gc-42-butter', name: 'बटर', price: 35.0),
-      ],
-    ),
-    MenuItem(
-      id: 'gc-43',
-      outletId: 'out-green-candle',
-      name: 'लच्छा पराठा',
-      category: 'रोटी स्पेशल',
-      price: 60.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Layered laccha paratha',
-    ),
-    MenuItem(
-      id: 'gc-44',
-      outletId: 'out-green-candle',
-      name: 'व्हेज पराठा',
-      category: 'रोटी स्पेशल',
-      price: 105.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Stuffed veg paratha',
-    ),
-    MenuItem(
-      id: 'gc-45',
-      outletId: 'out-green-candle',
-      name: 'आलू पराठा',
-      category: 'रोटी स्पेशल',
-      price: 90.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Aloo paratha with curd/pickle',
-    ),
-    MenuItem(
-      id: 'gc-46',
-      outletId: 'out-green-candle',
-      name: 'तवा पराठा',
-      category: 'रोटी स्पेशल',
-      price: 45.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Tawa Paratha',
-      variants: [
-        ProductVariant(id: 'v-gc-46-sadhi', name: 'साधी', price: 40.0),
-        ProductVariant(id: 'v-gc-46-butter', name: 'बटर', price: 45.0),
-      ],
-    ),
-    MenuItem(
-      id: 'gc-47',
-      outletId: 'out-green-candle',
-      name: 'गार्लिक नान',
-      category: 'रोटी स्पेशल',
-      price: 70.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Garlic butter naan',
-    ),
-    MenuItem(
-      id: 'gc-48',
-      outletId: 'out-green-candle',
-      name: 'सोलकढी',
-      category: 'थंडाई स्पेशल',
-      price: 80.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Solkadhi - kokum + coconut milk cooler',
-      variants: [
-        ProductVariant(id: 'v-gc-48-glass', name: '1 Glass', price: 20.0),
-        ProductVariant(id: 'v-gc-48-liter', name: '1 Liter', price: 80.0),
-      ],
-    ),
-    MenuItem(
-      id: 'gc-49',
-      outletId: 'out-green-candle',
-      name: 'बटर मिल्क',
-      category: 'थंडाई स्पेशल',
-      price: 30.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Chaas / Buttermilk - 1 Glass',
-    ),
-    MenuItem(
-      id: 'gc-50',
-      outletId: 'out-green-candle',
-      name: 'मिनरल वॉटर',
-      category: 'थंडाई स्पेशल',
-      price: 20.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Mineral Water bottle',
-    ),
-    MenuItem(
-      id: 'gc-51',
-      outletId: 'out-green-candle',
-      name: 'दही',
-      category: 'थंडाई स्पेशल',
-      price: 20.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Curd / Dahi bowl',
-    ),
-    MenuItem(
-      id: 'gc-52',
-      outletId: 'out-green-candle',
-      name: 'फ्राय पापड',
-      category: 'पापड स्पेशल',
-      price: 20.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Fried papad',
-    ),
-    MenuItem(
-      id: 'gc-53',
-      outletId: 'out-green-candle',
-      name: 'रोस्ट पापड',
-      category: 'पापड स्पेशल',
-      price: 20.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Roasted papad',
-    ),
-    MenuItem(
-      id: 'gc-54',
-      outletId: 'out-green-candle',
-      name: 'मसाला पापड',
-      category: 'पापड स्पेशल',
-      price: 35.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Masala Papad with chutney & onion',
-    ),
-    MenuItem(
-      id: 'gc-55',
-      outletId: 'out-green-candle',
-      name: 'फ्रेंच फ्राय',
-      category: 'पापड स्पेशल',
-      price: 110.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'French Fries',
-    ),
-    MenuItem(
-      id: 'gc-56',
-      outletId: 'out-green-candle',
-      name: 'मसाला फ्रेंच फ्राय',
-      category: 'पापड स्पेशल',
-      price: 120.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Masala French Fries',
-    ),
-    MenuItem(
-      id: 'gc-57',
-      outletId: 'out-green-candle',
-      name: 'लसूण फ्राय',
-      category: 'पापड स्पेशल',
-      price: 110.0,
-      isVeg: true,
-      imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300',
-      description: 'Garlic Fry',
-    ),  ];
+  final List<MenuItem> _menuItems = [];
   List<MenuItem> get menuItems => List.unmodifiable(
       _menuItems.where((m) => m.outletId == null || m.outletId == _currentOutlet.id));
 
@@ -3293,7 +1947,7 @@ class PosProvider extends ChangeNotifier {
       final owner = _ownerOf(item);
       _activeOrder?.items.remove(item);
       if (owner != null) {
-        _sync?.push('item.qty', {
+        _push('item.qty', {
           'order_id': owner.id,
           'item_id': item.id,
           'quantity': 0,
@@ -3310,7 +1964,7 @@ class PosProvider extends ChangeNotifier {
     final owner = _ownerOf(item);
     _activeOrder?.items.remove(item);
     if (owner != null) {
-      _sync?.push('item.qty', {
+      _push('item.qty', {
         'order_id': owner.id,
         'item_id': item.id,
         'quantity': 0,
@@ -3326,7 +1980,7 @@ class PosProvider extends ChangeNotifier {
     if (_activeOrder != null) {
       _activeOrder!.orderNote = note;
       notifyListeners();
-      _sync?.push('order.patch', {
+      _push('order.patch', {
         'order_id': _activeOrder!.id,
         'order_note': note,
       });
@@ -3342,7 +1996,7 @@ class PosProvider extends ChangeNotifier {
       }
       if (waiter != null) _activeOrder!.waiterName = waiter;
       notifyListeners();
-      _sync?.push('order.patch', {
+      _push('order.patch', {
         'order_id': _activeOrder!.id,
         'guest_count': count,
         if (customerName != null && customerName.isNotEmpty) 'customer_name': customerName,
@@ -3409,7 +2063,7 @@ class PosProvider extends ChangeNotifier {
     }
 
     notifyListeners();
-    _sync?.push('kot.fire', {'order_id': kot.orderId});
+    _push('kot.fire', {'order_id': kot.orderId});
     if (_settings.autoPrintKOT) {
       _printKot(kot);
     }
@@ -3430,7 +2084,7 @@ class PosProvider extends ChangeNotifier {
       _readyAlerts.removeWhere((k) => k.id == kotId);
     }
     notifyListeners();
-    _sync?.push('kot.status', {
+    _push('kot.status', {
       'kot_id': kotId,
       'status': kotStatusToApi(newStatus),
     });
@@ -3558,7 +2212,7 @@ class PosProvider extends ChangeNotifier {
       if (table != null) table.currentOrderAmount = order.grandTotal;
     }
     notifyListeners();
-    _sync?.push('item.cancel', {
+    _push('item.cancel', {
       'order_id': orderId,
       'item_id': itemId,
       'reason': reason,
@@ -3580,7 +2234,7 @@ class PosProvider extends ChangeNotifier {
     }
     _activeOrder!.discountReason = reason;
     notifyListeners();
-    _sync?.push('order.patch', {
+    _push('order.patch', {
       'order_id': _activeOrder!.id,
       if (percent != null) 'discount_percent': percent.clamp(0.0, 100.0),
       if (amount != null) 'discount_paise': toPaise(_activeOrder!.discountAmount),
@@ -3602,7 +2256,7 @@ class PosProvider extends ChangeNotifier {
       _activeOrder!.deliveryCharge = delivery;
     }
     notifyListeners();
-    _sync?.push('order.patch', {
+    _push('order.patch', {
       'order_id': _activeOrder!.id,
       if (serviceCharge != null && serviceCharge >= 0)
         'service_charge_paise': toPaise(serviceCharge),
@@ -3712,7 +2366,7 @@ class PosProvider extends ChangeNotifier {
     _activeOrder = null;
     _selectedTable = null;
     notifyListeners();
-    _sync?.push('order.pay', {
+    _push('order.pay', {
       'order_id': completed.id,
       'method': paymentMethodToApi(legs.first.method),
       'amount_received_paise': toPaise(amountPaid),
@@ -3759,7 +2413,7 @@ class PosProvider extends ChangeNotifier {
       _currentShift?.refundsDigital += amount;
     }
     notifyListeners();
-    _sync?.push('order.refund', {
+    _push('order.refund', {
       'order_id': orderId,
       'amount_paise': toPaise(amount),
       'reason': reason,
@@ -3772,36 +2426,7 @@ class PosProvider extends ChangeNotifier {
   }
 
   // Expenses
-  final List<Expense> _expenses = [
-    Expense(
-      id: 'exp-01',
-      title: 'Electricity Bill (Commercial)',
-      category: ExpenseCategory.electricity,
-      amount: 8200.0,
-      date: DateTime.now().subtract(const Duration(days: 2)),
-      paymentMethod: 'UPI',
-      vendor: 'MSEDCL',
-      description: 'Monthly electricity bill for Baner outlet.',
-    ),
-    Expense(
-      id: 'exp-02',
-      title: 'Cleaning Supplies & Detergents',
-      category: ExpenseCategory.maintenance,
-      amount: 1200.0,
-      date: DateTime.now().subtract(const Duration(days: 1)),
-      paymentMethod: 'Cash',
-      vendor: 'CleanCare Enterprise',
-    ),
-    Expense(
-      id: 'exp-03',
-      title: 'Commercial LPG Cylinder (2x)',
-      category: ExpenseCategory.gas,
-      amount: 3600.0,
-      date: DateTime.now(),
-      paymentMethod: 'Cash',
-      vendor: 'Bharat Gas Agency',
-    ),
-  ];
+  final List<Expense> _expenses = [];
   List<Expense> get expenses => List.unmodifiable(_expenses);
 
   double get todayExpenses {
@@ -3825,7 +2450,7 @@ class PosProvider extends ChangeNotifier {
       _currentShift?.expenses += expense.amount;
     }
     notifyListeners();
-    _sync?.push('expense.create', {
+    _push('expense.create', {
       'local_id': expense.id,
       'title': expense.title,
       'category': expenseCategoryToApi(expense.category),
@@ -3847,45 +2472,18 @@ class PosProvider extends ChangeNotifier {
           (_currentShift!.expenses - expense.amount).clamp(0.0, double.infinity);
     }
     notifyListeners();
-    _sync?.push('expense.delete', {'expense_id': id});
+    _push('expense.delete', {'expense_id': id});
   }
 
   // Customers
-  final List<Customer> _customers = [
-    Customer(
-      id: 'c-01',
-      name: 'Satyajit Nikam',
-      phone: '+91 98765 11223',
-      email: 'satyajit@example.com',
-      visits: 8,
-      lifetimeSpend: 14200.0,
-      lastVisit: DateTime.now().subtract(const Duration(days: 3)),
-    ),
-    Customer(
-      id: 'c-02',
-      name: 'Ananya Roy',
-      phone: '+91 98765 22334',
-      email: 'ananya@example.com',
-      visits: 4,
-      lifetimeSpend: 6800.0,
-      lastVisit: DateTime.now().subtract(const Duration(days: 5)),
-    ),
-    Customer(
-      id: 'c-03',
-      name: 'Karan Mehra',
-      phone: '+91 98765 33445',
-      visits: 2,
-      lifetimeSpend: 3100.0,
-      outstandingCredit: 500.0,
-    ),
-  ];
+  final List<Customer> _customers = [];
   List<Customer> get customers => List.unmodifiable(_customers);
 
   void addCustomer(Customer customer) {
     if (customer.phone.trim().isEmpty) return;
     _customers.insert(0, customer);
     notifyListeners();
-    _sync?.push('customer.create', {
+    _push('customer.create', {
       'local_id': customer.id,
       'name': customer.name,
       'phone': customer.phone,
@@ -3914,7 +2512,7 @@ class PosProvider extends ChangeNotifier {
       return false;
     }
     notifyListeners();
-    _sync?.push('credit.book', {
+    _push('credit.book', {
       'customer_id': customerId,
       'kind': kind,
       'amount_paise': toPaise(amount),
@@ -3924,14 +2522,7 @@ class PosProvider extends ChangeNotifier {
   }
 
   // Inventory & Stock
-  final List<InventoryItem> _inventory = [
-    InventoryItem(id: 'inv-1', name: 'Fresh Paneer', availableStock: 18.0, minStock: 10.0, unit: 'KG', costPerUnit: 320),
-    InventoryItem(id: 'inv-2', name: 'Mozzarella Cheese', availableStock: 4.0, minStock: 8.0, unit: 'KG', costPerUnit: 450), // Low stock
-    InventoryItem(id: 'inv-3', name: 'Basmati Rice', availableStock: 45.0, minStock: 25.0, unit: 'KG', costPerUnit: 110),
-    InventoryItem(id: 'inv-4', name: 'Chicken (Curry Cut)', availableStock: 14.0, minStock: 10.0, unit: 'KG', costPerUnit: 220),
-    InventoryItem(id: 'inv-5', name: 'Cooking Butter', availableStock: 3.5, minStock: 6.0, unit: 'KG', costPerUnit: 520), // Low stock
-    InventoryItem(id: 'inv-6', name: 'Amul Fresh Cream', availableStock: 12.0, minStock: 5.0, unit: 'Litre', costPerUnit: 180),
-  ];
+  final List<InventoryItem> _inventory = [];
   List<InventoryItem> get inventory => List.unmodifiable(_inventory);
 
   List<InventoryItem> get lowStockItems =>
@@ -3957,7 +2548,7 @@ class PosProvider extends ChangeNotifier {
       ),
     );
     notifyListeners();
-    _sync?.push('stock.adjust', {
+    _push('stock.adjust', {
       'item_id': itemId,
       'delta': change,
       'reason': reason,
@@ -3965,33 +2556,10 @@ class PosProvider extends ChangeNotifier {
   }
 
   // Suppliers & Purchases
-  final List<Supplier> _suppliers = [
-    Supplier(id: 'sup-1', name: 'Metro Dairy Farms', mobile: '+91 98221 00112', category: 'Dairy & Paneer', outstanding: 4500),
-    Supplier(id: 'sup-2', name: 'Agro Fresh Poultry', mobile: '+91 98221 00223', category: 'Chicken & Eggs', outstanding: 2800),
-    Supplier(id: 'sup-3', name: 'Pune Wholesale Spices', mobile: '+91 98221 00334', category: 'Groceries & Rice'),
-  ];
+  final List<Supplier> _suppliers = [];
   List<Supplier> get suppliers => _suppliers;
 
-  final List<PurchaseRecord> _purchases = [
-    PurchaseRecord(
-      id: 'pur-1',
-      invoiceNumber: 'PUR-8821',
-      supplierName: 'Metro Dairy Farms',
-      date: DateTime.now().subtract(const Duration(days: 1)),
-      totalAmount: 6400.0,
-      paymentStatus: 'Paid',
-      itemsSummary: '20 KG Paneer, 10L Fresh Cream',
-    ),
-    PurchaseRecord(
-      id: 'pur-2',
-      invoiceNumber: 'PUR-8820',
-      supplierName: 'Agro Fresh Poultry',
-      date: DateTime.now().subtract(const Duration(days: 3)),
-      totalAmount: 5200.0,
-      paymentStatus: 'Paid',
-      itemsSummary: '25 KG Chicken Curry Cut',
-    ),
-  ];
+  final List<PurchaseRecord> _purchases = [];
   List<PurchaseRecord> get purchases => _purchases;
 
   // Settings
@@ -4068,7 +2636,7 @@ class PosProvider extends ChangeNotifier {
     // waiter terminal would only produce a guaranteed 403.
     final role = _currentStaff?.role;
     if (apiEnabled && (role == StaffRole.manager || role == StaffRole.admin)) {
-      _sync?.push('settings.update', settingsToApi(s));
+      _push('settings.update', settingsToApi(s));
     }
   }
 
@@ -4084,7 +2652,7 @@ class PosProvider extends ChangeNotifier {
     _menuItems.add(scopedItem);
     _rebuildCategories();
     notifyListeners();
-    _sync?.push('menu.create', {
+    _push('menu.create', {
       'local_id': scopedItem.id,
       'outlet_id': scopedItem.outletId ?? _currentOutlet.id,
       'category_id': scopedItem.category,
@@ -4113,7 +2681,7 @@ class PosProvider extends ChangeNotifier {
         : item.copyWith(isAvailable: isAvailable, variants: variants, modifierGroups: modifierGroups);
     _menuItems[idx] = next;
     notifyListeners();
-    _sync?.push('menu.update', {
+    _push('menu.update', {
       'menu_item_id': item.id,
       'category_id': item.category,
       'name': item.name,
@@ -4175,7 +2743,7 @@ class PosProvider extends ChangeNotifier {
     _menuItems.removeWhere((m) => m.id == id);
     _rebuildCategories();
     notifyListeners();
-    _sync?.push('menu.delete', {'menu_item_id': id});
+    _push('menu.delete', {'menu_item_id': id});
   }
 
   void addStaff(Staff staff) {
@@ -4195,12 +2763,12 @@ class PosProvider extends ChangeNotifier {
     );
     _staffList.add(s);
     notifyListeners();
-    _sync?.push('staff.create', {
+    _push('staff.create', {
       'local_id': s.id,
       'name': s.name,
       'role': s.role.name,
       'pin': s.pin,
-      if (s.outletId != null) 'outlet_id': s.outletId,
+      if (s.outletId != null) 'staff_outlet_id': s.outletId,
       if (s.avatarUrl.isNotEmpty) 'avatar_url': s.avatarUrl,
       if (s.mobile.isNotEmpty) 'mobile': s.mobile,
     });
@@ -4248,13 +2816,13 @@ class PosProvider extends ChangeNotifier {
       isProtected: s.isProtected,
     );
     notifyListeners();
-    _sync?.push('staff.patch', {
+    _push('staff.patch', {
       'staff_id': id,
       'name': ?name,
       if (role != null) 'role': role.name,
       // Send '' to clear outlet (backend treats '' as NULL); omit when unchanged.
-      if (outletCleared) 'outlet_id': '',
-      if (!outletCleared) 'outlet_id': ?effectiveOutlet,
+      if (outletCleared) 'staff_outlet_id': '',
+      if (!outletCleared) 'staff_outlet_id': ?effectiveOutlet,
       'is_active': ?isActive,
       'pin': ?((pin != null && pin.isNotEmpty) ? pin : null),
       'mobile': ?mobile,
@@ -4265,7 +2833,7 @@ class PosProvider extends ChangeNotifier {
   void addInventoryItem(InventoryItem item) {
     _inventory.add(item);
     notifyListeners();
-    _sync?.push('inventory.create', {
+    _push('inventory.create', {
       'local_id': item.id,
       'name': item.name,
       'unit': item.unit,
@@ -4284,7 +2852,7 @@ class PosProvider extends ChangeNotifier {
   void addSupplier(Supplier supplier) {
     _suppliers.add(supplier);
     notifyListeners();
-    _sync?.push('supplier.create', {
+    _push('supplier.create', {
       'local_id': supplier.id,
       'name': supplier.name,
       'mobile': supplier.mobile,
@@ -4363,7 +2931,7 @@ class PosProvider extends ChangeNotifier {
     if (method == 'Cash' && _currentShift != null) {
       _currentShift!.expenses += amount;
     }
-    _sync?.push('supplier.payment', {
+    _push('supplier.payment', {
       'local_id': pay.id,
       'supplier_id': supplierId,
       'amount_paise': toPaise(amount),
@@ -4402,7 +2970,7 @@ class PosProvider extends ChangeNotifier {
       }
     }
     notifyListeners();
-    _sync?.push('purchase.create', {
+    _push('purchase.create', {
       'local_id': record.id,
       'invoice_no': invoiceNo,
       if (supplierId != null && supplierId.isNotEmpty) 'supplier_id': supplierId,
@@ -4427,7 +2995,7 @@ class PosProvider extends ChangeNotifier {
       itemsSummary: p.itemsSummary,
     );
     notifyListeners();
-    _sync?.push('purchase.patch', {'purchase_id': id, 'status': 'paid'});
+    _push('purchase.patch', {'purchase_id': id, 'status': 'paid'});
   }
 
   /// Moves an existing table to another dining section (its floor name).
@@ -4437,7 +3005,7 @@ class PosProvider extends ChangeNotifier {
     if (table == null || name.isEmpty || table.floor == name) return;
     table.floor = name;
     notifyListeners();
-    _sync?.push('table.patch', {'table_id': table.id, 'floor': name});
+    _push('table.patch', {'table_id': table.id, 'floor': name});
   }
 
   void addTable({required String tableNumber, required int seats, required String floor}) {
@@ -4450,7 +3018,7 @@ class PosProvider extends ChangeNotifier {
     );
     _tables.add(table);
     notifyListeners();
-    _sync?.push('table.create', {
+    _push('table.create', {
       'local_id': table.id,
       'outlet_id': _currentOutlet.id,
       'table_number': tableNumber,
@@ -4636,11 +3204,5 @@ class PosProvider extends ChangeNotifier {
       }
       notifyListeners();
     }());
-  }
-
-  // Seed sample initial transactions - completely empty so there is no demo or dummy data.
-  void _seedData() {
-    // Pure production state: no demo orders, dummy shifts, or fake KOTs.
-    // All transactions, shifts, and orders are created by real users or hydrated from the server.
   }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'fixtures/pos_fixtures.dart';
 import 'package:food_pos/providers/pos_provider.dart';
 import 'package:food_pos/screens/cart/cart_view.dart';
 import 'package:food_pos/screens/modals/kot_sent_dialog.dart';
@@ -18,7 +19,7 @@ void main() {
 
   testWidgets('all-sent cart shows View Order + Checkout, no auto redirect',
       (tester) async {
-    final provider = PosProvider();
+    final provider = fixtureProvider();
     provider.selectTable(provider.tables.first);
     provider.addToCart(provider.menuItems.first);
     provider.sendKOT();
@@ -88,7 +89,7 @@ final KitchenOrderTicket stubKot = _stubKot();
 
 KitchenOrderTicket _stubKot() {
   // Minimal ticket for the dialog: built through the provider shape.
-  final p = PosProvider();
+  final p = fixtureProvider();
   p.selectTable(p.tables.first);
   p.addToCart(p.menuItems.first);
   return p.sendKOT()!;
