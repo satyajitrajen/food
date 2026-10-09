@@ -886,10 +886,17 @@ class PosProvider extends ChangeNotifier {
               .whereType<Map>()
               .map((k) => kotFromApi(k.cast<String, dynamic>())));
       }
+      final outlet = await _tryRead('/api/v1/outlets/$outletId', q);
+      if (outlet is Map && outlet['id'] == outletId) {
+        _currentOutlet = outletFromApi(outlet.cast<String, dynamic>());
+        final i = _outlets.indexWhere((o) => o.id == outletId);
+        if (i >= 0) _outlets[i] = _currentOutlet;
+      }
       final settings = await _tryRead('/api/v1/settings', q);
       if (settings is Map) {
         _settings = settingsFromApi(settings.cast<String, dynamic>());
       }
+      _settings = _withOutletProfile(_settings);
       final shift = await _tryRead('/api/v1/shifts/current', q);
       if (shift is Map && shift['shift'] is Map) {
         _currentShift = shiftFromApi((shift['shift'] as Map).cast<String, dynamic>());
@@ -989,6 +996,17 @@ class PosProvider extends ChangeNotifier {
     _rebuildCategories();
     notifyListeners();
   }
+
+  /// Bills print the outlet's legal identity (address, GSTIN, FSSAI), which
+  /// lives on the outlet record, not in settings.
+  RestaurantSettings _withOutletProfile(RestaurantSettings s) => s.copyWith(
+        restaurantName: s.restaurantName.isEmpty ? _currentOutlet.name : s.restaurantName,
+        address: _currentOutlet.address,
+        phone: _currentOutlet.phone,
+        email: _currentOutlet.email,
+        gstin: _currentOutlet.gstin,
+        fssai: _currentOutlet.fssai,
+      );
 
   void _rebuildCategories() {
     final cats = _menuItems
