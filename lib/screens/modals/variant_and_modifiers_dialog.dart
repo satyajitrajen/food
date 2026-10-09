@@ -208,7 +208,12 @@ class _VariantAndModifiersDialogState extends State<VariantAndModifiersDialog> {
                                 width: mod.isSelected ? 1.5 : 1.0,
                               ),
                             ),
-                            child: CheckboxListTile(
+                            // Single-choice groups look and announce like
+                            // radio buttons; multi-choice stay checkboxes.
+                            child: Semantics(
+                              inMutuallyExclusiveGroup: !group.isMultiSelect,
+                              child: CheckboxListTile(
+                              checkboxShape: group.isMultiSelect ? null : const CircleBorder(),
                               value: mod.isSelected,
                               activeColor: AppColors.primaryGreen,
                               title: Text(
@@ -241,6 +246,7 @@ class _VariantAndModifiersDialogState extends State<VariantAndModifiersDialog> {
                                   }
                                 });
                               },
+                            ),
                             ),
                           );
                         }).toList(),

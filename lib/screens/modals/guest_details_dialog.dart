@@ -322,8 +322,20 @@ class _GuestDetailsDialogState extends State<GuestDetailsDialog> {
                   prefixIcon: Icon(Icons.edit_note, size: 20),
                 ),
               ),
-                SizedBox(
-                  width: double.infinity,
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  TextButton(
+                    // Busy floor: open the table now, details can wait.
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      widget.onStartOrder();
+                    },
+                    child: const Text('Skip'),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: SizedBox(
                   height: 48,
                   child: ElevatedButton(
                     onPressed: () {
@@ -346,9 +358,12 @@ class _GuestDetailsDialogState extends State<GuestDetailsDialog> {
                       Navigator.of(context).pop();
                       widget.onStartOrder();
                     },
-                    child: const Text('Start Order →', style: TextStyle(fontWeight: FontWeight.w700)),
+                    child: const Text('Start order', style: TextStyle(fontWeight: FontWeight.w700)),
                   ),
                 ),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
