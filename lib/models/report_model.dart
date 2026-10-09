@@ -14,6 +14,15 @@ class DashboardStats {
   final Map<String, double> salesByTender;
   final List<CategorySales> topCategories;
 
+  /// Refunds issued in the period and sales net of them.
+  final double refunds;
+  final double netSales;
+
+  /// Best-selling dishes (category field holds the dish name).
+  final List<CategorySales> topItems;
+  final List<StaffSales> staffSales;
+  final Map<String, double> expensesByCategory;
+
   const DashboardStats({
     required this.sales,
     required this.orderCount,
@@ -24,7 +33,20 @@ class DashboardStats {
     this.salesByType = const {},
     this.salesByTender = const {},
     this.topCategories = const [],
-  });
+    this.refunds = 0,
+    double? netSales,
+    this.topItems = const [],
+    this.staffSales = const [],
+    this.expensesByCategory = const {},
+  }) : netSales = netSales ?? sales - refunds;
+}
+
+class StaffSales {
+  final String staffName;
+  final int orderCount;
+  final double revenue;
+
+  const StaffSales({required this.staffName, required this.orderCount, required this.revenue});
 }
 
 class CategorySales {

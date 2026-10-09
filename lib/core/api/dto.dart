@@ -577,6 +577,25 @@ DashboardStats dashboardReportFromApi(Map<String, dynamic> j) => DashboardStats(
                 quantity: _int(c['quantity']),
               ))
           .toList(),
+      refunds: toRupees(_int(j['refunds_paise'])),
+      netSales: j['net_sales_paise'] == null ? null : toRupees(_int(j['net_sales_paise'])),
+      topItems: (j['top_items'] as List? ?? [])
+          .whereType<Map>()
+          .map((c) => CategorySales(
+                category: _str(c['name']),
+                revenue: toRupees(_int(c['revenue_paise'])),
+                quantity: _int(c['quantity']),
+              ))
+          .toList(),
+      staffSales: (j['staff_sales'] as List? ?? [])
+          .whereType<Map>()
+          .map((c) => StaffSales(
+                staffName: _str(c['staff_name']).isEmpty ? 'Unassigned' : _str(c['staff_name']),
+                orderCount: _int(c['order_count']),
+                revenue: toRupees(_int(c['revenue_paise'])),
+              ))
+          .toList(),
+      expensesByCategory: _paiseMapToRupees(j['expenses_by_category']),
     );
 
 Map<String, double> _paiseMapToRupees(dynamic v) {

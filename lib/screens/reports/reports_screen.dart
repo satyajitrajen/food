@@ -7,6 +7,7 @@ import '../../models/order_model.dart';
 import '../../models/expense_model.dart';
 import '../../models/menu_model.dart';
 import '../../models/report_model.dart';
+import '../../core/api/dto.dart';
 import '../../core/format.dart';
 
 class CategorySales {
@@ -162,7 +163,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
   static Map<String, double> _salesByTender(List<RestaurantOrder> completed) {
     final map = <String, double>{};
     for (final o in completed) {
-      final key = o.paymentMethod ?? 'Other';
+      final key = PaymentMethodX.fromLabel(o.paymentMethod).name;
       map[key] = (map[key] ?? 0.0) + o.grandTotal;
     }
     return map;
@@ -240,9 +241,12 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
     final localGross = completed.fold(0.0, (s, o) => s + o.grandTotal);
     final localExpenses = filteredExpenses.fold(0.0, (s, e) => s + e.amount);
+    final localRefunds = completed.fold(0.0, (s, o) => s + o.refundedAmount);
     final grossSales = serverStats?.sales ?? localGross;
+    final refunds = serverStats?.refunds ?? localRefunds;
+    final netSales = serverStats?.netSales ?? (localGross - localRefunds);
     final totalExpenses = serverStats?.expenses ?? localExpenses;
-    final estimatedProfit = grossSales - totalExpenses;
+    final estimatedProfit = netSales - totalExpenses;
     final orderCount = serverStats?.orderCount ?? completed.length;
     final aov = orderCount > 0 ? grossSales / orderCount : 0.0;
 
@@ -253,6 +257,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
         'cash': serverStats.salesByTender['cash'] ?? 0,
         'upi': serverStats.salesByTender['upi'] ?? 0,
         'card': serverStats.salesByTender['card'] ?? 0,
+        'credit': serverStats.salesByTender['credit'] ?? 0,
       }..removeWhere((_, v) => v <= 0);
     } else {
       byTender = _salesByTender(completed);
@@ -264,12 +269,25 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 .map((c) => CategorySales(c.category, c.revenue, c.quantity))
                 .toList()
             : _salesByCategory(completed, provider.menuItems);
-    final topItems = _topItems(completed);
-    final waiterRows = _salesByWaiter(completed);
+    // Server truth across all terminals when available; this terminal's
+    // cached orders otherwise.
+    final topItems = serverStats != null && serverStats.topItems.isNotEmpty
+        ? serverStats.topItems.map((c) => CategorySales(c.category, c.revenue, c.quantity)).toList()
+        : _topItems(completed);
+    final waiterRows = serverStats != null && serverStats.staffSales.isNotEmpty
+        ? serverStats.staffSales.map((w) => CategorySales(w.staffName, w.revenue, w.orderCount)).toList()
+        : _salesByWaiter(completed);
 
     final expenseByCat = <ExpenseCategory, double>{};
-    for (final e in filteredExpenses) {
-      expenseByCat[e.category] = (expenseByCat[e.category] ?? 0.0) + e.amount;
+    if (serverStats != null && serverStats.expensesByCategory.isNotEmpty) {
+      serverStats.expensesByCategory.forEach((k, v) {
+        final cat = expenseCategoryFromApi(k);
+        expenseByCat[cat] = (expenseByCat[cat] ?? 0.0) + v;
+      });
+    } else {
+      for (final e in filteredExpenses) {
+        expenseByCat[e.category] = (expenseByCat[e.category] ?? 0.0) + e.amount;
+      }
     }
     final expenseRows = expenseByCat.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
@@ -285,7 +303,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
     return Scaffold(
       backgroundColor: AppColors.creamBg,
       appBar: AppBar(
-        title: const Text('Reports & Analytics', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+        title: const Text('Reports'),
         backgroundColor: Colors.white,
         elevation: 0,
       ),
@@ -328,8 +346,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
                       children: [
                         Expanded(
                           child: _buildStatCard(
-                            'Gross Sales',
-                            formatInr(grossSales),
+                            refunds > 0 ? 'Net sales (after ${formatInr(refunds)} refunds)' : 'Net sales',
+                            formatInr(netSales),
                             Icons.currency_rupee_outlined,
                             AppColors.vegGreen,
                           ),
@@ -372,7 +390,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                           Text(
                             formatInr(estimatedProfit),
                             style: TextStyle(
-                              color: estimatedProfit >= 0 ? AppColors.primaryGreen : AppColors.nonVegRed,
+                              color: estimatedProfit >= 0 ? AppColors.brandGreen : const Color(0xFFFF8A80),
                               fontWeight: FontWeight.w900,
                               fontSize: 36,
                               letterSpacing: -0.5,
@@ -380,7 +398,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                           ),
                           const SizedBox(height: 12),
                           Text(
-                            'Net Sales (${formatInr(grossSales)}) − Expenses (${formatInr(totalExpenses)}) = Estimated Margin',
+                            'Net sales ${formatInr(netSales)} − expenses ${formatInr(totalExpenses)}',
                             style: const TextStyle(color: Colors.white60, fontSize: 12),
                           ),
                         ],
@@ -449,7 +467,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                                   if (entry.key != byTender.keys.first)
                                     const Divider(height: 20, color: AppColors.borderLight),
                                   _buildProgressRow(
-                                    entry.key == 'cash' ? 'Cash' : entry.key == 'upi' ? 'UPI' : entry.key == 'card' ? 'Card' : entry.key,
+                                    PaymentMethodX.fromLabel(entry.key).label,
                                     ratioOf(entry.value),
                                     amountLabel(entry.value),
                                     entry.key.toLowerCase() == 'cash'
