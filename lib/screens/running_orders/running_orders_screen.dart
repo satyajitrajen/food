@@ -18,7 +18,8 @@ class RunningOrdersScreen extends StatefulWidget {
   State<RunningOrdersScreen> createState() => _RunningOrdersScreenState();
 }
 
-class _RunningOrdersScreenState extends State<RunningOrdersScreen> with SingleTickerProviderStateMixin {
+class _RunningOrdersScreenState extends State<RunningOrdersScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final TextEditingController _searchController = TextEditingController();
   String _query = '';
@@ -36,12 +37,21 @@ class _RunningOrdersScreenState extends State<RunningOrdersScreen> with SingleTi
     super.dispose();
   }
 
-  /// Filters by table number. Orders without a table (counter orders) are
-  /// hidden while a query is active.
+  /// Matches table, order number, customer name/phone and waiter.
   List<RestaurantOrder> _applySearch(List<RestaurantOrder> orders) {
     final q = _query.trim().toLowerCase();
     if (q.isEmpty) return orders;
-    return orders.where((o) => (o.tableNumber ?? '').toLowerCase().contains(q)).toList();
+    return orders
+        .where(
+          (o) => [
+            o.tableNumber,
+            o.orderNumber,
+            o.customerName,
+            o.customerPhone,
+            o.waiterName,
+          ].any((v) => (v ?? '').toLowerCase().contains(q)),
+        )
+        .toList();
   }
 
   RestaurantTable? _tableFor(PosProvider provider, RestaurantOrder order) {
@@ -58,7 +68,9 @@ class _RunningOrdersScreenState extends State<RunningOrdersScreen> with SingleTi
     final isWaiter = provider.currentStaff?.role == StaffRole.waiter;
     final runningOrders = provider.runningOrders;
 
-    final dineInOrders = runningOrders.where((o) => o.orderType == OrderType.dineIn).toList();
+    final dineInOrders = runningOrders
+        .where((o) => o.orderType == OrderType.dineIn)
+        .toList();
     final readyCount = provider.readyToServe.length;
 
     return Scaffold(
@@ -74,7 +86,11 @@ class _RunningOrdersScreenState extends State<RunningOrdersScreen> with SingleTi
             if (isWaiter && provider.currentStaff != null)
               Text(
                 'Waiter: ${provider.currentStaff!.name}',
-                style: const TextStyle(color: AppColors.textMuted, fontWeight: FontWeight.w600, fontSize: 12),
+                style: const TextStyle(
+                  color: AppColors.textMuted,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
+                ),
               ),
           ],
         ),
@@ -102,8 +118,14 @@ class _RunningOrdersScreenState extends State<RunningOrdersScreen> with SingleTi
           unselectedLabelColor: AppColors.textDark,
           indicatorColor: AppColors.primaryGreen,
           indicatorWeight: 3,
-          labelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
-          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+          labelStyle: const TextStyle(
+            fontWeight: FontWeight.w800,
+            fontSize: 13,
+          ),
+          unselectedLabelStyle: const TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 13,
+          ),
           tabs: [
             Tab(text: 'All (${runningOrders.length})'),
             Tab(text: 'Dine-In (${dineInOrders.length})'),
@@ -123,7 +145,11 @@ class _RunningOrdersScreenState extends State<RunningOrdersScreen> with SingleTi
                 onChanged: (val) => setState(() => _query = val),
                 decoration: InputDecoration(
                   hintText: 'Search by table number...',
-                  prefixIcon: const Icon(Icons.search, size: 20, color: AppColors.textLight),
+                  prefixIcon: const Icon(
+                    Icons.search,
+                    size: 20,
+                    color: AppColors.textLight,
+                  ),
                   suffixIcon: _query.isNotEmpty
                       ? IconButton(
                           icon: const Icon(Icons.clear, size: 18),
@@ -133,7 +159,10 @@ class _RunningOrdersScreenState extends State<RunningOrdersScreen> with SingleTi
                           },
                         )
                       : null,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                   fillColor: AppColors.creamSubtle,
                   filled: true,
                   border: OutlineInputBorder(
@@ -148,8 +177,16 @@ class _RunningOrdersScreenState extends State<RunningOrdersScreen> with SingleTi
               child: TabBarView(
                 controller: _tabController,
                 children: [
-                  _buildOrdersList(context, _applySearch(runningOrders), provider),
-                  _buildOrdersList(context, _applySearch(dineInOrders), provider),
+                  _buildOrdersList(
+                    context,
+                    _applySearch(runningOrders),
+                    provider,
+                  ),
+                  _buildOrdersList(
+                    context,
+                    _applySearch(dineInOrders),
+                    provider,
+                  ),
                 ],
               ),
             ),
@@ -159,7 +196,11 @@ class _RunningOrdersScreenState extends State<RunningOrdersScreen> with SingleTi
     );
   }
 
-  Widget _buildOrdersList(BuildContext context, List<RestaurantOrder> orders, PosProvider provider) {
+  Widget _buildOrdersList(
+    BuildContext context,
+    List<RestaurantOrder> orders,
+    PosProvider provider,
+  ) {
     final isWaiter = provider.currentStaff?.role == StaffRole.waiter;
     final searching = _query.trim().isNotEmpty;
     if (orders.isEmpty) {
@@ -167,14 +208,18 @@ class _RunningOrdersScreenState extends State<RunningOrdersScreen> with SingleTi
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.receipt_long_outlined, size: 52, color: AppColors.textLight),
+            const Icon(
+              Icons.receipt_long_outlined,
+              size: 52,
+              color: AppColors.textLight,
+            ),
             const SizedBox(height: 12),
             Text(
               searching
-                  ? 'No orders match table "${_query.trim()}"'
+                  ? 'No orders match "${_query.trim()}"'
                   : isWaiter
-                      ? 'No active orders assigned to you'
-                      : 'No running orders in this queue',
+                  ? 'No active orders assigned to you'
+                  : 'No running orders in this queue',
               style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
             ),
             if (!searching) ...[
@@ -192,127 +237,165 @@ class _RunningOrdersScreenState extends State<RunningOrdersScreen> with SingleTi
       );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: orders.length,
-      itemBuilder: (context, index) {
-        final order = orders[index];
-        final tableName = order.tableNumber ?? order.orderTypeLabel;
-        final table = _tableFor(provider, order);
+    return RefreshIndicator(
+      onRefresh: provider.triggerSync,
+      child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        itemCount: orders.length,
+        itemBuilder: (context, index) {
+          final order = orders[index];
+          final tableName = order.tableNumber ?? order.orderTypeLabel;
+          final table = _tableFor(provider, order);
 
-        return Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.borderLight),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.02),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              order.orderNumber,
-                              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Flexible(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: AppColors.primaryGreenLight,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
+          return Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.borderLight),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.02),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Flexible(
                               child: Text(
-                                tableName,
-                                style: const TextStyle(color: AppColors.primaryGreen, fontWeight: FontWeight.w800, fontSize: 12),
+                                order.orderNumber,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 16,
+                                ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primaryGreenLight,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  tableName,
+                                  style: const TextStyle(
+                                    color: AppColors.primaryGreen,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 12,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      if (table != null)
+                        IconButton(
+                          icon: const Icon(
+                            Icons.call_merge,
+                            size: 18,
+                            color: AppColors.textDark,
                           ),
-                        ],
+                          tooltip: 'Merge Tables',
+                          visualDensity: VisualDensity.compact,
+                          onPressed: () =>
+                              MergeTablesDialog.show(context, table),
+                        ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.saffronAmberBg,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          order.statusLabel,
+                          style: const TextStyle(
+                            color: Color(0xFFD97706),
+                            fontWeight: FontWeight.w800,
+                            fontSize: 12,
+                          ),
+                        ),
                       ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '${order.totalItemCount} Items · ₹${order.grandTotal.toStringAsFixed(0)} · Waiter: ${order.waiterName ?? "Staff"}',
+                    style: const TextStyle(
+                      color: AppColors.textMuted,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
                     ),
-                    const SizedBox(width: 8),
-                    if (table != null)
-                      IconButton(
-                        icon: const Icon(Icons.call_merge, size: 18, color: AppColors.textDark),
-                        tooltip: 'Merge Tables',
-                        visualDensity: VisualDensity.compact,
-                        onPressed: () => MergeTablesDialog.show(context, table),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const Divider(height: 20, color: AppColors.borderLight),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            provider.openRunningOrder(order);
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const PosMenuScreen(),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.add, size: 16),
+                          label: const Text('+ Add'),
+                        ),
                       ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: AppColors.saffronAmberBg,
-                        borderRadius: BorderRadius.circular(12),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    RunningOrderDetailScreen(order: order),
+                              ),
+                            );
+                          },
+                          icon: const Icon(
+                            Icons.receipt_long_outlined,
+                            size: 16,
+                          ),
+                          label: const Text('View'),
+                        ),
                       ),
-                      child: Text(
-                        order.statusLabel,
-                        style: const TextStyle(color: Color(0xFFD97706), fontWeight: FontWeight.w800, fontSize: 12),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '${order.totalItemCount} Items · ₹${order.grandTotal.toStringAsFixed(0)} · Waiter: ${order.waiterName ?? "Staff"}',
-                  style: const TextStyle(color: AppColors.textMuted, fontSize: 13, fontWeight: FontWeight.w600),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const Divider(height: 20, color: AppColors.borderLight),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () {
-                          provider.openRunningOrder(order);
-                          Navigator.of(context).push(
-                            MaterialPageRoute(builder: (_) => const PosMenuScreen()),
-                          );
-                        },
-                        icon: const Icon(Icons.add, size: 16),
-                        label: const Text('+ Add'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(builder: (_) => RunningOrderDetailScreen(order: order)),
-                          );
-                        },
-                        icon: const Icon(Icons.receipt_long_outlined, size: 16),
-                        label: const Text('View'),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 }

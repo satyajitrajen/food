@@ -8,6 +8,7 @@ import '../../widgets/confirm_dialog.dart';
 import '../modals/guest_details_dialog.dart';
 import '../pos_menu/pos_menu_screen.dart';
 import '../running_orders/running_order_detail_screen.dart';
+import '../../widgets/empty_state.dart';
 
 class TableSelectionScreen extends StatelessWidget {
   final bool isSelectingForOrder;
@@ -25,7 +26,10 @@ class TableSelectionScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.creamBg,
       appBar: AppBar(
-        title: const Text('Floor Tables', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+        title: const Text(
+          'Floor Tables',
+          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+        ),
         backgroundColor: Colors.white,
         elevation: 0,
         actions: [
@@ -38,11 +42,18 @@ class TableSelectionScreen extends StatelessWidget {
             ),
             child: Row(
               children: [
-                const Icon(Icons.table_bar_outlined, size: 16, color: AppColors.primaryGreen),
+                const Icon(
+                  Icons.table_bar_outlined,
+                  size: 16,
+                  color: AppColors.primaryGreen,
+                ),
                 const SizedBox(width: 6),
                 Text(
                   '${provider.tables.where((t) => t.status == TableStatus.available).length} Free / ${provider.tables.length} Total',
-                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                  ),
                 ),
               ],
             ),
@@ -72,7 +83,9 @@ class TableSelectionScreen extends StatelessWidget {
                             selected: isSelected,
                             selectedColor: AppColors.primaryGreen,
                             labelStyle: TextStyle(
-                              color: isSelected ? Colors.white : AppColors.textDark,
+                              color: isSelected
+                                  ? Colors.white
+                                  : AppColors.textDark,
                               fontWeight: FontWeight.w700,
                               fontSize: 13,
                             ),
@@ -95,7 +108,9 @@ class TableSelectionScreen extends StatelessWidget {
                             selected: isSelected,
                             selectedColor: AppColors.primaryGreen,
                             labelStyle: TextStyle(
-                              color: isSelected ? Colors.white : AppColors.textDark,
+                              color: isSelected
+                                  ? Colors.white
+                                  : AppColors.textDark,
                               fontWeight: FontWeight.w700,
                               fontSize: 13,
                             ),
@@ -122,20 +137,44 @@ class TableSelectionScreen extends StatelessWidget {
                   }
 
                   final tables = provider.filteredTables;
+                  if (tables.isEmpty) {
+                    return EmptyState(
+                      icon: Icons.table_restaurant_outlined,
+                      title: provider.tables.isEmpty
+                          ? 'No tables yet'
+                          : 'No tables match this filter',
+                      message: provider.tables.isEmpty
+                          ? (provider.canManage
+                                ? 'Add tables in Settings → Dining sections & tables.'
+                                : 'Ask a manager to add tables. Takeaway orders work from the POS tab.')
+                          : null,
+                      actionLabel: provider.tables.isEmpty ? 'Refresh' : null,
+                      onAction: provider.tables.isEmpty
+                          ? provider.triggerSync
+                          : null,
+                      isError: false,
+                    );
+                  }
 
-                  return GridView.builder(
-                    padding: const EdgeInsets.all(16),
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: crossAxisCount,
-                      crossAxisSpacing: 14,
-                      mainAxisSpacing: 14,
-                      childAspectRatio: constraints.maxWidth > 600 ? 1.3 : 1.18,
+                  return RefreshIndicator(
+                    onRefresh: provider.triggerSync,
+                    child: GridView.builder(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.all(16),
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: crossAxisCount,
+                        crossAxisSpacing: 14,
+                        mainAxisSpacing: 14,
+                        childAspectRatio: constraints.maxWidth > 600
+                            ? 1.3
+                            : 1.18,
+                      ),
+                      itemCount: tables.length,
+                      itemBuilder: (context, index) {
+                        final table = tables[index];
+                        return _buildTableCard(context, table, provider);
+                      },
                     ),
-                    itemCount: tables.length,
-                    itemBuilder: (context, index) {
-                      final table = tables[index];
-                      return _buildTableCard(context, table, provider);
-                    },
                   );
                 },
               ),
@@ -146,17 +185,25 @@ class TableSelectionScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildTableCard(BuildContext context, RestaurantTable table, PosProvider provider) {
+  Widget _buildTableCard(
+    BuildContext context,
+    RestaurantTable table,
+    PosProvider provider,
+  ) {
     Color borderColor = AppColors.borderLight;
-    if (table.status == TableStatus.occupied) borderColor = AppColors.nonVegRed.withValues(alpha: 0.5);
-    if (table.status == TableStatus.billing) borderColor = AppColors.saffronAmber;
+    if (table.status == TableStatus.occupied)
+      borderColor = AppColors.nonVegRed.withValues(alpha: 0.5);
+    if (table.status == TableStatus.billing)
+      borderColor = AppColors.saffronAmber;
     // Guest info lives on the table's running order — surface it on the card.
     final guestOrder = table.activeOrderId == null
         ? null
         : provider.orders.where((o) => o.id == table.activeOrderId).firstOrNull;
     final customerLine = [
-      if ((guestOrder?.customerName ?? '').isNotEmpty) guestOrder!.customerName!,
-      if ((guestOrder?.customerPhone ?? '').isNotEmpty) guestOrder!.customerPhone!,
+      if ((guestOrder?.customerName ?? '').isNotEmpty)
+        guestOrder!.customerName!,
+      if ((guestOrder?.customerPhone ?? '').isNotEmpty)
+        guestOrder!.customerPhone!,
     ].join(' · ');
 
     return InkWell(
@@ -191,17 +238,21 @@ class TableSelectionScreen extends StatelessWidget {
               }
             },
           );
-        } else if (table.status == TableStatus.occupied || table.status == TableStatus.billing) {
+        } else if (table.status == TableStatus.occupied ||
+            table.status == TableStatus.billing) {
           if (isSelectingForOrder && Navigator.of(context).canPop()) {
             Navigator.of(context).pop();
           } else if (provider.activeOrder != null) {
             Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => RunningOrderDetailScreen(order: provider.activeOrder!)),
+              MaterialPageRoute(
+                builder: (_) =>
+                    RunningOrderDetailScreen(order: provider.activeOrder!),
+              ),
             );
           } else {
-            Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const PosMenuScreen()),
-            );
+            Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const PosMenuScreen()));
           }
         } else {
           // Reserved or Cleaning - Allow toggle to available via provider
@@ -216,7 +267,11 @@ class TableSelectionScreen extends StatelessWidget {
           if (!ok || !context.mounted) return;
           provider.markTableAvailable(table);
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Table ${table.tableNumber} is now marked Available!')),
+            SnackBar(
+              content: Text(
+                'Table ${table.tableNumber} is now marked Available!',
+              ),
+            ),
           );
         }
       },
@@ -244,7 +299,11 @@ class TableSelectionScreen extends StatelessWidget {
                 Expanded(
                   child: Text(
                     table.tableNumber,
-                    style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20, letterSpacing: -0.5),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 20,
+                      letterSpacing: -0.5,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -255,12 +314,20 @@ class TableSelectionScreen extends StatelessWidget {
             ),
             Row(
               children: [
-                const Icon(Icons.event_seat_outlined, size: 13, color: AppColors.textMuted),
+                const Icon(
+                  Icons.event_seat_outlined,
+                  size: 13,
+                  color: AppColors.textMuted,
+                ),
                 const SizedBox(width: 4),
                 Expanded(
                   child: Text(
                     '${table.seats} Seats · ${table.guestCount > 0 ? "${table.guestCount} Guests · " : ""}${table.floor.split(" ").first}',
-                    style: const TextStyle(color: AppColors.textMuted, fontSize: 11, fontWeight: FontWeight.w500),
+                    style: const TextStyle(
+                      color: AppColors.textMuted,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                    ),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -269,7 +336,11 @@ class TableSelectionScreen extends StatelessWidget {
             if (customerLine.isNotEmpty)
               Row(
                 children: [
-                  const Icon(Icons.person_outline, size: 12, color: AppColors.primaryGreen),
+                  const Icon(
+                    Icons.person_outline,
+                    size: 12,
+                    color: AppColors.primaryGreen,
+                  ),
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
@@ -277,7 +348,10 @@ class TableSelectionScreen extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                          color: AppColors.textDark, fontSize: 11, fontWeight: FontWeight.w700),
+                        color: AppColors.textDark,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ],
@@ -290,12 +364,19 @@ class TableSelectionScreen extends StatelessWidget {
                   child: table.currentOrderAmount > 0
                       ? Text(
                           '₹${table.currentOrderAmount.toStringAsFixed(0)}',
-                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: AppColors.primaryGreen),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 15,
+                            color: AppColors.primaryGreen,
+                          ),
                           overflow: TextOverflow.ellipsis,
                         )
                       : const Text(
                           'No Bill',
-                          style: TextStyle(color: AppColors.textLight, fontSize: 11),
+                          style: TextStyle(
+                            color: AppColors.textLight,
+                            fontSize: 11,
+                          ),
                           overflow: TextOverflow.ellipsis,
                         ),
                 ),
@@ -303,11 +384,19 @@ class TableSelectionScreen extends StatelessWidget {
                 table.runningMinutes > 0
                     ? Text(
                         '${table.runningMinutes} min',
-                        style: const TextStyle(color: AppColors.textLight, fontSize: 11, fontWeight: FontWeight.w600),
+                        style: const TextStyle(
+                          color: AppColors.textLight,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
                       )
                     : const Text(
                         'Order',
-                        style: TextStyle(color: AppColors.vegGreen, fontSize: 11, fontWeight: FontWeight.w700),
+                        style: TextStyle(
+                          color: AppColors.vegGreen,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
               ],
             ),

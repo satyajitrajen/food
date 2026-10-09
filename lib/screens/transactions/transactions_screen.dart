@@ -34,7 +34,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     switch (_period) {
       case 'Today':
         final now = DateTime.now();
-        return paid.year == now.year && paid.month == now.month && paid.day == now.day;
+        return paid.year == now.year &&
+            paid.month == now.month &&
+            paid.day == now.day;
       case '7D':
         return paid.isAfter(DateTime.now().subtract(const Duration(days: 7)));
       case '30D':
@@ -65,11 +67,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     final now = DateTime.now();
     final picked = await showDateRangePicker(
       context: context,
-      initialDateRange: _customRange ??
-          DateTimeRange(
-            start: now.subtract(const Duration(days: 7)),
-            end: now,
-          ),
+      initialDateRange:
+          _customRange ??
+          DateTimeRange(start: now.subtract(const Duration(days: 7)), end: now),
       firstDate: DateTime(now.year - 2),
       lastDate: now,
     );
@@ -87,15 +87,18 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     final transactions = provider.completedTransactions;
 
     final filtered = transactions.where((tx) {
-      if (_selectedPaymentFilter != 'All' && tx.paymentMethod != _selectedPaymentFilter) {
+      if (_selectedPaymentFilter != 'All' &&
+          tx.paymentMethod != _selectedPaymentFilter) {
         return false;
       }
       if (!_inPeriod(tx)) return false;
       if (_searchController.text.isNotEmpty) {
         final q = _searchController.text.toLowerCase();
-        final matchInv = (tx.invoiceNumber ?? '').toLowerCase().contains(q) ||
+        final matchInv =
+            (tx.invoiceNumber ?? '').toLowerCase().contains(q) ||
             tx.orderNumber.toLowerCase().contains(q);
-        final matchCust = (tx.customerName ?? '').toLowerCase().contains(q) ||
+        final matchCust =
+            (tx.customerName ?? '').toLowerCase().contains(q) ||
             (tx.customerPhone ?? '').contains(q);
         if (!matchInv && !matchCust) return false;
       }
@@ -112,254 +115,348 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       body: SafeArea(
         top: false,
         child: Column(
-        children: [
-          // Search & Filter Bar
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                TextField(
-                  controller: _searchController,
-                  onChanged: (_) => setState(() {}),
-                  decoration: InputDecoration(
-                    hintText: 'Search invoice, order or customer',
-                    prefixIcon: const Icon(Icons.search, size: 20),
-                    suffixIcon: _searchController.text.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.clear, size: 18),
-                            onPressed: () {
-                              _searchController.clear();
-                              setState(() {});
-                            },
-                          )
-                        : null,
-                    fillColor: AppColors.creamSubtle,
-                    filled: true,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                // Date period filter with custom range
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      for (final p in ['Today', '7D', '30D', 'All'])
-                        Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: ChoiceChip(
-                            label: Text(_periodLabel(p)),
-                            selected: _period == p,
-                            selectedColor: AppColors.primaryGreen,
-                            labelStyle: TextStyle(
-                              color: _period == p ? Colors.white : AppColors.textDark,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 12,
-                            ),
-                            onSelected: (_) => setState(() => _period = p),
-                          ),
-                        ),
-                      ChoiceChip(
-                        label: Text(
-                          _period == 'Custom' && _customRange != null
-                              ? '${DateFormat('dd MMM').format(_customRange!.start)} – ${DateFormat('dd MMM').format(_customRange!.end)}'
-                              : 'Custom range',
-                        ),
-                        selected: _period == 'Custom',
-                        selectedColor: AppColors.primaryGreen,
-                        labelStyle: TextStyle(
-                          color: _period == 'Custom' ? Colors.white : AppColors.textDark,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 12,
-                        ),
-                        onSelected: (_) => _pickCustomRange(),
+          children: [
+            // Search & Filter Bar
+            Container(
+              color: Colors.white,
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  TextField(
+                    controller: _searchController,
+                    onChanged: (_) => setState(() {}),
+                    decoration: InputDecoration(
+                      hintText: 'Search invoice, order or customer',
+                      prefixIcon: const Icon(Icons.search, size: 20),
+                      suffixIcon: _searchController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, size: 18),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() {});
+                              },
+                            )
+                          : null,
+                      fillColor: AppColors.creamSubtle,
+                      filled: true,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
                       ),
-                    ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: ['All', 'Cash', 'UPI', 'Card'].map((mode) {
-                      final isSelected = _selectedPaymentFilter == mode;
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: ChoiceChip(
-                          label: Text(mode),
-                          selected: isSelected,
+                  const SizedBox(height: 12),
+                  // Date period filter with custom range
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        for (final p in ['Today', '7D', '30D', 'All'])
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: ChoiceChip(
+                              label: Text(_periodLabel(p)),
+                              selected: _period == p,
+                              selectedColor: AppColors.primaryGreen,
+                              labelStyle: TextStyle(
+                                color: _period == p
+                                    ? Colors.white
+                                    : AppColors.textDark,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 12,
+                              ),
+                              onSelected: (_) => setState(() => _period = p),
+                            ),
+                          ),
+                        ChoiceChip(
+                          label: Text(
+                            _period == 'Custom' && _customRange != null
+                                ? '${DateFormat('dd MMM').format(_customRange!.start)} – ${DateFormat('dd MMM').format(_customRange!.end)}'
+                                : 'Custom range',
+                          ),
+                          selected: _period == 'Custom',
                           selectedColor: AppColors.primaryGreen,
                           labelStyle: TextStyle(
-                            color: isSelected ? Colors.white : AppColors.textDark,
+                            color: _period == 'Custom'
+                                ? Colors.white
+                                : AppColors.textDark,
                             fontWeight: FontWeight.w700,
                             fontSize: 12,
                           ),
-                          onSelected: (_) => setState(() => _selectedPaymentFilter = mode),
+                          onSelected: (_) => _pickCustomRange(),
                         ),
-                      );
-                    }).toList(),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 12),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: ['All', 'Cash', 'UPI', 'Card'].map((mode) {
+                        final isSelected = _selectedPaymentFilter == mode;
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: ChoiceChip(
+                            label: Text(mode),
+                            selected: isSelected,
+                            selectedColor: AppColors.primaryGreen,
+                            labelStyle: TextStyle(
+                              color: isSelected
+                                  ? Colors.white
+                                  : AppColors.textDark,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                            ),
+                            onSelected: (_) =>
+                                setState(() => _selectedPaymentFilter = mode),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          const Divider(height: 1, color: AppColors.borderLight),
+            const Divider(height: 1, color: AppColors.borderLight),
 
-          // Transactions List
-          Expanded(
-            child: filtered.isEmpty
-                ? const Center(
-                    child: Text('No transactions match your search filter.', style: TextStyle(color: AppColors.textMuted)),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: filtered.length,
-                    itemBuilder: (context, index) {
-                      final tx = filtered[index];
-                      final dateStr = tx.paidAt != null
-                          ? DateFormat('dd MMM, hh:mm a').format(tx.paidAt!)
-                          : 'Recent';
+            // Transactions List
+            Expanded(
+              child: filtered.isEmpty
+                  ? const Center(
+                      child: Text(
+                        'No transactions match your search filter.',
+                        style: TextStyle(color: AppColors.textMuted),
+                      ),
+                    )
+                  : RefreshIndicator(
+                      onRefresh: provider.triggerSync,
+                      child: ListView.builder(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.all(16),
+                        itemCount: filtered.length,
+                        itemBuilder: (context, index) {
+                          final tx = filtered[index];
+                          final dateStr = tx.paidAt != null
+                              ? DateFormat('dd MMM, hh:mm a').format(tx.paidAt!)
+                              : 'Recent';
 
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: AppColors.borderLight),
-                          boxShadow: [
-                            BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10, offset: const Offset(0, 4)),
-                          ],
-                        ),
-                        child: ListTile(
-                          contentPadding: const EdgeInsets.all(16),
-                          title: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                tx.invoiceNumber ?? tx.orderNumber,
-                                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
-                              ),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: AppColors.borderLight),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.02),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: ListTile(
+                              contentPadding: const EdgeInsets.all(16),
+                              title: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
-                                    formatInr(tx.grandTotal),
-                                    style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: AppColors.primaryGreen),
-                                  ),
-                                  if (tx.refundedAmount > 0)
-                                    Text(
-                                      tx.status == OrderStatus.refunded
-                                          ? 'Refunded'
-                                          : 'Refunded ${formatInr(tx.refundedAmount)}',
-                                      style: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.w700, fontSize: 12),
+                                    tx.invoiceNumber ?? tx.orderNumber,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 16,
                                     ),
+                                  ),
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      Text(
+                                        formatInr(tx.grandTotal),
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w900,
+                                          fontSize: 18,
+                                          color: AppColors.primaryGreen,
+                                        ),
+                                      ),
+                                      if (tx.refundedAmount > 0)
+                                        Text(
+                                          tx.status == OrderStatus.refunded
+                                              ? 'Refunded'
+                                              : 'Refunded ${formatInr(tx.refundedAmount)}',
+                                          style: const TextStyle(
+                                            color: AppColors.danger,
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                    ],
+                                  ),
                                 ],
                               ),
-                            ],
-                          ),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const SizedBox(height: 4),
-                              Row(
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.creamSubtle,
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Text(
-                                      tx.paymentMethod ?? 'Cash',
-                                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 11),
-                                    ),
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.creamSubtle,
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          tx.paymentMethod ?? 'Cash',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Flexible(
+                                        child: Text(
+                                          tx.tableNumber != null
+                                              ? 'Table ${tx.tableNumber}'
+                                              : tx.orderTypeLabel,
+                                          style: const TextStyle(
+                                            color: AppColors.textMuted,
+                                            fontSize: 12,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Flexible(
+                                        child: Text(
+                                          '· $dateStr',
+                                          style: const TextStyle(
+                                            color: AppColors.textLight,
+                                            fontSize: 12,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  const SizedBox(width: 8),
-                                  Flexible(
-                                    child: Text(
-                                      tx.tableNumber != null ? 'Table ${tx.tableNumber}' : tx.orderTypeLabel,
-                                      style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Flexible(
-                                    child: Text(
-                                      '· $dateStr',
-                                      style: const TextStyle(color: AppColors.textLight, fontSize: 12),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
+                                  const SizedBox(height: 12),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.end,
+                                    children: [
+                                      OutlinedButton.icon(
+                                        style: OutlinedButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 6,
+                                          ),
+                                        ),
+                                        onPressed: () =>
+                                            _printBill(context, tx),
+                                        icon: const Icon(Icons.print, size: 14),
+                                        label: const Text(
+                                          'Print',
+                                          style: TextStyle(fontSize: 12),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      OutlinedButton.icon(
+                                        style: OutlinedButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 6,
+                                          ),
+                                          side: const BorderSide(
+                                            color: AppColors.nonVegRed,
+                                          ),
+                                          foregroundColor: AppColors.nonVegRed,
+                                        ),
+                                        onPressed:
+                                            tx.status == OrderStatus.refunded
+                                            ? null
+                                            : () => RefundDialog.show(
+                                                context,
+                                                tx,
+                                              ),
+                                        icon: const Icon(
+                                          Icons.currency_exchange,
+                                          size: 14,
+                                        ),
+                                        label: const Text(
+                                          'Refund',
+                                          style: TextStyle(fontSize: 12),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      ElevatedButton.icon(
+                                        style: ElevatedButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 14,
+                                            vertical: 6,
+                                          ),
+                                          backgroundColor:
+                                              AppColors.primaryGreen,
+                                        ),
+                                        onPressed: () {
+                                          Navigator.of(context).push(
+                                            MaterialPageRoute(
+                                              builder: (_) =>
+                                                  PaymentSuccessScreen(
+                                                    order: tx,
+                                                  ),
+                                            ),
+                                          );
+                                        },
+                                        icon: const Icon(
+                                          Icons.receipt_long,
+                                          size: 14,
+                                        ),
+                                        label: const Text(
+                                          'View Bill',
+                                          style: TextStyle(fontSize: 12),
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 12),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.end,
-                                children: [
-                                  OutlinedButton.icon(
-                                    style: OutlinedButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                    ),
-                                    onPressed: () => _printBill(context, tx),
-                                    icon: const Icon(Icons.print, size: 14),
-                                    label: const Text('Print', style: TextStyle(fontSize: 12)),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  OutlinedButton.icon(
-                                    style: OutlinedButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                      side: const BorderSide(color: AppColors.nonVegRed),
-                                      foregroundColor: AppColors.nonVegRed,
-                                    ),
-                                    onPressed: tx.status == OrderStatus.refunded
-                                        ? null
-                                        : () => RefundDialog.show(context, tx),
-                                    icon: const Icon(Icons.currency_exchange, size: 14),
-                                    label: const Text('Refund', style: TextStyle(fontSize: 12)),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  ElevatedButton.icon(
-                                    style: ElevatedButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                                      backgroundColor: AppColors.primaryGreen,
-                                    ),
-                                    onPressed: () {
-                                      Navigator.of(context).push(
-                                        MaterialPageRoute(builder: (_) => PaymentSuccessScreen(order: tx)),
-                                      );
-                                    },
-                                    icon: const Icon(Icons.receipt_long, size: 14),
-                                    label: const Text('View Bill', style: TextStyle(fontSize: 12)),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-          ),
-        ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+            ),
+          ],
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   Future<void> _printBill(BuildContext context, RestaurantOrder tx) async {
     final provider = context.read<PosProvider>();
     final messenger = ScaffoldMessenger.of(context);
     if (!provider.settings.allowReprint) {
-      messenger.showSnackBar(const SnackBar(content: Text('Reprint is disabled in Settings')));
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Reprint is disabled in Settings')),
+      );
       return;
     }
     final ok = await provider.reprintReceipt(tx);
-    messenger.showSnackBar(SnackBar(
-      content: Text(ok ? 'Bill sent to the printer' : (provider.printerError ?? 'Printer not reachable')),
-      backgroundColor: ok ? AppColors.vegGreen : AppColors.nonVegRed,
-    ));
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          ok
+              ? 'Bill sent to the printer'
+              : (provider.printerError ?? 'Printer not reachable'),
+        ),
+        backgroundColor: ok ? AppColors.vegGreen : AppColors.nonVegRed,
+      ),
+    );
   }
 }

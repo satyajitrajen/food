@@ -5,6 +5,7 @@ import '../../core/validation.dart';
 import '../../providers/pos_provider.dart';
 import '../../models/customer_model.dart';
 import '../../widgets/confirm_dialog.dart';
+import '../../widgets/empty_state.dart';
 
 class CustomerScreen extends StatefulWidget {
   const CustomerScreen({super.key});
@@ -25,7 +26,10 @@ class _CustomerScreenState extends State<CustomerScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Add New Customer', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+        title: const Text(
+          'Add New Customer',
+          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+        ),
         content: SizedBox(
           width: 520,
           child: SingleChildScrollView(
@@ -34,34 +38,47 @@ class _CustomerScreenState extends State<CustomerScreen> {
               children: [
                 TextField(
                   controller: nameCtrl,
-                  decoration: const InputDecoration(labelText: 'Customer Full Name', prefixIcon: Icon(Icons.person_outline)),
+                  decoration: const InputDecoration(
+                    labelText: 'Customer Full Name',
+                    prefixIcon: Icon(Icons.person_outline),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: phoneCtrl,
                   keyboardType: TextInputType.phone,
                   decoration: const InputDecoration(
-                      labelText: 'Mobile Number (10-digit)',
-                      hintText: '98XXXXXXXX',
-                      prefixIcon: Icon(Icons.phone_outlined)),
+                    labelText: 'Mobile Number (10-digit)',
+                    hintText: '98XXXXXXXX',
+                    prefixIcon: Icon(Icons.phone_outlined),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: emailCtrl,
                   keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(labelText: 'Email (Optional)', prefixIcon: Icon(Icons.email_outlined)),
+                  decoration: const InputDecoration(
+                    labelText: 'Email (Optional)',
+                    prefixIcon: Icon(Icons.email_outlined),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: addressCtrl,
-                  decoration: const InputDecoration(labelText: 'Address (for delivery)', prefixIcon: Icon(Icons.home_outlined)),
+                  decoration: const InputDecoration(
+                    labelText: 'Address (for delivery)',
+                    prefixIcon: Icon(Icons.home_outlined),
+                  ),
                 ),
               ],
             ),
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
           ElevatedButton(
             onPressed: () {
               final phoneErr = validateMobile(phoneCtrl.text, required: true);
@@ -80,14 +97,21 @@ class _CustomerScreenState extends State<CustomerScreen> {
                   id: 'c-${DateTime.now().millisecondsSinceEpoch}',
                   name: nameCtrl.text.trim(),
                   phone: phoneCtrl.text.trim(),
-                  email: emailCtrl.text.trim().isNotEmpty ? emailCtrl.text.trim() : null,
-                  address: addressCtrl.text.trim().isNotEmpty ? addressCtrl.text.trim() : null,
+                  email: emailCtrl.text.trim().isNotEmpty
+                      ? emailCtrl.text.trim()
+                      : null,
+                  address: addressCtrl.text.trim().isNotEmpty
+                      ? addressCtrl.text.trim()
+                      : null,
                   lastVisit: DateTime.now(),
                 ),
               );
               Navigator.of(ctx).pop();
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('✓ Customer added successfully!'), backgroundColor: AppColors.vegGreen),
+                const SnackBar(
+                  content: Text('✓ Customer added successfully!'),
+                  backgroundColor: AppColors.vegGreen,
+                ),
               );
             },
             child: const Text('Save Customer'),
@@ -97,7 +121,12 @@ class _CustomerScreenState extends State<CustomerScreen> {
     );
   }
 
-  void _showCreditDialog(BuildContext context, PosProvider provider, Customer cust, String kind) {
+  void _showCreditDialog(
+    BuildContext context,
+    PosProvider provider,
+    Customer cust,
+    String kind,
+  ) {
     final amountCtrl = TextEditingController();
     final reasonCtrl = TextEditingController();
     final isSettle = kind == 'settlement';
@@ -105,7 +134,9 @@ class _CustomerScreenState extends State<CustomerScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(
-          isSettle ? 'Settle Credit — ${cust.name}' : 'Book Credit Sale — ${cust.name}',
+          isSettle
+              ? 'Settle Credit — ${cust.name}'
+              : 'Book Credit Sale — ${cust.name}',
           style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
         ),
         content: SizedBox(
@@ -119,25 +150,39 @@ class _CustomerScreenState extends State<CustomerScreen> {
                     padding: const EdgeInsets.only(bottom: 12),
                     child: Text(
                       'Outstanding: ₹${cust.outstandingCredit.toStringAsFixed(2)}',
-                      style: const TextStyle(color: AppColors.nonVegRed, fontWeight: FontWeight.w700),
+                      style: const TextStyle(
+                        color: AppColors.nonVegRed,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 TextField(
                   controller: amountCtrl,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(labelText: 'Amount (₹)', prefixIcon: Icon(Icons.currency_rupee)),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Amount (₹)',
+                    prefixIcon: Icon(Icons.currency_rupee),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: reasonCtrl,
-                  decoration: const InputDecoration(labelText: 'Reason (required)', prefixIcon: Icon(Icons.note_outlined)),
+                  decoration: const InputDecoration(
+                    labelText: 'Reason (required)',
+                    prefixIcon: Icon(Icons.note_outlined),
+                  ),
                 ),
               ],
             ),
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
           ElevatedButton(
             onPressed: () async {
               final amount = double.tryParse(amountCtrl.text.trim()) ?? 0;
@@ -147,8 +192,7 @@ class _CustomerScreenState extends State<CustomerScreen> {
                 message: isSettle
                     ? 'Record settlement of ₹${amount.toStringAsFixed(0)} for ${cust.name}? Outstanding: ₹${cust.outstandingCredit.toStringAsFixed(0)}.'
                     : 'Book credit sale of ₹${amount.toStringAsFixed(0)} for ${cust.name}? This adds to their outstanding.',
-                confirmLabel:
-                    isSettle ? 'Record Settlement' : 'Book Credit',
+                confirmLabel: isSettle ? 'Record Settlement' : 'Book Credit',
               );
               if (!ok || !context.mounted) return;
               final booked = provider.bookCustomerCredit(
@@ -160,10 +204,16 @@ class _CustomerScreenState extends State<CustomerScreen> {
               Navigator.of(ctx).pop();
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text(booked
-                      ? (isSettle ? '✓ Settlement recorded' : '✓ Credit sale booked')
-                      : 'Invalid amount or reason (settlement cannot exceed outstanding)'),
-                  backgroundColor: booked ? AppColors.vegGreen : AppColors.nonVegRed,
+                  content: Text(
+                    booked
+                        ? (isSettle
+                              ? '✓ Settlement recorded'
+                              : '✓ Credit sale booked')
+                        : 'Invalid amount or reason (settlement cannot exceed outstanding)',
+                  ),
+                  backgroundColor: booked
+                      ? AppColors.vegGreen
+                      : AppColors.nonVegRed,
                 ),
               );
             },
@@ -176,7 +226,11 @@ class _CustomerScreenState extends State<CustomerScreen> {
 
   /// W6 (FR-C1): shows the server-side credit ledger; falls back to a clear
   /// offline notice when the terminal can't reach the API.
-  void _showCreditLogDialog(BuildContext context, PosProvider provider, Customer cust) {
+  void _showCreditLogDialog(
+    BuildContext context,
+    PosProvider provider,
+    Customer cust,
+  ) {
     showModalBottomSheet(
       context: context,
       builder: (ctx) => SafeArea(
@@ -186,7 +240,9 @@ class _CustomerScreenState extends State<CustomerScreen> {
             future: provider.fetchCreditLog(cust.id),
             builder: (context, snap) {
               if (snap.connectionState != ConnectionState.done) {
-                return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+                return const Center(
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                );
               }
               final entries = snap.data ?? const [];
               return Column(
@@ -194,8 +250,13 @@ class _CustomerScreenState extends State<CustomerScreen> {
                 children: [
                   Padding(
                     padding: const EdgeInsets.all(16),
-                    child: Text('Credit History — ${cust.name}',
-                        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                    child: Text(
+                      'Credit History — ${cust.name}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 16,
+                      ),
+                    ),
                   ),
                   Expanded(
                     child: entries.isEmpty
@@ -204,7 +265,10 @@ class _CustomerScreenState extends State<CustomerScreen> {
                               provider.isOfflineMode
                                   ? 'Offline — credit history lives on the server.'
                                   : 'No credit entries recorded yet.',
-                              style: const TextStyle(color: AppColors.textMuted, fontSize: 13),
+                              style: const TextStyle(
+                                color: AppColors.textMuted,
+                                fontSize: 13,
+                              ),
                               textAlign: TextAlign.center,
                             ),
                           )
@@ -214,17 +278,29 @@ class _CustomerScreenState extends State<CustomerScreen> {
                             itemBuilder: (context, i) {
                               final e = entries[i];
                               final kind = e['kind']?.toString() ?? 'sale';
-                              final amount = ((e['amount_paise'] as num?)?.toDouble() ?? 0) / 100.0;
-                              final ts = DateTime.tryParse(e['ts']?.toString() ?? '');
+                              final amount =
+                                  ((e['amount_paise'] as num?)?.toDouble() ??
+                                      0) /
+                                  100.0;
+                              final ts = DateTime.tryParse(
+                                e['ts']?.toString() ?? '',
+                              );
                               return ListTile(
                                 contentPadding: EdgeInsets.zero,
                                 leading: Icon(
-                                  kind == 'settlement' ? Icons.payments : Icons.add_card,
-                                  color: kind == 'settlement' ? AppColors.vegGreen : AppColors.nonVegRed,
+                                  kind == 'settlement'
+                                      ? Icons.payments
+                                      : Icons.add_card,
+                                  color: kind == 'settlement'
+                                      ? AppColors.vegGreen
+                                      : AppColors.nonVegRed,
                                 ),
                                 title: Text(
                                   '${kind == 'settlement' ? 'Settlement' : 'Credit sale'}  ₹${amount.toStringAsFixed(2)}',
-                                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 14,
+                                  ),
                                 ),
                                 subtitle: Text(
                                   '${e['reason'] ?? '—'}${ts != null ? ' · ${ts.day}/${ts.month}/${ts.year}' : ''}',
@@ -257,12 +333,17 @@ class _CustomerScreenState extends State<CustomerScreen> {
     return Scaffold(
       backgroundColor: AppColors.creamBg,
       appBar: AppBar(
-        title: const Text('Customer Directory', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+        title: const Text(
+          'Customer Directory',
+          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+        ),
         backgroundColor: Colors.white,
         elevation: 0,
         actions: [
           ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryGreen),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryGreen,
+            ),
             onPressed: () => _showAddCustomerDialog(context, provider),
             icon: const Icon(Icons.person_add, size: 16),
             label: const Text('Add Customer'),
@@ -274,112 +355,183 @@ class _CustomerScreenState extends State<CustomerScreen> {
         top: false,
         child: Column(
           children: [
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.all(16),
-            child: TextField(
-              controller: _searchController,
-              onChanged: (_) => setState(() {}),
-              decoration: InputDecoration(
-                hintText: 'Search customer by name or phone...',
-                prefixIcon: const Icon(Icons.search),
-                fillColor: AppColors.creamSubtle,
-                filled: true,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+            Container(
+              color: Colors.white,
+              padding: const EdgeInsets.all(16),
+              child: TextField(
+                controller: _searchController,
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  hintText: 'Search customer by name or phone...',
+                  prefixIcon: const Icon(Icons.search),
+                  fillColor: AppColors.creamSubtle,
+                  filled: true,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
               ),
             ),
-          ),
-          const Divider(height: 1, color: AppColors.borderLight),
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: customers.length,
-              itemBuilder: (context, index) {
-                final cust = customers[index];
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.borderLight),
-                  ),
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.all(16),
-                    leading: CircleAvatar(
-                      backgroundColor: AppColors.primaryGreenLight,
-                      child: Text(
-                        cust.name.isNotEmpty ? cust.name.substring(0, 1).toUpperCase() : '?',
-                        style: const TextStyle(color: AppColors.primaryGreen, fontWeight: FontWeight.w800),
-                      ),
-                    ),
-                    title: Text(cust.name, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SizedBox(height: 4),
-                        Text('Phone: ${cust.phone} · Visits: ${cust.visits}'),
-                        if (cust.outstandingCredit > 0)
-                          Text(
-                            'Outstanding Credit: ₹${cust.outstandingCredit.toStringAsFixed(0)}',
-                            style: const TextStyle(color: AppColors.nonVegRed, fontWeight: FontWeight.w700),
-                          ),
-                      ],
-                    ),
-                    trailing: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        const Text('Lifetime Spend', style: TextStyle(color: AppColors.textLight, fontSize: 11)),
-                        Text(
-                          '₹${cust.lifetimeSpend.toStringAsFixed(0)}',
-                          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: AppColors.primaryGreen),
-                        ),
-                      ],
-                    ),
-                    onTap: () => showModalBottomSheet(
-                      context: context,
-                      builder: (bctx) => SafeArea(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const SizedBox(height: 8),
-                            ListTile(
-                              leading: const Icon(Icons.add_card, color: AppColors.primaryGreen),
-                              title: const Text('Book credit sale (house tab)'),
-                              onTap: () {
-                                Navigator.of(bctx).pop();
-                                _showCreditDialog(context, provider, cust, 'sale');
-                              },
+            const Divider(height: 1, color: AppColors.borderLight),
+            Expanded(
+              child: customers.isEmpty
+                  ? EmptyState(
+                      icon: Icons.people_outline,
+                      title: 'No customers yet',
+                      message:
+                          'Customers are added when you save a phone number on an order, or with the + button.',
+                      actionLabel: 'Refresh',
+                      onAction: provider.triggerSync,
+                    )
+                  : RefreshIndicator(
+                      onRefresh: provider.triggerSync,
+                      child: ListView.builder(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.all(16),
+                        itemCount: customers.length,
+                        itemBuilder: (context, index) {
+                          final cust = customers[index];
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: AppColors.borderLight),
                             ),
-                            if (cust.outstandingCredit > 0)
-                              ListTile(
-                                leading: const Icon(Icons.payments, color: AppColors.vegGreen),
-                                title: Text('Settle outstanding (₹${cust.outstandingCredit.toStringAsFixed(0)})'),
-                                onTap: () {
-                                  Navigator.of(bctx).pop();
-                                  _showCreditDialog(context, provider, cust, 'settlement');
-                                },
+                            child: ListTile(
+                              contentPadding: const EdgeInsets.all(16),
+                              leading: CircleAvatar(
+                                backgroundColor: AppColors.primaryGreenLight,
+                                child: Text(
+                                  cust.name.isNotEmpty
+                                      ? cust.name.substring(0, 1).toUpperCase()
+                                      : '?',
+                                  style: const TextStyle(
+                                    color: AppColors.primaryGreen,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
                               ),
-                            ListTile(
-                              leading: const Icon(Icons.history, color: AppColors.infoBlue),
-                              title: const Text('Credit history (FR-C1 audit trail)'),
-                              onTap: () {
-                                Navigator.of(bctx).pop();
-                                _showCreditLogDialog(context, provider, cust);
-                              },
+                              title: Text(
+                                cust.name,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Phone: ${cust.phone} · Visits: ${cust.visits}',
+                                  ),
+                                  if (cust.outstandingCredit > 0)
+                                    Text(
+                                      'Outstanding Credit: ₹${cust.outstandingCredit.toStringAsFixed(0)}',
+                                      style: const TextStyle(
+                                        color: AppColors.nonVegRed,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              trailing: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  const Text(
+                                    'Lifetime Spend',
+                                    style: TextStyle(
+                                      color: AppColors.textLight,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                  Text(
+                                    '₹${cust.lifetimeSpend.toStringAsFixed(0)}',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 16,
+                                      color: AppColors.primaryGreen,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              onTap: () => showModalBottomSheet(
+                                context: context,
+                                builder: (bctx) => SafeArea(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const SizedBox(height: 8),
+                                      ListTile(
+                                        leading: const Icon(
+                                          Icons.add_card,
+                                          color: AppColors.primaryGreen,
+                                        ),
+                                        title: const Text(
+                                          'Book credit sale (house tab)',
+                                        ),
+                                        onTap: () {
+                                          Navigator.of(bctx).pop();
+                                          _showCreditDialog(
+                                            context,
+                                            provider,
+                                            cust,
+                                            'sale',
+                                          );
+                                        },
+                                      ),
+                                      if (cust.outstandingCredit > 0)
+                                        ListTile(
+                                          leading: const Icon(
+                                            Icons.payments,
+                                            color: AppColors.vegGreen,
+                                          ),
+                                          title: Text(
+                                            'Settle outstanding (₹${cust.outstandingCredit.toStringAsFixed(0)})',
+                                          ),
+                                          onTap: () {
+                                            Navigator.of(bctx).pop();
+                                            _showCreditDialog(
+                                              context,
+                                              provider,
+                                              cust,
+                                              'settlement',
+                                            );
+                                          },
+                                        ),
+                                      ListTile(
+                                        leading: const Icon(
+                                          Icons.history,
+                                          color: AppColors.infoBlue,
+                                        ),
+                                        title: const Text(
+                                          'Credit history (FR-C1 audit trail)',
+                                        ),
+                                        onTap: () {
+                                          Navigator.of(bctx).pop();
+                                          _showCreditLogDialog(
+                                            context,
+                                            provider,
+                                            cust,
+                                          );
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
                             ),
-                          ],
-                        ),
+                          );
+                        },
                       ),
                     ),
-                  ),
-                );
-              },
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 }
