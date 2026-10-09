@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:food_pos/core/printing/printing.dart';
 import 'package:food_pos/core/printing/receipt_builder.dart';
@@ -118,5 +120,24 @@ void main() {
     expect(p.name, '192.168.1.50:9100');
     final none = printerFromSetting('EPSON TM-T88VI (Counter)');
     expect(none, isA<NullPrinter>());
+  });
+
+  group('friendlyPrintError', () {
+    test('network failures map to actionable copy with the printer name', () {
+      expect(
+        friendlyPrintError('Epson Counter',
+            const SocketException('Connection refused (os error 111)')),
+        contains('Couldn\'t reach printer "Epson Counter"'),
+      );
+      expect(
+        friendlyPrintError('Epson Counter', 'Connection timed out'),
+        contains('Settings → Printers'),
+      );
+    });
+
+    test('other errors pass through untouched', () {
+      expect(friendlyPrintError('Epson Counter', 'ESC/POS encode failed'),
+          'ESC/POS encode failed');
+    });
   });
 }

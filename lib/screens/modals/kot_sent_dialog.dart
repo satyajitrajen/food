@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../core/format.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/kot_model.dart';
+import '../../models/order_model.dart';
 import '../../providers/pos_provider.dart';
 
 class KOTSentDialog extends StatelessWidget {
@@ -73,7 +74,7 @@ class KOTSentDialog extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                '${live.kotNumber} · ${live.tableNumber != null ? 'Table ${live.tableNumber}' : 'Takeaway'}',
+                '${live.kotNumber} · ${live.tableNumber != null ? 'Table ${live.tableNumber}' : live.orderType.label}',
                 style: const TextStyle(color: AppColors.primaryGreen, fontWeight: FontWeight.w700, fontSize: 14),
               ),
               const SizedBox(height: 4),

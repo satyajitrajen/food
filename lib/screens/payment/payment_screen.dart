@@ -656,7 +656,7 @@ class _UpiQrPanel extends StatelessWidget {
               ),
             )
           else
-            _qrPlaceholder(),
+            _qrPlaceholder('Not configured'),
           const SizedBox(height: 12),
           if (upiId == null && overrideUrl.isEmpty)
             const Text(
@@ -682,7 +682,7 @@ class _UpiQrPanel extends StatelessWidget {
     );
   }
 
-  Widget _qrPlaceholder() => Container(
+  Widget _qrPlaceholder([String label = 'UPI QR']) => Container(
         width: 190,
         height: 190,
         decoration: BoxDecoration(
@@ -690,12 +690,12 @@ class _UpiQrPanel extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: AppColors.borderMedium),
         ),
-        child: const Column(
+        child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.qr_code_scanner, size: 60, color: AppColors.textDark),
-            SizedBox(height: 8),
-            Text('UPI QR', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+            const Icon(Icons.qr_code_scanner, size: 60, color: AppColors.textDark),
+            const SizedBox(height: 8),
+            Text(label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
           ],
         ),
       );

@@ -3332,7 +3332,7 @@ class PosProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _printerError = '$e';
+      _printerError = friendlyPrintError(_effectivePrinter.name, e);
       notifyListeners();
       return false;
     }
@@ -3404,7 +3404,7 @@ class PosProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _printerError = 'Printer "${_effectivePrinter.name}": $e';
+      _printerError = friendlyPrintError(_effectivePrinter.name, e);
       notifyListeners();
       return false;
     }
@@ -3431,7 +3431,7 @@ class PosProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _printerError = 'Printer "${_effectivePrinter.name}": $e';
+      _printerError = friendlyPrintError(_effectivePrinter.name, e);
       notifyListeners();
       return false;
     }
@@ -3453,7 +3453,7 @@ class PosProvider extends ChangeNotifier {
         await adapter.send(bytes);
         _printerError = null;
       } catch (e) {
-        _printerError = 'Printer "${adapter.name}": $e';
+        _printerError = friendlyPrintError(adapter.name, e);
       }
       notifyListeners();
     }());

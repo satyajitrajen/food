@@ -1,6 +1,19 @@
-# Project State (updated: 2026-09-13)
+# Project State (updated: 2026-10-10)
 
 ## Now
+Emulator UX audit 2026-10-10 (23 clips, Pixel 6 API 36): all 19 findings
+(15 bugs + 5 polish, 2 of them wontfix-as-designed) fixed in 9 committed
+batches on `fix/product-review-2026-10` — ledger:
+findings/2026-10-10-emulator-ux-audit.md. Payment splits + card approval
+reference are end-to-end (brief: design/DB-order-payments-echo.md); missing
+staff names stay null instead of coerced 'Staff'; purchase intake mirrors
+stock locally; orders attribute to their creator regardless of role; waiters
+get 3 safe More tiles (Transactions, Customers, Menu QR) with refund/credit
+actions gated to ops roles. Gates green: `flutter analyze` 0 issues,
+`flutter test` 120/120. Remaining: batch 10 — Go backend gates + demo APK
+rebuild + emulator spot-checks (split receipt, waiter tiles, attribution,
+purchase stock, delivery KOT modal, KDS tabs).
+
 Demo capture 2026-10-09: `demo/SCENARIOS.md` contains 31 shooting scripts;
 `demo/RECORDED.md` lists two captured sales/operations takes and quick copies.
 `tool/demo_main.dart` reuses the existing in-memory fixture loader without API

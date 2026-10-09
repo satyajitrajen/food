@@ -348,15 +348,12 @@ class _CustomerScreenState extends State<CustomerScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         actions: [
-          ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryGreen,
-            ),
+          // Icon-only: a labeled button here squeezed the directory title.
+          IconButton(
+            tooltip: 'Add Customer',
             onPressed: () => _showAddCustomerDialog(context, provider),
-            icon: const Icon(Icons.person_add, size: 16),
-            label: const Text('Add Customer'),
+            icon: const Icon(Icons.person_add),
           ),
-          const SizedBox(width: 16),
         ],
       ),
       body: SafeArea(
@@ -433,7 +430,9 @@ class _CustomerScreenState extends State<CustomerScreen> {
                                 children: [
                                   const SizedBox(height: 4),
                                   Text(
-                                    'Phone: ${cust.phone} · Visits: ${cust.visits}',
+                                    '${cust.phone} · ${plural(cust.visits, 'visit')}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                   if (cust.outstandingCredit > 0)
                                     Text(

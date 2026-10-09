@@ -38,3 +38,17 @@ PrinterAdapter printerFromSetting(String setting) {
   final port = int.tryParse(parts[1]) ?? 9100;
   return impl.createNetworkPrinter(parts[0], port);
 }
+
+/// Maps raw print/transport errors to staff-readable text: network-level
+/// failures get actionable copy naming the printer; anything else passes
+/// through untouched.
+String friendlyPrintError(String printerName, Object error) {
+  final raw = '$error';
+  if (raw.contains('SocketException') ||
+      raw.contains('timed out') ||
+      raw.contains('Connection refused')) {
+    return 'Couldn\'t reach printer "$printerName". '
+        'Check the network / IP:port in Settings → Printers.';
+  }
+  return raw;
+}

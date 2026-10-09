@@ -94,6 +94,7 @@ class _KitchenBoardScreenState extends State<KitchenBoardScreen>
         ],
         bottom: TabBar(
           controller: _tabController,
+          isScrollable: true,
           labelColor: AppColors.primaryGreen,
           unselectedLabelColor: AppColors.textDark,
           indicatorColor: AppColors.primaryGreen,
