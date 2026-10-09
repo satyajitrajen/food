@@ -389,12 +389,26 @@ RestaurantOrder orderFromApi(
       deliveryCharge: toRupees(_int(j['delivery_charge_paise'])),
       invoiceNumber: _optStr(j['invoice_number']),
       paidAt: _dt(j['paid_at']),
-      paymentMethod: _optStr(j['payment_method']) == null
-          ? null
-          : PaymentMethodX.fromLabel(_optStr(j['payment_method'])).label,
+      paymentMethod: _paymentMethodLabel(j['payment_method']),
+      paymentReference: _optStr(j['payment_reference']),
+      paymentSplits: (j['payments'] as List? ?? [])
+          .whereType<Map>()
+          .map((p) => PaymentLeg(
+                method: PaymentMethodX.fromLabel(p['method'] as String?).label,
+                amount: toRupees(_int(p['amount_paise'])),
+              ))
+          .toList(),
       totalPaid: toRupees(_int(j['paid_paise'])),
       refundedAmount: toRupees(_int(j['refunded_paise'])),
     );
+
+/// Backend stores the literal 'split' when a bill has multiple tenders.
+String? _paymentMethodLabel(dynamic v) {
+  final s = _optStr(v);
+  if (s == null) return null;
+  if (s.trim().toLowerCase() == 'split') return 'Split';
+  return PaymentMethodX.fromLabel(s).label;
+}
 
 KitchenOrderTicket kotFromApi(Map<String, dynamic> j) => KitchenOrderTicket(
       id: _str(j['id']),

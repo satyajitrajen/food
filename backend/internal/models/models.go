@@ -240,6 +240,10 @@ type Order struct {
 	CreatedAt      time.Time   `json:"created_at"`
 	UpdatedAt      time.Time   `json:"updated_at"`
 	Items          []OrderItem `json:"items"`
+	// Payments echoes the tender legs booked at pay time (split payments →
+	// one row per leg). Only populated on the single-order GET; old orders
+	// have none.
+	Payments []PaymentSplit `json:"payments,omitempty"`
 }
 
 type OrderCreate struct {

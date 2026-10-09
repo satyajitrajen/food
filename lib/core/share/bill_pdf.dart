@@ -81,8 +81,12 @@ class BillShare {
               ],
             ),
           ),
-          pw.Text('Paid via ${order.paymentMethod ?? "Cash"}',
+          pw.Text(
+              'Paid via ${order.paymentSplits.length > 1 ? order.paymentSplits.map((l) => l.method).join(' + ') : (order.paymentMethod ?? "Cash")}',
               style: const pw.TextStyle(fontSize: 8)),
+          if (order.hasApprovalReference)
+            pw.Text('Approval: ${order.paymentReference}',
+                style: const pw.TextStyle(fontSize: 8)),
           pw.Divider(),
           pw.Center(child: pw.Text('*** THANK YOU! ***', style: const pw.TextStyle(fontSize: 8))),
         ],

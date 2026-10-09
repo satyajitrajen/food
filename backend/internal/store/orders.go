@@ -108,7 +108,38 @@ func (s *Store) getOrderQ(ctx context.Context, q Querier, id string, forUpdate b
 	if its, ok := items[id]; ok {
 		o.Items = its
 	}
+	pays, err := loadOrderPayments(ctx, q, []string{id})
+	if err != nil {
+		return nil, err
+	}
+	o.Payments = pays[id]
 	return o, nil
+}
+
+// loadOrderPayments batch-loads the tender legs of the given orders.
+// order_payments has no ordering column, so rows come back ordered by id —
+// stable across refetches, but not insertion order (cosmetic for split
+// receipts only).
+func loadOrderPayments(ctx context.Context, q Querier, orderIDs []string) (map[string][]models.PaymentSplit, error) {
+	out := map[string][]models.PaymentSplit{}
+	if len(orderIDs) == 0 {
+		return out, nil
+	}
+	rows, err := q.QueryContext(ctx, `SELECT order_id, method, amount_paise FROM order_payments
+		WHERE order_id = ANY(?) ORDER BY id`, pq.Array(orderIDs))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var orderID string
+		var p models.PaymentSplit
+		if err := rows.Scan(&orderID, &p.Method, &p.Paise); err != nil {
+			return nil, err
+		}
+		out[orderID] = append(out[orderID], p)
+	}
+	return out, rows.Err()
 }
 
 // GetOrderItem fetches a single order line (used for FR-A3 manager gates).

@@ -571,6 +571,25 @@ class PosProvider extends ChangeNotifier {
 
   // ---- Cache-first reads ----
 
+  /// The public roster is fetched per outlet and carries no outlet ids, so
+  /// single-outlet roles (waiter, kitchen) are bound to the outlet it was
+  /// fetched for; otherwise they could never pass canAccessOutlet.
+  Staff _bindRosterOutlet(Staff s) {
+    if (s.outletId != null || _currentOutlet.isNone) return s;
+    if (s.role != StaffRole.waiter && s.role != StaffRole.kitchen) return s;
+    return Staff(
+      id: s.id,
+      outletId: _currentOutlet.id,
+      name: s.name,
+      role: s.role,
+      pin: s.pin,
+      avatarUrl: s.avatarUrl,
+      mobile: s.mobile,
+      isActive: s.isActive,
+      isProtected: s.isProtected,
+    );
+  }
+
   Future<void> hydratePublic() async {
     if (!apiEnabled || _api == null) return;
     try {
@@ -597,7 +616,8 @@ class PosProvider extends ChangeNotifier {
           ..addAll((staff['staff'] as List)
               .whereType<Map>()
               .map((s) => staffFromApi(s.cast<String, dynamic>()))
-              .where((s) => s.isActive));
+              .where((s) => s.isActive)
+              .map(_bindRosterOutlet));
       }
       _lastSyncAt = DateTime.now();
       _lastSyncError = null;
@@ -2462,6 +2482,14 @@ class PosProvider extends ChangeNotifier {
     // Record what the customer actually handed over (includes cash change);
     // shift tender splits book only the bill allocation.
     completed.totalPaid = splits == null ? amountPaid : allocated;
+    completed.paymentSplits = legs
+        .map((l) => PaymentLeg(
+              method: PaymentMethodX.fromLabel(l.method).label,
+              amount: roundMoney(l.amount),
+            ))
+        .toList();
+    completed.paymentReference =
+        (reference != null && reference.trim().isNotEmpty) ? reference.trim() : null;
 
     // Update Shift Sales by tender per leg (enum-safe). Credit is not money
     // in the drawer: it lands on the customer's outstanding instead.

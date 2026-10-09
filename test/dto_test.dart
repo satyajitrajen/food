@@ -75,6 +75,54 @@ void main() {
     });
   });
 
+  group('order payments parsing', () {
+    Map<String, dynamic> baseJson() => {
+          'id': 'ord-1',
+          'order_number': 'ORD-1',
+          'type': 'dine_in',
+          'status': 'completed',
+          'created_at': '2026-10-10T10:00:00Z',
+          'items': <Map>[],
+        };
+
+    test('parses split legs and payment_reference', () {
+      final order = orderFromApi(
+        {
+          ...baseJson(),
+          'payment_method': 'split',
+          'paid_paise': 60000,
+          'payment_reference': '424242',
+          'payments': [
+            {'method': 'cash', 'amount_paise': 20000},
+            {'method': 'card', 'amount_paise': 40000},
+          ],
+        }.cast<String, dynamic>(),
+        (id) => null,
+      );
+      expect(order.paymentMethod, 'Split');
+      expect(order.paymentReference, '424242');
+      expect(order.paymentSplits.length, 2);
+      expect(order.paymentSplits[0].method, 'Cash');
+      expect(order.paymentSplits[0].amount, 200.0);
+      expect(order.paymentSplits[1].method, 'Card');
+      expect(order.paymentSplits[1].amount, 400.0);
+    });
+
+    test('tolerates missing payments and reference', () {
+      final order = orderFromApi(
+        {
+          ...baseJson(),
+          'payment_method': 'cash',
+          'paid_paise': 60000,
+        }.cast<String, dynamic>(),
+        (id) => null,
+      );
+      expect(order.paymentMethod, 'Cash');
+      expect(order.paymentReference, isNull);
+      expect(order.paymentSplits, isEmpty);
+    });
+  });
+
   group('settings round-trip', () {
     test('settingsToApi / settingsFromApi preserve values', () {
       final s = RestaurantSettings(

@@ -119,3 +119,13 @@ the whole outlet). The ready alert banner opens that queue. Supersedes the
 kitchen-owns-served reading of PRD FR-K2 / ARCHITECTURE §2.3 for the client UI;
 the backend FSM and `PATCH /kots/{id}` are unchanged (still accepts served).
 
+## D-021 - 2026-10-10 - Order GET echoes payment legs (split-payment echo)
+Split payments were written to `order_payments` but invisible on refetch
+(scalar `payment_method` stays the literal `'split'`). The single-order GET
+(now also the pay response) carries `payments: [{method, amount_paise}]`,
+reusing the request-side `PaymentSplit` struct, `omitempty` everywhere else
+(list/sync payloads unchanged; old consumers safe). Echo only — legs are
+written exclusively by PayOrder's transaction. Leg order is stable, not
+insertion order (`order_payments` has no seq column; cosmetic only). Brief:
+memory/design/DB-order-payments-echo.md.
+

@@ -104,8 +104,15 @@ String buildWhatsAppBillText({
   }
   b.writeAll(['', '=' * 40]);
   b.writeln('GRAND TOTAL: ${money(order.grandTotal)}');
-  if (order.totalPaid > 0) {
+  if (order.paymentSplits.length > 1) {
+    for (final leg in order.paymentSplits) {
+      b.writeln('Paid via ${leg.method.toUpperCase()}: ${money(leg.amount)}');
+    }
+  } else if (order.totalPaid > 0) {
     b.writeln('Paid via ${order.paymentMethod?.toUpperCase() ?? '-'}: ${money(order.totalPaid)}');
+  }
+  if (order.hasApprovalReference) {
+    b.writeln('Approval: ${order.paymentReference}');
   }
   b.writeAll(['', 'Thank you! Please visit again 🙏', restaurantName]);
   return b.toString();

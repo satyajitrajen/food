@@ -71,6 +71,21 @@ void main() {
     expect(bytes.last, 0x00); // cut command tail
   });
 
+  test('split receipt prints one Paid row per leg plus approval reference', () {
+    final order = _order()
+      ..paymentMethod = 'Split'
+      ..paymentReference = '424242'
+      ..paymentSplits = const [
+        PaymentLeg(method: 'Cash', amount: 200),
+        PaymentLeg(method: 'Card', amount: 500),
+      ];
+    final s = String.fromCharCodes(buildReceiptBytes(order, RestaurantSettings()));
+    expect(s, contains('Paid (Cash)'));
+    expect(s, contains('Paid (Card)'));
+    expect(s, contains('Approval: 424242'));
+    expect(s, isNot(contains('Paid (Split)')));
+  });
+
   test('KOT bytes mark quantity lines and notes', () {
     final kot = KitchenOrderTicket(
       id: 'kot-1',

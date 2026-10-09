@@ -151,7 +151,7 @@ class PaymentSuccessScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${formatInr(order.grandTotal)} · ${order.paymentMethod ?? 'Cash'}',
+                    '${formatInr(order.grandTotal)} · ${_paymentSummary(order)}',
                     style: const TextStyle(color: AppColors.primaryGreen, fontWeight: FontWeight.w800, fontSize: 16),
                   ),
                   const SizedBox(height: 24),
@@ -302,4 +302,11 @@ class PaymentSuccessScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+String _paymentSummary(RestaurantOrder order) {
+  if (order.paymentSplits.length > 1) {
+    return 'Split (${order.paymentSplits.map((l) => l.method).join(' + ')})';
+  }
+  return order.paymentMethod ?? 'Cash';
 }

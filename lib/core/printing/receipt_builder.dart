@@ -63,7 +63,16 @@ List<int> buildReceiptBytes(RestaurantOrder order, RestaurantSettings settings) 
   b.bold(true);
   row('TOTAL', 'Rs. ${order.grandTotal.toStringAsFixed(2)}');
   b.bold(false);
-  row('Paid (${order.paymentMethod ?? '-'})', order.totalPaid.toStringAsFixed(2));
+  // Split tender: one Paid row per leg; otherwise the single method line.
+  final legs = order.paymentSplits;
+  if (legs.length > 1) {
+    for (final leg in legs) {
+      row('Paid (${leg.method})', leg.amount.toStringAsFixed(2));
+    }
+  } else {
+    row('Paid (${order.paymentMethod ?? '-'})', order.totalPaid.toStringAsFixed(2));
+  }
+  if (order.hasApprovalReference) b.text('Approval: ${order.paymentReference}');
   final change = order.totalPaid - order.grandTotal;
   if (change > 0.005) row('Change', change.toStringAsFixed(2));
 

@@ -47,6 +47,14 @@ extension PaymentMethodX on PaymentMethod {
 /// Rounds to 2 decimal places (single place for money rounding in Dart).
 double roundMoney(double v) => (v * 100).roundToDouble() / 100;
 
+/// One tender of a (possibly split) payment, e.g. Cash 200 + Card 500.
+class PaymentLeg {
+  final String method;
+  final double amount;
+
+  const PaymentLeg({required this.method, required this.amount});
+}
+
 class OrderItem {
   final String id;
   final MenuItem menuItem;
@@ -134,6 +142,12 @@ class RestaurantOrder {
   String? paymentMethod;
   double totalPaid;
 
+  /// Card/UPI slip reference (backend payment_reference).
+  String? paymentReference;
+
+  /// One entry per tender; empty when unknown (e.g. list refetch).
+  List<PaymentLeg> paymentSplits;
+
   /// Sum of refunds issued against this bill (partial refunds add up).
   double refundedAmount;
 
@@ -166,6 +180,8 @@ class RestaurantOrder {
     this.paidAt,
     this.paymentMethod,
     this.totalPaid = 0.0,
+    this.paymentReference,
+    this.paymentSplits = const [],
     this.refundedAmount = 0.0,
   });
 
@@ -248,6 +264,15 @@ class RestaurantOrder {
       status == OrderStatus.cancelled ||
       status == OrderStatus.refunded;
 
+  /// True when a card tender carries a slip reference worth printing.
+  bool get hasApprovalReference {
+    final card = paymentSplits.isNotEmpty
+        ? paymentSplits.any(
+            (l) => PaymentMethodX.fromLabel(l.method) == PaymentMethod.card)
+        : PaymentMethodX.fromLabel(paymentMethod) == PaymentMethod.card;
+    return card && paymentReference != null && paymentReference!.trim().isNotEmpty;
+  }
+
   /// Deep copy — safe to snapshot for history/persistence.
   RestaurantOrder copy() => RestaurantOrder(
         id: id,
@@ -278,6 +303,8 @@ class RestaurantOrder {
         paidAt: paidAt,
         paymentMethod: paymentMethod,
         totalPaid: totalPaid,
+        paymentReference: paymentReference,
+        paymentSplits: List.of(paymentSplits),
         refundedAmount: refundedAmount,
       );
 }

@@ -64,7 +64,10 @@ class BillBreakdown extends StatelessWidget {
         ),
         if (showPayment && o.isClosed) ...[
           const SizedBox(height: 8),
-          if (o.paymentMethod != null)
+          if (o.paymentSplits.length > 1)
+            ...o.paymentSplits.map((leg) =>
+                _row('Paid (${leg.method})', formatInr(leg.amount), muted: true))
+          else if (o.paymentMethod != null)
             _row('Paid by', o.paymentMethod!, muted: true),
           if (o.totalPaid > o.grandTotal + 0.005)
             _row('Change returned', formatInr(o.totalPaid - o.grandTotal), muted: true),

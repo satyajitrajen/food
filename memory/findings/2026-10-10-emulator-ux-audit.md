@@ -8,9 +8,9 @@ locations verified in source. Fixes follow the approved plan
 |---|---|---|---|---|---|
 | UX-01 | LOW | Orders | "1 items" / "N Items" / "1 Orders" pluralization across 16 sites | various (batch 1) | fixed |
 | UX-02 | MED | KOT | KOT success modal shows "· Takeaway" for Delivery orders (hardcoded binary fallback) | lib/screens/modals/kot_sent_dialog.dart:75 | open |
-| UX-03 | MED | Payments | Split-payment receipt shows only first tender ("Cash"); splits never stored on order, backend doesn't echo legs | order_model.dart:131-135, pos_provider.dart:2481, receipt_builder.dart:66 | open |
+| UX-03 | MED | Payments | Split-payment receipt shows only first tender ("Cash"); splits never stored on order, backend doesn't echo legs | order_model.dart:131-135, pos_provider.dart:2481, receipt_builder.dart:66 | fixed |
 | UX-04 | INFO | Payments | UPI QR placeholder before config — works as designed; add in-box "Not configured" label | payment_screen.dart:651-694 | open |
-| UX-05 | MED | Payments | Card approval code collected + stored server-side (payment_reference) but never rendered on receipt | payment_screen.dart:400, dto.dart (missing parse), receipt_builder.dart:66 | open |
+| UX-05 | MED | Payments | Card approval code collected + stored server-side (payment_reference) but never rendered on receipt | payment_screen.dart:400, dto.dart (missing parse), receipt_builder.dart:66 | fixed |
 | UX-06 | MED | Customers | "Add & select" enabled with empty Name (inverted &&/|| logic), tap silently returns | payment_screen.dart:573-577 | open |
 | UX-07 | INFO | Orders | No auto delivery charge — works as designed: defaultDeliveryCharge setting defaults to 0 | pos_provider.dart:2022, settings_model.dart:12 | fixed (wontfix — documented) |
 | UX-08 | LOW | Staff | "Staff" fallback vs real name inconsistent — dto coerces missing waiter/staff_name to literal 'Staff', defeating UI fallback chains | dto.dart:406,431,513,527,560 | open |
