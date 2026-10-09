@@ -6,6 +6,7 @@ import '../../core/payments/razorpay_checkout.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/subscription_model.dart';
 import '../../providers/pos_provider.dart';
+import '../../core/format.dart';
 
 /// Subscription rows + actions inside the Settings "Subscription" section
 /// chrome (admins only; the parent gates visibility). Billing actions
@@ -92,7 +93,7 @@ class _SubscriptionCardBodyState extends State<SubscriptionCardBody>
           _row('Next cycle', periodText),
         if (status.isTrial && firstChargeText != null && status.autoRenewLive)
           _row('First charge', firstChargeText),
-        _row('Price (excl. GST)', '₹${status.priceRupees.toStringAsFixed(0)}'),
+        _row('Price (excl. GST)', formatInr(status.priceRupees)),
         const SizedBox(height: 8),
         _actions(provider, status),
       ],

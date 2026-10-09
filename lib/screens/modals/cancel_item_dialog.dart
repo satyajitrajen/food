@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/order_model.dart';
 import 'manager_pin_dialog.dart';
+import '../../core/format.dart';
 
 class CancelItemDialog extends StatefulWidget {
   final OrderItem item;
@@ -80,7 +81,7 @@ class _CancelItemDialogState extends State<CancelItemDialog> {
               ),
               const SizedBox(height: 12),
               Text(
-                'Cancel "${widget.item.displayName}" (${widget.item.quantity} × ₹${widget.item.unitPrice.toStringAsFixed(0)}). Cancelled items stay recorded in audit log.',
+                'Cancel "${widget.item.displayName}" (${widget.item.quantity} × ${formatInr(widget.item.unitPrice)}). Cancelled items stay recorded in audit log.',
                 style: const TextStyle(color: AppColors.textMuted, fontSize: 13),
               ),
               const SizedBox(height: 16),

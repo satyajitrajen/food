@@ -6,6 +6,7 @@ import '../../providers/pos_provider.dart';
 import '../../models/customer_model.dart';
 import '../../widgets/confirm_dialog.dart';
 import '../../widgets/empty_state.dart';
+import '../../core/format.dart';
 
 class CustomerScreen extends StatefulWidget {
   const CustomerScreen({super.key});
@@ -149,7 +150,7 @@ class _CustomerScreenState extends State<CustomerScreen> {
                   Padding(
                     padding: const EdgeInsets.only(bottom: 12),
                     child: Text(
-                      'Outstanding: ₹${cust.outstandingCredit.toStringAsFixed(2)}',
+                      'Outstanding: ${formatInr(cust.outstandingCredit)}',
                       style: const TextStyle(
                         color: AppColors.nonVegRed,
                         fontWeight: FontWeight.w700,
@@ -190,8 +191,8 @@ class _CustomerScreenState extends State<CustomerScreen> {
                 context,
                 title: isSettle ? 'Record settlement?' : 'Book credit sale?',
                 message: isSettle
-                    ? 'Record settlement of ₹${amount.toStringAsFixed(0)} for ${cust.name}? Outstanding: ₹${cust.outstandingCredit.toStringAsFixed(0)}.'
-                    : 'Book credit sale of ₹${amount.toStringAsFixed(0)} for ${cust.name}? This adds to their outstanding.',
+                    ? 'Record settlement of ${formatInr(amount)} for ${cust.name}? Outstanding: ${formatInr(cust.outstandingCredit)}.'
+                    : 'Book credit sale of ${formatInr(amount)} for ${cust.name}? This adds to their outstanding.',
                 confirmLabel: isSettle ? 'Record Settlement' : 'Book Credit',
               );
               if (!ok || !context.mounted) return;
@@ -296,7 +297,7 @@ class _CustomerScreenState extends State<CustomerScreen> {
                                       : AppColors.nonVegRed,
                                 ),
                                 title: Text(
-                                  '${kind == 'settlement' ? 'Settlement' : 'Credit sale'}  ₹${amount.toStringAsFixed(2)}',
+                                  '${kind == 'settlement' ? 'Settlement' : 'Credit sale'}  ${formatInr(amount)}',
                                   style: const TextStyle(
                                     fontWeight: FontWeight.w700,
                                     fontSize: 14,
@@ -429,7 +430,7 @@ class _CustomerScreenState extends State<CustomerScreen> {
                                   ),
                                   if (cust.outstandingCredit > 0)
                                     Text(
-                                      'Outstanding Credit: ₹${cust.outstandingCredit.toStringAsFixed(0)}',
+                                      'Outstanding Credit: ${formatInr(cust.outstandingCredit)}',
                                       style: const TextStyle(
                                         color: AppColors.nonVegRed,
                                         fontWeight: FontWeight.w700,
@@ -449,7 +450,7 @@ class _CustomerScreenState extends State<CustomerScreen> {
                                     ),
                                   ),
                                   Text(
-                                    '₹${cust.lifetimeSpend.toStringAsFixed(0)}',
+                                    formatInr(cust.lifetimeSpend),
                                     style: const TextStyle(
                                       fontWeight: FontWeight.w900,
                                       fontSize: 16,
@@ -490,7 +491,7 @@ class _CustomerScreenState extends State<CustomerScreen> {
                                             color: AppColors.vegGreen,
                                           ),
                                           title: Text(
-                                            'Settle outstanding (₹${cust.outstandingCredit.toStringAsFixed(0)})',
+                                            'Settle outstanding (${formatInr(cust.outstandingCredit)})',
                                           ),
                                           onTap: () {
                                             Navigator.of(bctx).pop();

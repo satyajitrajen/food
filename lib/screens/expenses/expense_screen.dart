@@ -7,6 +7,7 @@ import '../../models/expense_model.dart';
 import '../../widgets/stat_kpi_card.dart';
 import '../../widgets/confirm_dialog.dart';
 import '../../widgets/dialog_controller_scope.dart';
+import '../../core/format.dart';
 
 class ExpenseScreen extends StatefulWidget {
   const ExpenseScreen({super.key});
@@ -169,7 +170,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                 );
                 Navigator.of(ctx).pop();
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('✓ Added expense ₹${amt.toStringAsFixed(0)}'), backgroundColor: AppColors.vegGreen),
+                  SnackBar(content: Text('✓ Added expense ${formatInr(amt)}'), backgroundColor: AppColors.vegGreen),
                 );
               },
               child: const Text('Save Expense'),
@@ -214,7 +215,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                 Expanded(
                   child: StatKpiCard(
                     title: "Today's Expenses",
-                    value: '₹${provider.todayExpenses.toStringAsFixed(0)}',
+                    value: formatInr(provider.todayExpenses),
                     icon: Icons.calendar_today_outlined,
                     iconColor: AppColors.primaryGreen,
                     iconBgColor: AppColors.primaryGreenLight,
@@ -224,7 +225,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                 Expanded(
                   child: StatKpiCard(
                     title: 'This Month Total',
-                    value: '₹${provider.monthExpenses.toStringAsFixed(0)}',
+                    value: formatInr(provider.monthExpenses),
                     icon: Icons.account_balance_wallet_outlined,
                     iconColor: AppColors.infoBlue,
                     iconBgColor: AppColors.infoBlueBg,
@@ -314,7 +315,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            '₹${exp.amount.toStringAsFixed(0)}',
+                            formatInr(exp.amount),
                             style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: AppColors.nonVegRed),
                           ),
                           IconButton(
@@ -324,7 +325,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                                 context,
                                 title: 'Delete expense?',
                                 message:
-                                    'Delete "${exp.title}" ₹${exp.amount.toStringAsFixed(0)}? Cash expenses adjust the drawer. This cannot be undone.',
+                                    'Delete "${exp.title}" ${formatInr(exp.amount)}? Cash expenses adjust the drawer. This cannot be undone.',
                                 confirmLabel: 'Delete',
                               );
                               if (!ok || !context.mounted) return;

@@ -8,6 +8,7 @@ import '../../core/validation.dart';
 import '../../providers/pos_provider.dart';
 import '../../models/inventory_model.dart';
 import '../../widgets/confirm_dialog.dart';
+import '../../core/format.dart';
 
 class InventoryScreen extends StatefulWidget {
   const InventoryScreen({super.key});
@@ -242,7 +243,7 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Available: ${item.availableStock} ${item.unit} · Min: ${item.minStock} ${item.unit} · ₹${item.costPerUnit.toStringAsFixed(0)}/unit',
+                      'Available: ${item.availableStock} ${item.unit} · Min: ${item.minStock} ${item.unit} · ${formatInr(item.costPerUnit)}/unit',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(color: AppColors.textMuted, fontSize: 13),
@@ -346,7 +347,7 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
                               children: [
                                 const Text('Outstanding Due', style: TextStyle(color: AppColors.textLight, fontSize: 11)),
                                 Text(
-                                  '₹${sup.outstanding.toStringAsFixed(0)}',
+                                  formatInr(sup.outstanding),
                                   style: TextStyle(
                                     fontWeight: FontWeight.w800,
                                     fontSize: 15,
@@ -406,7 +407,7 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
                                 leading: const Icon(Icons.check_circle_outline,
                                     size: 18, color: AppColors.vegGreen),
                                 title: Text(
-                                  '₹${p.amount.toStringAsFixed(0)} · ${p.method}',
+                                  '${formatInr(p.amount)} · ${p.method}',
                                   style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
                                 ),
                                 subtitle: Text(
@@ -442,7 +443,7 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Outstanding due: ₹${sup.outstanding.toStringAsFixed(0)}',
+                  Text('Outstanding due: ${formatInr(sup.outstanding)}',
                       style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
                   const SizedBox(height: 12),
                   TextField(
@@ -511,8 +512,8 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
                   context,
                   title: 'Pay supplier?',
                   message:
-                      'Pay ₹${amount.toStringAsFixed(0)} to ${sup.name} ($method)? Remaining due will be updated immediately.',
-                  confirmLabel: 'Pay ₹${amount.toStringAsFixed(0)}',
+                      'Pay ${formatInr(amount)} to ${sup.name} ($method)? Remaining due will be updated immediately.',
+                  confirmLabel: 'Pay ${formatInr(amount)}',
                 );
                 if (!ok || !context.mounted) return;
                 final applied = provider.paySupplier(
@@ -527,8 +528,8 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(applied
-                        ? '✓ Paid ₹${amount.toStringAsFixed(0)} to ${sup.name}. Remaining due ₹${sup.outstanding.toStringAsFixed(0)}'
-                        : 'Payment exceeds the outstanding due (₹${sup.outstanding.toStringAsFixed(0)})'),
+                        ? '✓ Paid ${formatInr(amount)} to ${sup.name}. Remaining due ${formatInr(sup.outstanding)}'
+                        : 'Payment exceeds the outstanding due (${formatInr(sup.outstanding)})'),
                     backgroundColor: applied ? AppColors.vegGreen : AppColors.nonVegRed,
                   ),
                 );
@@ -666,7 +667,7 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              '${pur.supplierName.isEmpty ? '—' : pur.supplierName} · ₹${pur.totalAmount.toStringAsFixed(0)} · ${DateFormat('dd MMM yyyy').format(pur.date)}',
+                              '${pur.supplierName.isEmpty ? '—' : pur.supplierName} · ${formatInr(pur.totalAmount)} · ${DateFormat('dd MMM yyyy').format(pur.date)}',
                               style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
                             ),
                             const SizedBox(height: 2),
@@ -681,7 +682,7 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
                               context,
                               title: 'Mark purchase paid?',
                               message:
-                                  'Mark ${pur.invoiceNumber} ₹${pur.totalAmount.toStringAsFixed(0)} as Paid? This clears the supplier due and cannot be undone.',
+                                  'Mark ${pur.invoiceNumber} ${formatInr(pur.totalAmount)} as Paid? This clears the supplier due and cannot be undone.',
                               confirmLabel: 'Mark Paid',
                               isDanger: false,
                             );
@@ -856,7 +857,7 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text('Total', style: TextStyle(fontWeight: FontWeight.w800)),
-                      Text('₹${total.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.w900, color: AppColors.primaryGreen)),
+                      Text(formatInr(total), style: const TextStyle(fontWeight: FontWeight.w900, color: AppColors.primaryGreen)),
                     ],
                   ),
                 ],
@@ -888,7 +889,7 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
                   Navigator.of(ctx).pop();
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('✓ Purchase $invoice recorded · ₹${total.toStringAsFixed(0)}'),
+                      content: Text('✓ Purchase $invoice recorded · ${formatInr(total)}'),
                       backgroundColor: AppColors.vegGreen,
                     ),
                   );

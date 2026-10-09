@@ -10,6 +10,7 @@ import '../modals/cancel_item_dialog.dart';
 import '../payment/payment_screen.dart';
 import '../pos_menu/pos_menu_screen.dart';
 import '../../widgets/system_insets.dart';
+import '../../core/format.dart';
 
 class RunningOrderDetailScreen extends StatelessWidget {
   final RestaurantOrder order;
@@ -113,7 +114,7 @@ class RunningOrderDetailScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      '₹${currentOrder.grandTotal.toStringAsFixed(0)}',
+                      formatInr(currentOrder.grandTotal),
                       style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 22, color: AppColors.primaryGreen),
                     ),
                     Text(
@@ -170,7 +171,7 @@ class RunningOrderDetailScreen extends StatelessWidget {
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
-                                  '₹${item.totalPrice.toStringAsFixed(0)}',
+                                  formatInr(item.totalPrice),
                                   style: TextStyle(
                                     fontWeight: FontWeight.w800,
                                     fontSize: 14,

@@ -10,6 +10,7 @@ import '../modals/merge_tables_dialog.dart';
 import 'running_order_detail_screen.dart';
 import 'ready_to_serve_screen.dart';
 import '../pos_menu/pos_menu_screen.dart';
+import '../../core/format.dart';
 
 class RunningOrdersScreen extends StatefulWidget {
   const RunningOrdersScreen({super.key});
@@ -344,7 +345,7 @@ class _RunningOrdersScreenState extends State<RunningOrdersScreen>
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '${order.totalItemCount} Items · ₹${order.grandTotal.toStringAsFixed(0)} · Waiter: ${order.waiterName ?? "Staff"}',
+                    '${order.totalItemCount} Items · ${formatInr(order.grandTotal)} · Waiter: ${order.waiterName ?? "Staff"}',
                     style: const TextStyle(
                       color: AppColors.textMuted,
                       fontSize: 13,

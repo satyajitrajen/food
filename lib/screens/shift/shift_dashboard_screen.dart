@@ -7,6 +7,7 @@ import '../../widgets/stat_kpi_card.dart';
 import '../modals/cash_in_out_dialog.dart';
 import 'close_shift_screen.dart';
 import 'open_shift_screen.dart';
+import '../../core/format.dart';
 
 class ShiftDashboardScreen extends StatelessWidget {
   const ShiftDashboardScreen({super.key});
@@ -155,7 +156,7 @@ class ShiftDashboardScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '₹${shift.expectedCash.toStringAsFixed(0)}',
+                    formatInr(shift.expectedCash),
                     style: const TextStyle(
                       color: AppColors.primaryGreen,
                       fontWeight: FontWeight.w900,
@@ -165,7 +166,7 @@ class ShiftDashboardScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    'Formula: Opening (₹${shift.openingCash.toStringAsFixed(0)}) + Cash Sales (₹${shift.cashSales.toStringAsFixed(0)}) + Cash In (₹${shift.cashIn.toStringAsFixed(0)}) − Expenses (₹${shift.expenses.toStringAsFixed(0)}) − Cash Refunds (₹${shift.refundsCash.toStringAsFixed(0)}) − Cash Out (₹${shift.cashOut.toStringAsFixed(0)})',
+                    'Formula: Opening (${formatInr(shift.openingCash)}) + Cash Sales (${formatInr(shift.cashSales)}) + Cash In (${formatInr(shift.cashIn)}) − Expenses (${formatInr(shift.expenses)}) − Cash Refunds (${formatInr(shift.refundsCash)}) − Cash Out (${formatInr(shift.cashOut)})',
                     style: const TextStyle(color: AppColors.textLight, fontSize: 11),
                   ),
                   const SizedBox(height: 16),
@@ -205,28 +206,28 @@ class ShiftDashboardScreen extends StatelessWidget {
               children: [
                 StatKpiCard(
                   title: 'Cash Sales',
-                  value: '₹${shift.cashSales.toStringAsFixed(0)}',
+                  value: formatInr(shift.cashSales),
                   icon: Icons.payments_outlined,
                   iconColor: AppColors.vegGreen,
                   iconBgColor: AppColors.vegGreenBg,
                 ),
                 StatKpiCard(
                   title: 'UPI / Digital',
-                  value: '₹${shift.upiSales.toStringAsFixed(0)}',
+                  value: formatInr(shift.upiSales),
                   icon: Icons.qr_code_2_outlined,
                   iconColor: AppColors.infoBlue,
                   iconBgColor: AppColors.infoBlueBg,
                 ),
                 StatKpiCard(
                   title: 'Card Sales',
-                  value: '₹${shift.cardSales.toStringAsFixed(0)}',
+                  value: formatInr(shift.cardSales),
                   icon: Icons.credit_card_outlined,
                   iconColor: AppColors.saffronAmber,
                   iconBgColor: AppColors.saffronAmberBg,
                 ),
                 StatKpiCard(
                   title: 'Shift Expenses',
-                  value: '₹${shift.expenses.toStringAsFixed(0)}',
+                  value: formatInr(shift.expenses),
                   icon: Icons.receipt_long_outlined,
                   iconColor: AppColors.nonVegRed,
                   iconBgColor: AppColors.nonVegRedBg,

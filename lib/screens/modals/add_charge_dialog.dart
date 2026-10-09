@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/pos_provider.dart';
 import '../../widgets/confirm_dialog.dart';
+import '../../core/format.dart';
 
 class AddChargeDialog extends StatefulWidget {
   const AddChargeDialog({super.key});
@@ -114,7 +115,7 @@ class _AddChargeDialogState extends State<AddChargeDialog> {
                         context,
                         title: 'Update charges?',
                         message:
-                            'Set charges to Service ₹${sc.toStringAsFixed(0)} + Packaging ₹${pk.toStringAsFixed(0)}?',
+                            'Set charges to Service ${formatInr(sc)} + Packaging ${formatInr(pk)}?',
                         confirmLabel: 'Update Charges',
                         isDanger: false,
                       );

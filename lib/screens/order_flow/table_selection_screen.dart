@@ -9,6 +9,7 @@ import '../modals/guest_details_dialog.dart';
 import '../pos_menu/pos_menu_screen.dart';
 import '../running_orders/running_order_detail_screen.dart';
 import '../../widgets/empty_state.dart';
+import '../../core/format.dart';
 
 class TableSelectionScreen extends StatelessWidget {
   final bool isSelectingForOrder;
@@ -191,10 +192,12 @@ class TableSelectionScreen extends StatelessWidget {
     PosProvider provider,
   ) {
     Color borderColor = AppColors.borderLight;
-    if (table.status == TableStatus.occupied)
+    if (table.status == TableStatus.occupied) {
       borderColor = AppColors.nonVegRed.withValues(alpha: 0.5);
-    if (table.status == TableStatus.billing)
+    }
+    if (table.status == TableStatus.billing) {
       borderColor = AppColors.saffronAmber;
+    }
     // Guest info lives on the table's running order — surface it on the card.
     final guestOrder = table.activeOrderId == null
         ? null
@@ -363,7 +366,7 @@ class TableSelectionScreen extends StatelessWidget {
                 Expanded(
                   child: table.currentOrderAmount > 0
                       ? Text(
-                          '₹${table.currentOrderAmount.toStringAsFixed(0)}',
+                          formatInr(table.currentOrderAmount),
                           style: const TextStyle(
                             fontWeight: FontWeight.w800,
                             fontSize: 15,

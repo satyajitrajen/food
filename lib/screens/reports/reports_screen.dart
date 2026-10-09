@@ -7,6 +7,7 @@ import '../../models/order_model.dart';
 import '../../models/expense_model.dart';
 import '../../models/menu_model.dart';
 import '../../models/report_model.dart';
+import '../../core/format.dart';
 
 class CategorySales {
   final String name;
@@ -276,7 +277,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
     String amountLabel(double amount) {
       final pct = grossSales > 0 ? (amount / grossSales * 100).toStringAsFixed(0) : '0';
-      return '₹${amount.toStringAsFixed(0)} ($pct%)';
+      return '${formatInr(amount)} ($pct%)';
     }
 
     return Scaffold(
@@ -313,7 +314,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                         Expanded(
                           child: _buildStatCard(
                             'Avg Order Value',
-                            '₹${aov.toStringAsFixed(0)}',
+                            formatInr(aov),
                             Icons.trending_up_outlined,
                             AppColors.infoBlue,
                           ),
@@ -326,7 +327,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                         Expanded(
                           child: _buildStatCard(
                             'Gross Sales',
-                            '₹${grossSales.toStringAsFixed(0)}',
+                            formatInr(grossSales),
                             Icons.currency_rupee_outlined,
                             AppColors.vegGreen,
                           ),
@@ -335,7 +336,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                         Expanded(
                           child: _buildStatCard(
                             'Expenses',
-                            '₹${totalExpenses.toStringAsFixed(0)}',
+                            formatInr(totalExpenses),
                             Icons.payments_outlined,
                             AppColors.saffronAmber,
                           ),
@@ -367,7 +368,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            '₹${estimatedProfit.toStringAsFixed(0)}',
+                            formatInr(estimatedProfit),
                             style: TextStyle(
                               color: estimatedProfit >= 0 ? AppColors.primaryGreen : AppColors.nonVegRed,
                               fontWeight: FontWeight.w900,
@@ -377,7 +378,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                           ),
                           const SizedBox(height: 12),
                           Text(
-                            'Net Sales (₹${grossSales.toStringAsFixed(0)}) − Expenses (₹${totalExpenses.toStringAsFixed(0)}) = Estimated Margin',
+                            'Net Sales (${formatInr(grossSales)}) − Expenses (${formatInr(totalExpenses)}) = Estimated Margin',
                             style: const TextStyle(color: Colors.white60, fontSize: 12),
                           ),
                         ],
@@ -474,7 +475,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                                   if (cat != categories.first) const Divider(height: 16, color: AppColors.borderLight),
                                   _buildCategoryRow(
                                     cat.name,
-                                    '₹${cat.revenue.toStringAsFixed(0)}',
+                                    formatInr(cat.revenue),
                                     '${cat.itemQty} Items',
                                   ),
                                 ],
@@ -496,7 +497,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                                   if (item != topItems.first) const Divider(height: 16, color: AppColors.borderLight),
                                   _buildCategoryRow(
                                     item.name,
-                                    '₹${item.revenue.toStringAsFixed(0)}',
+                                    formatInr(item.revenue),
                                     '${item.itemQty} Sold',
                                   ),
                                 ],
@@ -518,7 +519,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                                   if (w != waiterRows.first) const Divider(height: 16, color: AppColors.borderLight),
                                   _buildCategoryRow(
                                     w.name,
-                                    '₹${w.revenue.toStringAsFixed(0)}',
+                                    formatInr(w.revenue),
                                     '${w.itemQty} Orders',
                                   ),
                                 ],
@@ -542,7 +543,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                                   _buildProgressRow(
                                     e.key.label,
                                     totalExpenses > 0 ? (e.value / totalExpenses).clamp(0.0, 1.0) : 0.0,
-                                    '₹${e.value.toStringAsFixed(0)} (${totalExpenses > 0 ? (e.value / totalExpenses * 100).toStringAsFixed(0) : '0'}%)',
+                                    '${formatInr(e.value)} (${totalExpenses > 0 ? (e.value / totalExpenses * 100).toStringAsFixed(0) : '0'}%)',
                                     AppColors.saffronAmber,
                                   ),
                                 ],

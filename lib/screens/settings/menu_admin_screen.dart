@@ -84,7 +84,7 @@ class MenuAdminScreen extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                '${item.name}  ·  ₹${item.price.toStringAsFixed(0)}',
+                                '${item.name}  ·  ${formatInr(item.price)}',
                                 style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
                               ),
                               const SizedBox(height: 2),
@@ -476,7 +476,7 @@ class MenuAdminScreen extends StatelessWidget {
                             runSpacing: 4,
                             children: variants
                                 .map((v) => Chip(
-                                      label: Text('${v.name} · ₹${v.price.toStringAsFixed(0)}'),
+                                      label: Text('${v.name} · ${formatInr(v.price)}'),
                                       visualDensity: VisualDensity.compact,
                                       labelStyle: const TextStyle(fontSize: 11),
                                     ))

@@ -9,6 +9,7 @@ import '../../models/kot_model.dart';
 import '../../widgets/stat_kpi_card.dart';
 import '../running_orders/running_order_detail_screen.dart';
 import '../modals/offline_sync_dialog.dart';
+import '../../core/format.dart';
 
 class PosDashboardScreen extends StatelessWidget {
   const PosDashboardScreen({super.key});
@@ -117,7 +118,7 @@ class PosDashboardScreen extends StatelessWidget {
                   children: [
                     StatKpiCard(
                       title: "Today's Sales",
-                      value: '₹${todaySales.toStringAsFixed(0)}',
+                      value: formatInr(todaySales),
                       icon: Icons.payments_outlined,
                       iconColor: AppColors.primaryGreen,
                       iconBgColor: AppColors.primaryGreenLight,
@@ -131,14 +132,14 @@ class PosDashboardScreen extends StatelessWidget {
                     ),
                     StatKpiCard(
                       title: 'Avg Order (AOV)',
-                      value: '₹${aov.toStringAsFixed(0)}',
+                      value: formatInr(aov),
                       icon: Icons.trending_up,
                       iconColor: AppColors.vegGreen,
                       iconBgColor: AppColors.vegGreenBg,
                     ),
                     StatKpiCard(
                       title: 'Today Expenses',
-                      value: '₹${todayExp.toStringAsFixed(0)}',
+                      value: formatInr(todayExp),
                       icon: Icons.account_balance_wallet_outlined,
                       iconColor: AppColors.nonVegRed,
                       iconBgColor: AppColors.nonVegRedBg,
@@ -148,7 +149,7 @@ class PosDashboardScreen extends StatelessWidget {
                     ),
                     StatKpiCard(
                       title: 'Cash in Drawer',
-                      value: '₹${cashInDrawer.toStringAsFixed(0)}',
+                      value: formatInr(cashInDrawer),
                       icon: Icons.point_of_sale,
                       iconColor: AppColors.saffronAmber,
                       iconBgColor: AppColors.saffronAmberBg,
@@ -331,7 +332,7 @@ class PosDashboardScreen extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Text(
-                            '₹${order.grandTotal.toStringAsFixed(0)}',
+                            formatInr(order.grandTotal),
                             style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: AppColors.textDark),
                           ),
                           InkWell(

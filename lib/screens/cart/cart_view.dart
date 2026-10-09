@@ -12,6 +12,7 @@ import '../../widgets/confirm_dialog.dart';
 import '../../widgets/system_insets.dart';
 import '../payment/payment_screen.dart';
 import '../running_orders/running_order_detail_screen.dart';
+import '../../core/format.dart';
 
 class CartViewScreen extends StatelessWidget {
   const CartViewScreen({super.key});
@@ -143,14 +144,14 @@ class CartViewScreen extends StatelessWidget {
                                   ),
                                 ),
                                 Text(
-                                  '₹${item.totalPrice.toStringAsFixed(0)}',
+                                  formatInr(item.totalPrice),
                                   style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
                                 ),
                               ],
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              '₹${item.unitPrice.toStringAsFixed(0)} each',
+                              '${formatInr(item.unitPrice)} each',
                               style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
                             ),
                             if (item.selectedModifiers.isNotEmpty) ...[
@@ -323,7 +324,7 @@ class CartViewScreen extends StatelessWidget {
                     children: [
                       const Text('Items Subtotal', style: TextStyle(color: AppColors.textMuted, fontSize: 14)),
                       Text(
-                        '₹${activeOrder.subtotal.toStringAsFixed(0)}',
+                        formatInr(activeOrder.subtotal),
                         style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
                       ),
                     ],

@@ -5,6 +5,7 @@ import '../../providers/pos_provider.dart';
 import '../../models/shift_model.dart';
 import '../../widgets/confirm_dialog.dart';
 import '../shell/main_adaptive_shell.dart';
+import '../../core/format.dart';
 
 class OpenShiftScreen extends StatefulWidget {
   const OpenShiftScreen({super.key});
@@ -171,7 +172,7 @@ class _OpenShiftScreenState extends State<OpenShiftScreen> {
                         children: [
                           const Text('Cash Denominations', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
                           Text(
-                            'Total: ₹${_computedTotal.toStringAsFixed(0)}',
+                            'Total: ${formatInr(_computedTotal)}',
                             style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.primaryGreen),
                           ),
                         ],
@@ -215,7 +216,7 @@ class _OpenShiftScreenState extends State<OpenShiftScreen> {
                         context,
                         title: 'Start shift?',
                         message:
-                            'Start shift with opening float ₹${cash.toStringAsFixed(0)}? This starts cash accountability and cannot be undone.',
+                            'Start shift with opening float ${formatInr(cash)}? This starts cash accountability and cannot be undone.',
                         confirmLabel: 'Start Shift',
                         isDanger: false,
                       );
@@ -235,7 +236,7 @@ class _OpenShiftScreenState extends State<OpenShiftScreen> {
                       );
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('✓ Shift Opened with ₹${cash.toStringAsFixed(0)} Opening Float!'),
+                          content: Text('✓ Shift Opened with ${formatInr(cash)} Opening Float!'),
                           backgroundColor: AppColors.vegGreen,
                         ),
                       );

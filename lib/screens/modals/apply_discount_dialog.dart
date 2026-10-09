@@ -4,6 +4,7 @@ import '../../core/theme/app_theme.dart';
 import '../../providers/pos_provider.dart';
 import '../../widgets/confirm_dialog.dart';
 import 'manager_pin_dialog.dart';
+import '../../core/format.dart';
 
 class ApplyDiscountDialog extends StatefulWidget {
   const ApplyDiscountDialog({super.key});
@@ -193,7 +194,7 @@ class _ApplyDiscountDialogState extends State<ApplyDiscountDialog> {
                         title: 'Apply discount?',
                         message: _isPercentage
                             ? 'Apply $val% discount ($_selectedReason) to this order?'
-                            : 'Apply ₹${val.toStringAsFixed(0)} discount ($_selectedReason) to this order?',
+                            : 'Apply ${formatInr(val)} discount ($_selectedReason) to this order?',
                         confirmLabel: 'Apply Discount',
                         isDanger: false,
                       );

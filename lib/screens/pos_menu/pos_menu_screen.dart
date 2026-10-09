@@ -484,7 +484,7 @@ class _PosMenuScreenState extends State<PosMenuScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        '₹${item.price.toStringAsFixed(0)}',
+                        formatInr(item.price),
                         style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: AppColors.textDark),
                       ),
                       if (cartQty == 0)

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/menu_model.dart';
 import '../../widgets/custom_badge.dart';
+import '../../core/format.dart';
 
 class VariantAndModifiersDialog extends StatefulWidget {
   final MenuItem item;
@@ -162,7 +163,7 @@ class _VariantAndModifiersDialogState extends State<VariantAndModifiersDialog> {
                                       ),
                                     ),
                                     Text(
-                                      '₹${v.price.toStringAsFixed(0)}',
+                                      formatInr(v.price),
                                       style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
                                     ),
                                   ],
@@ -217,7 +218,7 @@ class _VariantAndModifiersDialogState extends State<VariantAndModifiersDialog> {
                               ),
                               secondary: mod.price > 0
                                   ? Text(
-                                      '+₹${mod.price.toStringAsFixed(0)}',
+                                      '+${formatInr(mod.price)}',
                                       style: const TextStyle(
                                         color: AppColors.primaryGreen,
                                         fontWeight: FontWeight.w700,
@@ -342,7 +343,7 @@ class _VariantAndModifiersDialogState extends State<VariantAndModifiersDialog> {
                             ),
                             const SizedBox(width: 6),
                             Text(
-                              '₹${_totalPrice.toStringAsFixed(0)}',
+                              formatInr(_totalPrice),
                               style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
                             ),
                           ],

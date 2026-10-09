@@ -5,6 +5,7 @@ import '../../core/theme/app_theme.dart';
 import '../../providers/pos_provider.dart';
 import '../../models/cash_model.dart';
 import '../modals/cash_in_out_dialog.dart';
+import '../../core/format.dart';
 
 class CashDrawerScreen extends StatefulWidget {
   const CashDrawerScreen({super.key});
@@ -90,7 +91,7 @@ class _CashDrawerScreenState extends State<CashDrawerScreen> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    '₹${expectedCash.toStringAsFixed(0)}',
+                    formatInr(expectedCash),
                     style: const TextStyle(
                       color: AppColors.primaryGreen,
                       fontWeight: FontWeight.w900,
@@ -100,12 +101,12 @@ class _CashDrawerScreenState extends State<CashDrawerScreen> {
                   ),
                   const Divider(height: 24, color: AppColors.borderLight),
                   // Breakdown Lines
-                  _buildMathRow('Opening Cash Float', '+₹${opening.toStringAsFixed(0)}', AppColors.textDark),
-                  _buildMathRow('Cash Sales Received', '+₹${shift.cashSales.toStringAsFixed(0)}', AppColors.vegGreen),
-                  _buildMathRow('Cash In (Deposits)', '+₹${shift.cashIn.toStringAsFixed(0)}', AppColors.infoBlue),
-                  _buildMathRow('Cash Expenses Paid', '−₹${shift.expenses.toStringAsFixed(0)}', AppColors.nonVegRed),
-                  _buildMathRow('Cash Refunds Issued', '−₹${shift.refundsCash.toStringAsFixed(0)}', AppColors.nonVegRed),
-                  _buildMathRow('Cash Out (Withdrawals)', '−₹${shift.cashOut.toStringAsFixed(0)}', AppColors.nonVegRed),
+                  _buildMathRow('Opening Cash Float', '+${formatInr(opening)}', AppColors.textDark),
+                  _buildMathRow('Cash Sales Received', '+${formatInr(shift.cashSales)}', AppColors.vegGreen),
+                  _buildMathRow('Cash In (Deposits)', '+${formatInr(shift.cashIn)}', AppColors.infoBlue),
+                  _buildMathRow('Cash Expenses Paid', '−${formatInr(shift.expenses)}', AppColors.nonVegRed),
+                  _buildMathRow('Cash Refunds Issued', '−${formatInr(shift.refundsCash)}', AppColors.nonVegRed),
+                  _buildMathRow('Cash Out (Withdrawals)', '−${formatInr(shift.cashOut)}', AppColors.nonVegRed),
                   const Divider(height: 24, color: AppColors.borderLight),
                   Row(
                     children: [
@@ -217,7 +218,7 @@ class _CashDrawerScreenState extends State<CashDrawerScreen> {
                           ),
                         ),
                         Text(
-                          '${isCashIn ? "+" : "−"}₹${tx.amount.toStringAsFixed(0)}',
+                          '${isCashIn ? "+" : "−"}${formatInr(tx.amount)}',
                           style: TextStyle(
                             fontWeight: FontWeight.w900,
                             fontSize: 16,

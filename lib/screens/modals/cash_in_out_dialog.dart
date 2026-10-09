@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/pos_provider.dart';
 import '../../widgets/confirm_dialog.dart';
+import '../../core/format.dart';
 
 class CashInOutDialog extends StatefulWidget {
   final bool isCashIn;
@@ -199,7 +200,7 @@ class _CashInOutDialogState extends State<CashInOutDialog> {
                     if (!widget.isCashIn && amount > provider.currentShift!.expectedCash + 0.005) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('Cash Out exceeds drawer balance (₹${provider.currentShift!.expectedCash.toStringAsFixed(0)})'),
+                          content: Text('Cash Out exceeds drawer balance (${formatInr(provider.currentShift!.expectedCash)})'),
                           backgroundColor: AppColors.nonVegRed,
                         ),
                       );
@@ -209,8 +210,8 @@ class _CashInOutDialogState extends State<CashInOutDialog> {
                       context,
                       title: widget.isCashIn ? 'Add cash?' : 'Remove cash?',
                       message: widget.isCashIn
-                          ? 'Add ₹${amount.toStringAsFixed(0)} to the drawer ($_selectedReason)?'
-                          : 'Remove ₹${amount.toStringAsFixed(0)} from the drawer ($_selectedReason)? This moves cash and cannot be undone.',
+                          ? 'Add ${formatInr(amount)} to the drawer ($_selectedReason)?'
+                          : 'Remove ${formatInr(amount)} from the drawer ($_selectedReason)? This moves cash and cannot be undone.',
                       confirmLabel: widget.isCashIn
                           ? 'Add Cash'
                           : 'Remove Cash',
@@ -237,7 +238,7 @@ class _CashInOutDialogState extends State<CashInOutDialog> {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text(
-                          '✓ Recorded ${widget.isCashIn ? "Cash In" : "Cash Out"} of ₹${amount.toStringAsFixed(0)}',
+                          '✓ Recorded ${widget.isCashIn ? "Cash In" : "Cash Out"} of ${formatInr(amount)}',
                         ),
                         backgroundColor: AppColors.vegGreen,
                       ),
