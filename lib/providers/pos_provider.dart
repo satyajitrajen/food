@@ -2310,8 +2310,10 @@ class PosProvider extends ChangeNotifier {
     return false;
   }
 
-  List<RestaurantOrder> get completedTransactions =>
-      _orders.where((o) => o.status == OrderStatus.completed).toList();
+  /// Paid bills, including ones later refunded (they stay on record).
+  List<RestaurantOrder> get completedTransactions => _orders
+      .where((o) => o.status == OrderStatus.completed || o.status == OrderStatus.refunded)
+      .toList();
 
   void openRunningOrder(RestaurantOrder order) {
     _activeOrder = order;

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/format.dart';
 import '../../models/order_model.dart';
 import '../../providers/pos_provider.dart';
 import '../modals/refund_dialog.dart';
@@ -92,8 +93,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       if (!_inPeriod(tx)) return false;
       if (_searchController.text.isNotEmpty) {
         final q = _searchController.text.toLowerCase();
-        final matchInv = (tx.invoiceNumber ?? '').toLowerCase().contains(q);
-        final matchCust = (tx.customerName ?? '').toLowerCase().contains(q);
+        final matchInv = (tx.invoiceNumber ?? '').toLowerCase().contains(q) ||
+            tx.orderNumber.toLowerCase().contains(q);
+        final matchCust = (tx.customerName ?? '').toLowerCase().contains(q) ||
+            (tx.customerPhone ?? '').contains(q);
         if (!matchInv && !matchCust) return false;
       }
       return true;
@@ -102,7 +105,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     return Scaffold(
       backgroundColor: AppColors.creamBg,
       appBar: AppBar(
-        title: const Text('Past Transactions', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+        title: const Text('Transactions'),
         backgroundColor: Colors.white,
         elevation: 0,
       ),
@@ -237,9 +240,21 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                 tx.invoiceNumber ?? tx.orderNumber,
                                 style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
                               ),
-                              Text(
-                                '₹${tx.grandTotal.toStringAsFixed(0)}',
-                                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: AppColors.primaryGreen),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Text(
+                                    formatInr(tx.grandTotal),
+                                    style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: AppColors.primaryGreen),
+                                  ),
+                                  if (tx.refundedAmount > 0)
+                                    Text(
+                                      tx.status == OrderStatus.refunded
+                                          ? 'Refunded'
+                                          : 'Refunded ${formatInr(tx.refundedAmount)}',
+                                      style: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.w700, fontSize: 12),
+                                    ),
+                                ],
                               ),
                             ],
                           ),
@@ -299,7 +314,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                       side: const BorderSide(color: AppColors.nonVegRed),
                                       foregroundColor: AppColors.nonVegRed,
                                     ),
-                                    onPressed: () => RefundDialog.show(context, tx),
+                                    onPressed: tx.status == OrderStatus.refunded
+                                        ? null
+                                        : () => RefundDialog.show(context, tx),
                                     icon: const Icon(Icons.currency_exchange, size: 14),
                                     label: const Text('Refund', style: TextStyle(fontSize: 12)),
                                   ),

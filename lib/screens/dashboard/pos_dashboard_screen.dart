@@ -7,10 +7,6 @@ import '../../models/app_nav.dart';
 import '../../models/table_model.dart';
 import '../../models/kot_model.dart';
 import '../../widgets/stat_kpi_card.dart';
-import '../order_flow/table_selection_screen.dart';
-import '../kitchen/kitchen_board_screen.dart';
-import '../transactions/transactions_screen.dart';
-import '../expenses/expense_screen.dart';
 import '../running_orders/running_order_detail_screen.dart';
 import '../modals/offline_sync_dialog.dart';
 
@@ -147,7 +143,7 @@ class PosDashboardScreen extends StatelessWidget {
                       iconColor: AppColors.nonVegRed,
                       iconBgColor: AppColors.nonVegRedBg,
                       onTap: () {
-                        Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ExpenseScreen()));
+                        provider.goToDest(AppDest.expenses);
                       },
                     ),
                     StatKpiCard(
@@ -164,7 +160,7 @@ class PosDashboardScreen extends StatelessWidget {
                       iconColor: AppColors.primaryGreen,
                       iconBgColor: AppColors.primaryGreenLight,
                       onTap: () {
-                        Navigator.of(context).push(MaterialPageRoute(builder: (_) => const KitchenBoardScreen()));
+                        provider.goToDest(AppDest.kitchen);
                       },
                     ),
                   ],
@@ -223,9 +219,7 @@ class PosDashboardScreen extends StatelessWidget {
                     icon: Icons.add_circle,
                     color: AppColors.primaryGreen,
                     onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const TableSelectionScreen()),
-                      );
+                      provider.goToDest(AppDest.tables);
                     },
                   ),
                   const SizedBox(width: 10),
@@ -241,7 +235,7 @@ class PosDashboardScreen extends StatelessWidget {
                     icon: Icons.soup_kitchen,
                     color: AppColors.infoBlue,
                     onTap: () {
-                      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const KitchenBoardScreen()));
+                      provider.goToDest(AppDest.kitchen);
                     },
                   ),
                   const SizedBox(width: 10),
@@ -250,7 +244,7 @@ class PosDashboardScreen extends StatelessWidget {
                     icon: Icons.receipt_long,
                     color: AppColors.vegGreen,
                     onTap: () {
-                      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TransactionsScreen()));
+                      provider.goToDest(AppDest.transactions);
                     },
                   ),
                   const SizedBox(width: 10),
@@ -259,7 +253,7 @@ class PosDashboardScreen extends StatelessWidget {
                     icon: Icons.money_off,
                     color: AppColors.nonVegRed,
                     onTap: () {
-                      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ExpenseScreen()));
+                      provider.goToDest(AppDest.expenses);
                     },
                   ),
                 ],

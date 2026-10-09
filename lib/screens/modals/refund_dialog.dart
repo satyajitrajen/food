@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/pos_provider.dart';
+import '../../core/format.dart';
 import '../../models/order_model.dart';
 import 'manager_pin_dialog.dart';
 
@@ -25,6 +26,10 @@ class _RefundDialogState extends State<RefundDialog> {
   bool _isFullRefund = true;
   late TextEditingController _amountController;
   String _selectedReason = 'Customer Dissatisfaction';
+  /// Bill minus what was already refunded (partial refunds add up).
+  double get _refundable =>
+      roundMoney((widget.order.grandTotal - widget.order.refundedAmount).clamp(0.0, double.infinity));
+
   String _refundMode = 'Cash';
 
   final List<String> _reasons = [
@@ -38,8 +43,9 @@ class _RefundDialogState extends State<RefundDialog> {
   @override
   void initState() {
     super.initState();
-    _amountController = TextEditingController(text: widget.order.grandTotal.toStringAsFixed(0));
-    _refundMode = widget.order.paymentMethod ?? 'Cash';
+    _amountController = TextEditingController(text: rupeeInput(_refundable));
+    // Default to returning money the way it came in.
+    _refundMode = 'Original Method';
   }
 
   @override
@@ -93,7 +99,7 @@ class _RefundDialogState extends State<RefundDialog> {
                       onSelected: (_) {
                         setState(() {
                           _isFullRefund = true;
-                          _amountController.text = widget.order.grandTotal.toStringAsFixed(0);
+                          _amountController.text = rupeeInput(_refundable);
                         });
                       },
                     ),
@@ -184,15 +190,12 @@ class _RefundDialogState extends State<RefundDialog> {
                     if (managerPin == null) return;
                     if (!context.mounted) return;
 
-                    final paid = widget.order.totalPaid > 0
-                        ? widget.order.totalPaid
-                        : widget.order.grandTotal;
-                    final parsed = double.tryParse(_amountController.text) ?? 0.0;
-                    final amount = parsed.clamp(0.0, paid);
-                    if (amount <= 0) {
+                    final parsed = double.tryParse(_amountController.text.trim()) ?? 0.0;
+                    final amount = roundMoney(parsed);
+                    if (amount <= 0 || amount > _refundable + 0.005) {
                       messenger.showSnackBar(
-                        const SnackBar(
-                          content: Text('Enter a valid refund amount'),
+                        SnackBar(
+                          content: Text('Enter an amount up to ${formatInr(_refundable)}'),
                           backgroundColor: AppColors.nonVegRed,
                         ),
                       );
@@ -210,7 +213,7 @@ class _RefundDialogState extends State<RefundDialog> {
                     if (recorded) {
                       messenger.showSnackBar(
                         SnackBar(
-                          content: Text('✓ Refund of ₹${amount.toStringAsFixed(0)} processed successfully'),
+                          content: Text('Refund of ${formatInr(amount)} recorded'),
                           backgroundColor: AppColors.vegGreen,
                         ),
                       );
