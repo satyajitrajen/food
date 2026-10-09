@@ -155,7 +155,9 @@ func (ts *TicketStore) Issue(claims *Claims) string {
 	_, _ = rand.Read(b)
 	token := hex.EncodeToString(b)
 	sum := HashToken(token)
-	ts.purge()
+	ts.mu.Lock()
+	defer ts.mu.Unlock()
+	ts.purgeLocked()
 	ts.tickets[sum] = sseTicket{claims: claims, tokenSum: sum, expires: time.Now().Add(ts.ttl)}
 	return token
 }
@@ -167,15 +169,21 @@ func (ts *TicketStore) Consume(token string) (*Claims, bool) {
 		return nil, false
 	}
 	sum := HashToken(token)
+	ts.mu.Lock()
+	defer ts.mu.Unlock()
 	t, ok := ts.tickets[sum]
-	if !ok || time.Now().After(t.expires) {
+	if !ok {
 		return nil, false
 	}
-	delete(ts.tickets, sum) // single-use
+	delete(ts.tickets, sum) // single-use (expired ones are dropped too)
+	if time.Now().After(t.expires) {
+		return nil, false
+	}
 	return t.claims, true
 }
 
-func (ts *TicketStore) purge() {
+// purgeLocked drops expired tickets; callers hold ts.mu.
+func (ts *TicketStore) purgeLocked() {
 	now := time.Now()
 	for k, t := range ts.tickets {
 		if now.After(t.expires) {

@@ -62,7 +62,7 @@ func (s *Server) handleOwnerStartSubscription(w http.ResponseWriter, r *http.Req
 	gross := plan.PricePaise + storeRound(plan.PricePaise)
 	planID := plan.GatewayPlanID
 	if planID == "" {
-		planID, err = gw.CreatePlan(r.Context(), "FoodPOS "+plan.Name, gross, currency, plan.IntervalDays)
+		planID, err = gw.CreatePlan(r.Context(), "Hishobkr "+plan.Name, gross, currency, plan.IntervalDays)
 		if err != nil {
 			httpx.ErrorJSON(w, r, httpx.NewError(502, "gateway_error", err.Error()))
 			return

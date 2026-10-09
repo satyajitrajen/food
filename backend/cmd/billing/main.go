@@ -82,7 +82,7 @@ func sendReminders(ctx context.Context, st *store.Store) {
 		if err != nil {
 			continue
 		}
-		if err := sender.Send(org.Email, "Your FoodPOS subscription", mail.ExpiryReminder(org.Name, days, cfg.AppBaseURL)); err != nil {
+		if err := sender.Send(org.Email, "Your "+mail.Brand+" subscription", mail.ExpiryReminder(org.Name, days, cfg.AppBaseURL)); err != nil {
 			slog.Warn("reminder failed", "org", sub.OrgID, "err", err)
 			continue
 		}

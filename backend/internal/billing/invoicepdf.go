@@ -33,7 +33,7 @@ func RenderInvoicePDF(w io.Writer, org models.Organization, inv models.SaaSInvoi
 		"",
 		fmt.Sprintf("Paid via %s on %s", inv.Method, inv.PaidAt.UTC().Format("02 Jan 2006")),
 		"",
-		"Thank you for using FoodPOS.",
+		"Thank you for using Hishobkr.",
 	}
 	// paise-less display keeps the renderer simple; totals in whole rupees.
 	return renderSimplePDF(w, lines)

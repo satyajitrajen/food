@@ -96,7 +96,7 @@ func (s *Server) handleForgotPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	go func() {
-		_ = sender.Send(acc.Email, "Reset your FoodPOS password", mail.Reset(acc.Name, s.Cfg.AppBaseURL, token))
+		_ = sender.Send(acc.Email, "Reset your "+mail.Brand+" password", mail.Reset(acc.Name, s.Cfg.AppBaseURL, token))
 	}()
 	httpx.JSON(w, http.StatusOK, models.MailResp{Delivered: true, Message: "If that account exists, a reset link was sent."})
 }

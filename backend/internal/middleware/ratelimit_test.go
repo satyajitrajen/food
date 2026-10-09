@@ -51,3 +51,18 @@ func TestRateLimitPerClient(t *testing.T) {
 		t.Fatal("other client should be unaffected")
 	}
 }
+
+func TestRateLimiterPurgesExpiredWindows(t *testing.T) {
+	rl := NewRateLimiter(2, time.Minute)
+	t0 := time.Date(2026, 10, 9, 10, 0, 0, 0, time.UTC)
+	for i := 0; i < 500; i++ {
+		rl.Allow("10.0.0."+string(rune('a'+i%26))+string(rune('a'+i/26)), t0)
+	}
+	if len(rl.hits) != 500 {
+		t.Fatalf("hits = %d, want 500", len(rl.hits))
+	}
+	rl.Allow("fresh", t0.Add(2*time.Minute))
+	if len(rl.hits) != 1 {
+		t.Fatalf("expired windows not purged: %d entries left", len(rl.hits))
+	}
+}

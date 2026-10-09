@@ -4,6 +4,7 @@ package api
 import (
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -27,6 +28,9 @@ type Server struct {
 	Cfg       config.Config
 	UploadDir string // where menu photos are stored; served at /media/*
 	Notifier  *notify.FCMNotifier
+
+	pinOnce sync.Once
+	pinLock *auth.PINLockout
 }
 
 func (s *Server) Routes() http.Handler {
@@ -43,7 +47,7 @@ func (s *Server) Routes() http.Handler {
 
 	// Public static media (menu photos) — loaded by <img> tags without auth.
 	if s.UploadDir != "" {
-		r.Handle("/media/*", http.StripPrefix("/media/", http.FileServer(http.Dir(s.UploadDir))))
+		r.Handle("/media/*", http.StripPrefix("/media/", mediaHandler(s.UploadDir)))
 	}
 
 	// Public (auth routes are rate-limited per IP; staff profiles are public
@@ -51,6 +55,7 @@ func (s *Server) Routes() http.Handler {
 	authLimit := middleware.RateLimit(20, time.Minute)
 	registerLimit := middleware.RateLimit(30, time.Minute)
 	deviceLimit := middleware.RateLimit(60, time.Minute)
+	pinLimit := middleware.RateLimit(30, time.Minute)
 
 	r.With(authLimit).Post("/api/v1/auth/login", s.handleLogin)
 	r.With(authLimit).Post("/api/v1/auth/refresh", s.handleRefresh)
@@ -75,9 +80,10 @@ func (s *Server) Routes() http.Handler {
 	// Customer digital menu (public): the page a table QR opens.
 	r.Get("/m/{outletID}", s.handleCustomerMenu)
 
-	// Legacy terminal bootstrap (org_code optional; defaults to the demo org).
-	r.Get("/api/v1/outlets", s.handleListOutlets)
-	r.Get("/api/v1/staff", s.handleListStaff)
+	// Pre-login terminal bootstrap (org_code required; minimal fields).
+	r.With(deviceLimit).Get("/api/v1/outlets", s.handleListOutlets)
+	r.With(deviceLimit).Get("/api/v1/staff", s.handleListStaff)
+	// Realtime stream: single-use ticket from POST /ws/ticket only.
 	r.Get("/api/v1/ws", s.Hub.Handler())
 
 	// Owner account APIs (scope: owner).
@@ -169,25 +175,30 @@ func (s *Server) Routes() http.Handler {
 			r.Use(middleware.DenyRoles("kitchen"))
 			r.Use(s.auditMiddleware())
 
-			r.Post("/auth/verify-manager-pin", s.handleVerifyManagerPin)
+			manager := middleware.RequireRole("manager")
+			// Money and drawer operations are cashier+ (waiters take orders only).
+			noWaiter := middleware.DenyRoles("waiter")
 
-			// Staff (admin/manager)
-			r.With(middleware.RequireRole("manager")).Post("/staff", s.handleCreateStaff)
-			r.With(middleware.RequireRole("manager")).Patch("/staff/{id}", s.handlePatchStaff)
+			r.With(pinLimit).Post("/auth/verify-manager-pin", s.handleVerifyManagerPin)
+
+			// Staff + outlet profile (admin/manager)
+			r.With(manager).Post("/staff", s.handleCreateStaff)
+			r.With(manager).Patch("/staff/{id}", s.handlePatchStaff)
+			r.With(manager).Patch("/outlets/{id}", s.handlePatchOutlet)
 
 			// Tables
-			r.Post("/tables", s.handleCreateTable)
+			r.With(manager).Post("/tables", s.handleCreateTable)
 			r.Patch("/tables/{id}", s.handlePatchTable)
 			r.Post("/tables/{id}/move", s.handleMoveTable)
-			r.Post("/tables/{id}/merge", s.handleMergeTable)
-			r.Post("/tables/{id}/unmerge", s.handleUnmergeTable)
+			r.With(manager).Post("/tables/{id}/merge", s.handleMergeTable)
+			r.With(manager).Post("/tables/{id}/unmerge", s.handleUnmergeTable)
 
 			// Menu
-			r.With(middleware.RequireRole("manager")).Post("/menu", s.handleCreateMenuItem)
-			r.With(middleware.RequireRole("manager")).Patch("/menu/{id}", s.handlePatchMenuItem)
-			r.With(middleware.RequireRole("manager")).Delete("/menu/{id}", s.handleDeleteMenuItem)
-			r.With(middleware.RequireRole("manager")).Post("/uploads/menu-image", s.handleUploadMenuImage)
-			r.With(middleware.RequireRole("manager")).Post("/uploads/image", s.handleUploadMenuImage)
+			r.With(manager).Post("/menu", s.handleCreateMenuItem)
+			r.With(manager).Patch("/menu/{id}", s.handlePatchMenuItem)
+			r.With(manager).Delete("/menu/{id}", s.handleDeleteMenuItem)
+			r.With(manager).Post("/uploads/menu-image", s.handleUploadMenuImage)
+			r.With(manager).Post("/uploads/image", s.handleUploadMenuImage)
 
 			// Orders
 			r.Post("/orders", s.handleCreateOrder)
@@ -196,31 +207,30 @@ func (s *Server) Routes() http.Handler {
 			r.Patch("/orders/{id}/items/{itemId}", s.handlePatchOrderItem)
 			r.Post("/orders/{id}/items/{itemId}/cancel", s.handleCancelOrderItem)
 			r.Post("/orders/{id}/kot", s.handleFireKOT)
-			r.Post("/orders/{id}/pay", s.handlePay)
-			r.Post("/orders/{id}/refund", s.handleRefund)
+			r.With(noWaiter).Post("/orders/{id}/pay", s.handlePay)
+			r.With(noWaiter).Post("/orders/{id}/refund", s.handleRefund)
 
 			// Shifts & cash
-			r.Post("/shifts/open", s.handleOpenShift)
-			r.Post("/shifts/current/close", s.handleCloseShift)
-			r.Post("/shifts/current/cash-move", s.handleCashMove)
+			r.With(noWaiter).Post("/shifts/open", s.handleOpenShift)
+			r.With(noWaiter).Post("/shifts/current/close", s.handleCloseShift)
+			r.With(noWaiter).Post("/shifts/current/cash-move", s.handleCashMove)
 
 			// Expenses / Customers
-			r.Post("/expenses", s.handleCreateExpense)
-			r.Delete("/expenses/{id}", s.handleDeleteExpense)
+			r.With(noWaiter).Post("/expenses", s.handleCreateExpense)
+			r.With(manager).Delete("/expenses/{id}", s.handleDeleteExpense)
 			r.Post("/customers", s.handleCreateCustomer)
-			r.Post("/customers/{id}/credit", s.handleBookCredit)
+			r.With(noWaiter).Post("/customers/{id}/credit", s.handleBookCredit)
 
-			// Inventory / suppliers / purchases
-			r.With(middleware.RequireRole("manager")).Post("/inventory", s.handleCreateInventoryItem)
-			r.Post("/inventory/{id}/adjust", s.handleAdjustStock)
-			r.Post("/suppliers", s.handleCreateSupplier)
-			// Direct supplier payout reduces the outstanding due (manager-only).
-			r.With(middleware.RequireRole("manager")).Post("/suppliers/{id}/payments", s.handleCreateSupplierPayment)
-			r.Post("/purchases", s.handleCreatePurchase)
-			r.Patch("/purchases/{id}", s.handlePatchPurchase)
+			// Inventory / suppliers / purchases (back office: manager+)
+			r.With(manager).Post("/inventory", s.handleCreateInventoryItem)
+			r.With(manager).Post("/inventory/{id}/adjust", s.handleAdjustStock)
+			r.With(manager).Post("/suppliers", s.handleCreateSupplier)
+			r.With(manager).Post("/suppliers/{id}/payments", s.handleCreateSupplierPayment)
+			r.With(manager).Post("/purchases", s.handleCreatePurchase)
+			r.With(manager).Patch("/purchases/{id}", s.handlePatchPurchase)
 
 			// Settings & reports
-			r.With(middleware.RequireRole("manager")).Put("/settings", s.handlePutSettings)
+			r.With(manager).Put("/settings", s.handlePutSettings)
 			// Overall revenue dashboard is Admin-only; the shift Z-report
 			// stays reachable by manager/cashier for close-shift.
 			r.With(middleware.RequireRole("admin")).Get("/reports/dashboard", s.handleDashboardReport)

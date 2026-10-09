@@ -34,14 +34,13 @@ type OutletPatch struct {
 	Timezone *string `json:"timezone,omitempty"`
 }
 
-// PublicStaff is the pre-login roster entry (PIN screen): no contact data.
-// outlet_id lets a terminal show only staff who may sign in to its outlet.
+// PublicStaff is the pre-login roster entry (PIN screen): no contact data,
+// no org/outlet ids. Filter per outlet with GET /staff?org_code=&outlet_id=.
 type PublicStaff struct {
-	ID        string  `json:"id"`
-	Name      string  `json:"name"`
-	Role      string  `json:"role"`
-	AvatarURL string  `json:"avatar_url"`
-	OutletID  *string `json:"outlet_id"`
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Role      string `json:"role"`
+	AvatarURL string `json:"avatar_url"`
 }
 
 type Staff struct {

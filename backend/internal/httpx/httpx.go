@@ -5,6 +5,7 @@ package httpx
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/chi/v5/middleware"
@@ -49,11 +50,12 @@ func ErrorJSON(w http.ResponseWriter, r *http.Request, err error) {
 	message := "Internal server error"
 
 	var appErr *AppError
-	switch {
-	case errors.As(err, &appErr):
+	if errors.As(err, &appErr) {
 		status, code, message = appErr.Status, appErr.Code, appErr.Message
-	default:
-		message = err.Error()
+	} else {
+		// Internal detail (SQL, driver, file paths) goes to the log only.
+		slog.Error("internal error", "err", err, "method", r.Method, "path", r.URL.Path,
+			"request_id", middleware.GetReqID(r.Context()))
 	}
 
 	JSON(w, status, map[string]any{
@@ -65,9 +67,13 @@ func ErrorJSON(w http.ResponseWriter, r *http.Request, err error) {
 	})
 }
 
-// Decode reads and validates a JSON request body into dst.
+// MaxBodyBytes caps JSON request bodies.
+const MaxBodyBytes = 1 << 20
+
+// Decode reads and validates a JSON request body (at most MaxBodyBytes,
+// unknown fields rejected) into dst.
 func Decode(r *http.Request, dst any) error {
-	dec := json.NewDecoder(r.Body)
+	dec := json.NewDecoder(http.MaxBytesReader(nil, r.Body, MaxBodyBytes))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(dst); err != nil {
 		return ErrBadRequest

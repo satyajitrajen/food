@@ -13,6 +13,9 @@ import (
 	"foodpos/backend/internal/config"
 )
 
+// Brand is the product name used in every outgoing mail.
+const Brand = "Hishobkr"
+
 type Sender struct {
 	host string
 	port int
@@ -27,9 +30,16 @@ func New(cfg config.Config) Sender {
 
 func (s Sender) Enabled() bool { return s.host != "" }
 
+// headerSafe strips CR/LF so user-supplied values (org names, addresses)
+// can never inject extra headers.
+func headerSafe(v string) string {
+	return strings.NewReplacer("\r", " ", "\n", " ").Replace(v)
+}
+
 // Send delivers a plain-text e-mail.
 func (s Sender) Send(to, subject, body string) error {
-	msg := "From: " + s.from + "\r\n" +
+	to, subject = headerSafe(to), headerSafe(subject)
+	msg := "From: " + headerSafe(s.from) + "\r\n" +
 		"To: " + to + "\r\n" +
 		"Subject: " + subject + "\r\n" +
 		"MIME-Version: 1.0\r\n" +
@@ -37,63 +47,81 @@ func (s Sender) Send(to, subject, body string) error {
 		strings.ReplaceAll(body, "\n", "\r\n")
 	addr := fmt.Sprintf("%s:%d", s.host, s.port)
 	auth := smtp.PlainAuth("", s.user, s.pass, s.host)
-	if err := smtp.SendMail(addr, auth, s.from, []string{to}, []byte(msg)); err != nil {
+	if err := smtp.SendMail(addr, auth, envelopeAddr(s.from), []string{to}, []byte(msg)); err != nil {
 		return err
 	}
-	slog.Info("mail sent", "to", to, "subject", subject)
+	slog.Info("mail sent", "subject", subject)
 	return nil
 }
 
-// ---- body helpers (ASCII-safe plain text) ----
+// envelopeAddr extracts the bare address from "Name <addr>".
+func envelopeAddr(from string) string {
+	if i, j := strings.LastIndex(from, "<"), strings.LastIndex(from, ">"); i >= 0 && j > i {
+		return from[i+1 : j]
+	}
+	return strings.TrimSpace(from)
+}
 
-func Welcome(name, orgName, baseURL, verifyToken string) string {
+func link(baseURL, path, token string) string {
+	return strings.TrimRight(baseURL, "/") + path + "?token=" + token
+}
+
+// ---- body helpers (plain text) ----
+
+func Welcome(name, orgName, baseURL, verifyToken string, trialDays int) string {
+	trial := "Your subscription is active."
+	if trialDays > 0 {
+		trial = fmt.Sprintf("It is on a %d-day free trial.", trialDays)
+	}
 	return fmt.Sprintf(`Hello %s,
 
-Welcome to FoodPOS! Your organization "%s" is on a 7-day free trial.
+Welcome to %s! Your organization "%s" is ready. %s
 
 Verify your e-mail address here:
-%s/verify?token=%s
+%s
 
-Your POS admin PIN was shown at registration and is also visible in the
-console. Add staff and outlets from the owner dashboard.
+Your POS admin PIN was shown at registration. Add staff and outlets from
+the owner console.
 
-- FoodPOS team`, name, orgName, baseURL, verifyToken)
+- The %s team`, name, Brand, orgName, trial, link(baseURL, "/console/verify", verifyToken), Brand)
 }
 
 func Reset(name, baseURL, token string) string {
 	return fmt.Sprintf(`Hello %s,
 
-Reset your FoodPOS password here:
-%s/reset?token=%s
+Reset your %s password here:
+%s
 
 If you did not request this, you can ignore this e-mail.
 
-- FoodPOS team`, name, baseURL, token)
+- The %s team`, name, Brand, link(baseURL, "/console/reset", token), Brand)
 }
 
-func Receipt(orgName, invoiceNo string, gross int64, period string) string {
+// Receipt formats a payment receipt; grossPaise is the GST-inclusive amount
+// in paise.
+func Receipt(orgName, invoiceNo string, grossPaise int64, period string) string {
 	return fmt.Sprintf(`Dear %s customer,
 
 Thank you for your payment.
 
 Invoice: %s
-Amount paid: INR %d (incl. GST)
+Amount paid: INR %d.%02d (incl. GST)
 Period: %s
 
-The invoice PDF is available in your account.
+The invoice PDF is available in your owner console.
 
-- FoodPOS`, orgName, invoiceNo, gross, period)
+- %s`, orgName, invoiceNo, grossPaise/100, grossPaise%100, period, Brand)
 }
 
 func ExpiryReminder(orgName string, daysLeft int, baseURL string) string {
 	return fmt.Sprintf(`Hello %s,
 
-Your FoodPOS subscription %s. Renew to keep taking orders.
+Your %s subscription %s. Renew to keep taking orders.
 
 Manage your subscription here:
-%s/org/billing
+%s/console/billing
 
-- FoodPOS team`, orgName, daysLeftText(daysLeft), baseURL)
+- The %s team`, orgName, Brand, daysLeftText(daysLeft), strings.TrimRight(baseURL, "/"), Brand)
 }
 
 func daysLeftText(d int) string {

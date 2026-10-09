@@ -89,11 +89,15 @@ func (s *Server) handleRegisterOrg(w http.ResponseWriter, r *http.Request) {
 
 	// Welcome e-mail (with verification link) when SMTP is configured.
 	sender := s.mailer()
+	trialDays := 0
+	if res.Plan != nil {
+		trialDays = res.Plan.TrialDays
+	}
 	if sender.Enabled() {
 		if vt, verr := s.Store.CreateAccountToken(r.Context(), res.Account.ID, store.TokenVerify, accountTokenTTL); verr == nil {
 			go func() {
-				_ = sender.Send(req.Email, "Welcome to FoodPOS",
-					mail.Welcome(req.OwnerName, req.OrgName, s.Cfg.AppBaseURL, vt))
+				_ = sender.Send(req.Email, "Welcome to "+mail.Brand,
+					mail.Welcome(req.OwnerName, req.OrgName, s.Cfg.AppBaseURL, vt, trialDays))
 			}()
 		}
 	}
@@ -245,7 +249,7 @@ func (s *Server) handleDeviceOptions(w http.ResponseWriter, r *http.Request) {
 	}
 	httpx.JSON(w, http.StatusOK, map[string]any{
 		"org_id": org.ID, "org_name": org.Name,
-		"outlets": outlets, "staff": staff,
+		"outlets": outlets, "staff": publicStaff(staff),
 	})
 }
 

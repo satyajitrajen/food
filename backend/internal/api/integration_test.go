@@ -440,7 +440,17 @@ func TestPurchasesAndStock(t *testing.T) {
 		t.Fatalf("inventory create failed: %d %v", code, body)
 	}
 	itemID := body["id"].(string)
+
+	// Back office is manager+: a cashier cannot create suppliers.
+	mgrToken := e.token
 	e.token = old
+	code, _ = e.do(t, "POST", "/api/v1/suppliers?outlet_id=out-01", map[string]any{
+		"name": "Nope", "mobile": "9876543210",
+	}, true)
+	if code != 403 {
+		t.Fatalf("cashier supplier create: expected 403, got %d", code)
+	}
+	e.token = mgrToken
 
 	// Supplier + pending purchase with stock intake
 	code, body = e.do(t, "POST", "/api/v1/suppliers?outlet_id=out-01", map[string]any{

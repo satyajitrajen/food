@@ -1,12 +1,13 @@
 // Package ws: an outlet-scoped pub/sub hub for realtime events (KOT updates,
-// table changes, shift events). Clients connect to /ws?outlet_id=…&token=….
+// table changes, shift events). Clients connect to /ws?ticket=… with a
+// single-use ticket from POST /api/v1/ws/ticket (a raw JWT in the URL is not
+// accepted: it would land in proxy access logs).
 // Each event carries an SSE `id:` line (per-outlet sequence); on reconnect the
 // client sends last_event_id and the hub replays anything newer from its
 // in-memory ring (single-instance assumption — documented in the runbook).
 package ws
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -54,8 +55,8 @@ func NewHub(authMgr *auth.Manager) *Hub {
 	}
 }
 
-// SetTicketStore wires the single-use SSE ticket store (preferred auth for
-// the query-param connect; the raw JWT param stays as a legacy fallback).
+// SetTicketStore wires the single-use SSE ticket store (the only accepted
+// stream credential).
 func (h *Hub) SetTicketStore(ts *auth.TicketStore) { h.tickets = ts }
 
 func (h *Hub) Subscribe(outletID string) *client {
@@ -84,7 +85,7 @@ func (h *Hub) Publish(evt Event) {
 		h.history[evt.OutletID] = h.history[evt.OutletID][n-historyCap:]
 	}
 	for c := range h.clients {
-		if c.outletID == evt.OutletID || evt.OutletID == "" {
+		if c.outletID == evt.OutletID {
 			select {
 			case c.ch <- evt:
 			default: // slow consumer: drop (replay covers reconnects)
@@ -119,8 +120,6 @@ func writeSSE(w http.ResponseWriter, evt Event) {
 func (h *Hub) Handler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
-		outletID := q.Get("outlet_id")
-		token := q.Get("token")
 		var claims *auth.Claims
 		if ts := h.tickets; ts != nil {
 			if c, ok := ts.Consume(q.Get("ticket")); ok {
@@ -128,20 +127,16 @@ func (h *Hub) Handler() http.HandlerFunc {
 			}
 		}
 		if claims == nil {
-			c, err := h.authMgr.Parse(token)
-			if err != nil {
-				httpx.ErrorJSON(w, r, httpx.ErrUnauthorized)
-				return
-			}
-			claims = c
+			httpx.ErrorJSON(w, r, httpx.ErrUnauthorized)
+			return
 		}
-		if outletID == "" {
-			outletID = claims.OutletID
+		// Only POS staff sessions stream, and only their own outlet's events.
+		if claims.Scope != auth.ScopeStaff || claims.OutletID == "" {
+			httpx.ErrorJSON(w, r, httpx.ErrForbidden)
+			return
 		}
-		// Tenant enforcement: a staff ticket is bound to its login outlet and
-		// must not subscribe to another outlet's stream (e.g. a kitchen
-		// terminal must only receive its own outlet's KDS events).
-		if claims.Scope == auth.ScopeStaff && claims.OutletID != "" && outletID != claims.OutletID {
+		outletID := claims.OutletID
+		if o := q.Get("outlet_id"); o != "" && o != outletID {
 			httpx.ErrorJSON(w, r, httpx.NewError(403, "tenant_mismatch", "Outlet does not belong to this session"))
 			return
 		}
@@ -187,8 +182,6 @@ func (h *Hub) Handler() http.HandlerFunc {
 			case evt := <-c.ch:
 				writeSSE(w, evt)
 				fl.Flush()
-			case <-context.Background().Done():
-				return
 			}
 		}
 	}
