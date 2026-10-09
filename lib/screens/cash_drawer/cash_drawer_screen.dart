@@ -206,7 +206,7 @@ class _CashDrawerScreenState extends State<CashDrawerScreen> {
                             children: [
                               Text(tx.reason, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
                               Text(
-                                '${tx.staffName} · $timeStr ${tx.reference != null ? "· Ref: ${tx.reference}" : ""}',
+                                '${tx.staffName ?? 'Staff'} · $timeStr ${tx.reference != null ? "· Ref: ${tx.reference}" : ""}',
                                 style: const TextStyle(color: AppColors.textLight, fontSize: 11),
                               ),
                               if (!inCurrentShift)

@@ -220,7 +220,7 @@ class _KitchenBoardScreenState extends State<KitchenBoardScreen>
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Time: $timeStr · Waiter: ${kot.waiterName} · ${plural(kot.totalQuantity, 'item')}',
+                    'Time: $timeStr · Waiter: ${kot.waiterName ?? 'Staff'} · ${plural(kot.totalQuantity, 'item')}',
                     style: const TextStyle(
                       color: AppColors.textLight,
                       fontSize: 12,

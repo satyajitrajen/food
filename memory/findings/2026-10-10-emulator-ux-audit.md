@@ -13,7 +13,7 @@ locations verified in source. Fixes follow the approved plan
 | UX-05 | MED | Payments | Card approval code collected + stored server-side (payment_reference) but never rendered on receipt | payment_screen.dart:400, dto.dart (missing parse), receipt_builder.dart:66 | fixed |
 | UX-06 | MED | Customers | "Add & select" enabled with empty Name (inverted &&/|| logic), tap silently returns | payment_screen.dart:573-577 | open |
 | UX-07 | INFO | Orders | No auto delivery charge — works as designed: defaultDeliveryCharge setting defaults to 0 | pos_provider.dart:2022, settings_model.dart:12 | fixed (wontfix — documented) |
-| UX-08 | LOW | Staff | "Staff" fallback vs real name inconsistent — dto coerces missing waiter/staff_name to literal 'Staff', defeating UI fallback chains | dto.dart:406,431,513,527,560 | open |
+| UX-08 | LOW | Staff | "Staff" fallback vs real name inconsistent — dto coerces missing waiter/staff_name to literal 'Staff', defeating UI fallback chains | dto.dart:406,431,513,527,560 | fixed |
 | UX-09 | LOW | Cash | "1 entries" grammar in Cash In/Out Log | cash_drawer_screen.dart:146 | fixed |
 | UX-10 | HIGH | Inventory | Record Purchase never updates ingredient stock locally despite "Items received (updates stock):" label (backend applies stock; local mirror missing) | pos_provider.dart:3160-3197 | open |
 | UX-11 | MED | Staff | Add Staff empty submit silently returns (bare guard, no feedback) | staff_admin_screen.dart:472 | open |

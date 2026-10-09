@@ -116,7 +116,7 @@ class _CloseShiftScreenState extends State<CloseShiftScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _line('Staff', shift.staffName),
+                _line('Staff', shift.staffName ?? 'Staff'),
                 _line('Opened', formatDateTime(shift.startedAt)),
                 _line('Closed', formatDateTime(shift.closedAt ?? DateTime.now())),
                 const Divider(),

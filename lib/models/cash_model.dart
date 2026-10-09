@@ -7,7 +7,7 @@ class CashTransaction {
   final String reason;
   final String? reference;
   final DateTime timestamp;
-  final String staffName;
+  final String? staffName;
 
   CashTransaction({
     required this.id,
@@ -16,7 +16,7 @@ class CashTransaction {
     required this.reason,
     this.reference,
     required this.timestamp,
-    required this.staffName,
+    this.staffName,
   });
 
   String get typeLabel => type == CashFlowType.cashIn ? 'Cash In' : 'Cash Out';

@@ -99,7 +99,7 @@ List<int> buildKotBytes(KitchenOrderTicket kot, RestaurantSettings settings) {
     ..align(0)
     ..divider('=')
     ..text('Table: ${kot.tableNumber ?? '-'}   Type: ${_typeLabel(kot.orderType)}')
-    ..text('Waiter: ${kot.waiterName}')
+    ..text('Waiter: ${kot.waiterName ?? 'Staff'}')
     ..text('Time: ${kot.createdAt}')
     ..divider('=');
   for (final item in kot.items.where((i) => !i.isCancelled)) {
@@ -168,7 +168,7 @@ List<int> buildZReportBytes(Shift shift, RestaurantSettings settings, {Map<Strin
 
   double paise(String k) => ((server?[k] as num?)?.toDouble() ?? 0) / 100.0;
   b
-    ..text('Staff: ${shift.staffName}')
+    ..text('Staff: ${shift.staffName ?? 'Staff'}')
     ..text('Opened: ${_stamp(shift.startedAt)}')
     ..text('Closed: ${_stamp(shift.closedAt ?? DateTime.now())}')
     ..divider();

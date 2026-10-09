@@ -149,7 +149,7 @@ class ReadyToServeScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 6),
                           Text(
-                            'Ready at $timeStr · Waiter: ${kot.waiterName} · ${plural(kot.totalQuantity, 'item')}',
+                            'Ready at $timeStr · Waiter: ${kot.waiterName ?? 'Staff'} · ${plural(kot.totalQuantity, 'item')}',
                             style: const TextStyle(color: AppColors.textLight, fontSize: 12),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,

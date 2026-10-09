@@ -107,7 +107,7 @@ class ShiftDashboardScreen extends StatelessWidget {
                         Row(
                           children: [
                             Text(
-                              shift.staffName,
+                              shift.staffName ?? 'Staff',
                               style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 18),
                             ),
                             const SizedBox(width: 8),

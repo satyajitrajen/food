@@ -53,14 +53,14 @@ class Staff {
 class AttendanceEntry {
   final String id;
   final String staffId;
-  final String staffName;
+  final String? staffName;
   final DateTime clockIn;
   DateTime? clockOut;
 
   AttendanceEntry({
     required this.id,
     required this.staffId,
-    required this.staffName,
+    this.staffName,
     required this.clockIn,
     this.clockOut,
   });

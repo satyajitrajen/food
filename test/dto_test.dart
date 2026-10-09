@@ -123,6 +123,85 @@ void main() {
     });
   });
 
+  group('missing staff names stay null (no Staff coercion)', () {
+    test('kotFromApi keeps a missing waiter_name null', () {
+      final kot = kotFromApi({
+        'id': 'kot-1',
+        'outlet_id': 'out-01',
+        'kot_number': 'KOT #1',
+        'order_id': 'ord-1',
+        'order_type': 'dine_in',
+        'items': <Map>[],
+      });
+      expect(kot.waiterName, isNull);
+    });
+
+    test('kotFromApi keeps a present waiter_name', () {
+      final kot = kotFromApi({
+        'id': 'kot-1',
+        'outlet_id': 'out-01',
+        'kot_number': 'KOT #1',
+        'order_id': 'ord-1',
+        'order_type': 'dine_in',
+        'waiter_name': 'Rahul',
+        'items': <Map>[],
+      });
+      expect(kot.waiterName, 'Rahul');
+    });
+
+    test('shiftFromApi keeps a missing staff_name null', () {
+      final shift = shiftFromApi({
+        'id': 'sh-1',
+        'staff_id': 'st-01',
+        'started_at': '2026-10-10T09:00:00Z',
+        'status': 'open',
+      });
+      expect(shift.staffName, isNull);
+    });
+
+    test('attendanceFromApi keeps a missing staff_name null', () {
+      final entry = attendanceFromApi({
+        'id': 'at-1',
+        'staff_id': 'st-01',
+        'clock_in': '2026-10-10T09:00:00Z',
+      });
+      expect(entry.staffName, isNull);
+    });
+
+    test('supplierPaymentFromApi keeps a missing staff_name null', () {
+      final p = supplierPaymentFromApi({
+        'id': 'sp-1',
+        'supplier_id': 'sup-1',
+        'supplier_name': 'Fresh Farms',
+        'amount_paise': 5000,
+        'ts': '2026-10-10T09:00:00Z',
+      });
+      expect(p.staffName, isNull);
+    });
+
+    test('cashMoveFromApi keeps a missing staff_name null', () {
+      final move = cashMoveFromApi({
+        'id': 'cm-1',
+        'type': 'cash_in',
+        'amount_paise': 100000,
+        'reason': 'Float top-up',
+        'ts': '2026-10-10T09:00:00Z',
+      });
+      expect(move.staffName, isNull);
+    });
+
+    test('shiftFromApi keeps a present staff_name', () {
+      final shift = shiftFromApi({
+        'id': 'sh-1',
+        'staff_id': 'st-01',
+        'staff_name': 'Priya',
+        'started_at': '2026-10-10T09:00:00Z',
+        'status': 'open',
+      });
+      expect(shift.staffName, 'Priya');
+    });
+  });
+
   group('settings round-trip', () {
     test('settingsToApi / settingsFromApi preserve values', () {
       final s = RestaurantSettings(

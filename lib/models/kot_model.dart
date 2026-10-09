@@ -11,7 +11,7 @@ class KitchenOrderTicket {
   final String orderId;
   final String? tableNumber;
   final OrderType orderType;
-  final String waiterName;
+  final String? waiterName;
   final DateTime createdAt;
   KOTStatus status;
   final List<OrderItem> items;
@@ -29,7 +29,7 @@ class KitchenOrderTicket {
     required this.orderId,
     this.tableNumber,
     required this.orderType,
-    required this.waiterName,
+    this.waiterName,
     required this.createdAt,
     this.status = KOTStatus.newTicket,
     required this.items,

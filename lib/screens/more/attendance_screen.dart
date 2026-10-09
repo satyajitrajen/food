@@ -76,7 +76,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                     else
                       ...onDuty.map((a) => _card(
                             context,
-                            a.staffName,
+                            a.staffName ?? 'Staff',
                             'In ${DateFormat('hh:mm a').format(a.clockIn)}',
                             'On duty · ${hours(a.minutesWorked)}',
                             AppColors.vegGreen,
@@ -88,7 +88,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                     const SizedBox(height: 8),
                     ...offDuty.map((a) => _card(
                           context,
-                          a.staffName,
+                          a.staffName ?? 'Staff',
                           '${DateFormat('dd MMM, hh:mm a').format(a.clockIn)} → '
                               '${a.clockOut == null ? '' : DateFormat('hh:mm a').format(a.clockOut!)}',
                           'Clocked out · ${hours(a.minutesWorked)}',

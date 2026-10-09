@@ -417,7 +417,7 @@ KitchenOrderTicket kotFromApi(Map<String, dynamic> j) => KitchenOrderTicket(
       orderId: _str(j['order_id']),
       tableNumber: _optStr(j['table_number']),
       orderType: orderTypeFromApi(_str(j['order_type'])),
-      waiterName: _str(j['waiter_name'], 'Staff'),
+      waiterName: _optStr(j['waiter_name']),
       createdAt: _dtOrNow(j['created_at']),
       status: kotStatusFromApi(_str(j['status'])),
       items: (j['items'] as List? ?? [])
@@ -442,7 +442,7 @@ KitchenOrderTicket kotFromApi(Map<String, dynamic> j) => KitchenOrderTicket(
 Shift shiftFromApi(Map<String, dynamic> j) => Shift(
       id: _str(j['id']),
       staffId: _str(j['staff_id']),
-      staffName: _str(j['staff_name'], 'Staff'),
+      staffName: _optStr(j['staff_name']),
       startedAt: _dtOrNow(j['started_at']),
       closedAt: _dt(j['closed_at']),
       openingCash: toRupees(_int(j['opening_paise'])),
@@ -524,7 +524,7 @@ PurchaseRecord purchaseFromApi(Map<String, dynamic> j) => PurchaseRecord(
 AttendanceEntry attendanceFromApi(Map<String, dynamic> j) => AttendanceEntry(
       id: _str(j['id']),
       staffId: _str(j['staff_id']),
-      staffName: _str(j['staff_name'], 'Staff'),
+      staffName: _optStr(j['staff_name']),
       clockIn: _dtOrNow(j['clock_in']),
       clockOut: _dt(j['clock_out']),
     );
@@ -538,7 +538,7 @@ SupplierPayment supplierPaymentFromApi(Map<String, dynamic> j) => SupplierPaymen
       method: supplierMethodFromApi(_str(j['method'])),
       paidAt: _dtOrNow(j['ts']),
       reference: _optStr(j['reference']),
-      staffName: _str(j['staff_name'], 'Staff'),
+      staffName: _optStr(j['staff_name']),
     );
 
 String supplierMethodFromApi(String s) {
@@ -571,7 +571,7 @@ CashTransaction cashMoveFromApi(Map<String, dynamic> j) => CashTransaction(
       reason: _str(j['reason']),
       reference: _optStr(j['reference']),
       timestamp: _dtOrNow(j['ts']),
-      staffName: _str(j['staff_name'], 'Staff'),
+      staffName: _optStr(j['staff_name']),
     );
 
 DashboardStats dashboardReportFromApi(Map<String, dynamic> j) => DashboardStats(

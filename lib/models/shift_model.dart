@@ -53,7 +53,7 @@ class CashDenomination {
 class Shift {
   final String id;
   final String staffId;
-  final String staffName;
+  final String? staffName;
   final DateTime startedAt;
   DateTime? closedAt;
   final double openingCash;
@@ -74,7 +74,7 @@ class Shift {
   Shift({
     required this.id,
     required this.staffId,
-    required this.staffName,
+    this.staffName,
     required this.startedAt,
     this.closedAt,
     required this.openingCash,

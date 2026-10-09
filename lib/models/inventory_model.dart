@@ -73,7 +73,7 @@ class SupplierPayment {
   final String method; // Cash / UPI / Card / Bank Transfer
   final DateTime paidAt;
   final String? reference;
-  final String staffName;
+  final String? staffName;
 
   SupplierPayment({
     required this.id,
@@ -83,7 +83,7 @@ class SupplierPayment {
     required this.method,
     required this.paidAt,
     this.reference,
-    required this.staffName,
+    this.staffName,
   });
 }
 
