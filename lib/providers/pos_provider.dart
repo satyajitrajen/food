@@ -145,11 +145,17 @@ class PosProvider extends ChangeNotifier {
     await _bootPhase(restoreSavedLogin(), seconds: 15);
     _bootstrapped = true;
     notifyListeners();
-    PushNotificationService.instance.onMessage.listen((msg) {
-      final type = msg.data['type'] as String?;
-      if (type != null) {
-        _applyRealtimeEvent(type, Map<String, dynamic>.from(msg.data));
+    PushNotificationService.instance.onTokenRefresh.listen((token) {
+      if (_currentStaff != null && _api != null) {
+        unawaited(_api!.registerDeviceToken(token));
       }
+    });
+    // Push payloads are short string summaries, not full records, so they
+    // only prompt a re-read; the live SSE stream already covers connected
+    // terminals.
+    PushNotificationService.instance.onMessage.listen((msg) {
+      if (msg.data['type'] == null || realtimeConnected || _currentStaff == null) return;
+      unawaited(triggerSync());
     });
   }
 
@@ -194,7 +200,6 @@ class PosProvider extends ChangeNotifier {
       onConnectionChanged: (_) => notifyListeners(),
     );
     unawaited(_realtime!.connect(_currentOutlet.id));
-    unawaited(PushNotificationService.instance.subscribeToTopic('outlet_${_currentOutlet.id}'));
   }
 
   void _applyRealtimeEvent(String type, Map<String, dynamic> payload) {
@@ -1417,6 +1422,11 @@ class PosProvider extends ChangeNotifier {
   void logout() {
     final leaving = _currentStaff;
     if (apiEnabled && _api != null) {
+      // Stop this device receiving the outlet's alerts once nobody is signed in.
+      final token = PushNotificationService.instance.fcmToken;
+      if (token != null && token.isNotEmpty && (_sync?.online ?? false)) {
+        unawaited(_api!.unregisterDeviceToken(token));
+      }
       unawaited(_api!.logout());
       unawaited(_realtime?.dispose());
       _realtime = null;
@@ -3290,7 +3300,6 @@ class PosProvider extends ChangeNotifier {
     if (_currentStaff != null && !_currentStaff!.canAccessOutlet(outlet.id)) {
       return;
     }
-    final previousOutletId = _currentOutlet.id;
     _currentOutlet = outlet;
     _rebuildCategories();
     // The saved login follows the counter: a restart must land back here.
@@ -3298,9 +3307,6 @@ class PosProvider extends ChangeNotifier {
     // Strict outlet isolation: drop the previous outlet's board immediately so
     // no stale cross-outlet ticket is ever visible, then rehydrate.
     _kots.clear();
-    unawaited(PushNotificationService.instance
-        .unsubscribeFromTopic('outlet_$previousOutletId'));
-    unawaited(PushNotificationService.instance.subscribeToTopic('outlet_${outlet.id}'));
     unawaited(_realtime?.disconnect());
     notifyListeners();
     // A signed-in session is bound to the previous outlet server-side; the UI

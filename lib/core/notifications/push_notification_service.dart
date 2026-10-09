@@ -31,6 +31,8 @@ class PushNotificationService {
   String? get fcmToken => _fcmToken;
 
   final _messageController = StreamController<RemoteMessage>.broadcast();
+  final StreamController<String> _tokenRefreshController = StreamController<String>.broadcast();
+  Stream<String> get onTokenRefresh => _tokenRefreshController.stream;
   Stream<RemoteMessage> get onMessage => _messageController.stream;
 
   final _notificationOpenController = StreamController<RemoteMessage>.broadcast();
@@ -80,16 +82,18 @@ class PushNotificationService {
 
       // Retrieve device registration token
       _fcmToken = await _messaging!.getToken();
-      debugPrint('[FCM] Device Token: $_fcmToken');
 
-      // Listen for token refreshes
+      // A refreshed token must be re-registered with the server, or this
+      // device silently stops receiving its outlet's alerts. Tokens are
+      // credentials: never log them.
       _messaging!.onTokenRefresh.listen((newToken) {
         _fcmToken = newToken;
-        debugPrint('[FCM] Token refreshed: $newToken');
+        _tokenRefreshController.add(newToken);
       });
 
-      // Subscribe to default restaurant topics
-      await subscribeToTopic('hishobkr_orders');
+      // No topic subscriptions: FCM topics are unauthenticated and shared
+      // across every tenant. The server pushes to this device's registered
+      // token for its own outlet only.
 
       // Foreground message listener
       FirebaseMessaging.onMessage.listen((RemoteMessage message) {

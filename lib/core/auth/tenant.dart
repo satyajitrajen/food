@@ -182,11 +182,15 @@ EntitlementSnapshot entitlementFromServer(
 ) {
   final verified = verifyEntitlementToken(token ?? '');
   if (verified != null) return verified;
+  // No signed token: trust the server's plain fields. When those are missing
+  // too (older server), assume active for one day only. The server still
+  // enforces billing on every write (402), so this only drives the banner
+  // and the offline window.
   return EntitlementSnapshot(
     status: (entitlement?['status'] ?? 'active').toString(),
     validUntil: DateTime.tryParse(
             (entitlement?['valid_until'] ?? '').toString()) ??
-        DateTime.now().add(const Duration(days: 7)),
+        DateTime.now().add(const Duration(days: 1)),
     graceDays: (entitlement?['grace_days'] as num?)?.toInt() ?? 7,
     token: token ?? '',
     tokenVerified: token != null && token.isNotEmpty && kLicenseSecret.isEmpty,
