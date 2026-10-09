@@ -3183,6 +3183,17 @@ class PosProvider extends ChangeNotifier {
       itemsSummary: lines.map((l) => '${l['name']} ×${l['qty']}').join(', '),
     );
     _purchases.insert(0, record);
+    // Mirror the server's stock intake locally (ops.go bumps inventory_items
+    // on purchase create) so the terminal's ingredient list moves immediately.
+    // No stock.adjust push — that would double-count the intake.
+    for (final line in lines) {
+      final itemId = line['inventory_item_id'] as String?;
+      final qty = (line['qty'] as num?)?.toDouble() ?? 0;
+      if (itemId == null || itemId.isEmpty || qty <= 0) continue;
+      final item = _inventory.where((i) => i.id == itemId).firstOrNull;
+      if (item == null) continue;
+      item.availableStock = (item.availableStock + qty).clamp(0.0, double.infinity);
+    }
     // Credit purchases increase the supplier's outstanding due; the existing
     // markPurchasePaid settle clears it (mirrors server truth).
     if (status == 'pending' && supplierId != null && supplierId.isNotEmpty) {

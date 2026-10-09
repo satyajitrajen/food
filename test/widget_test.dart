@@ -10,6 +10,7 @@ import 'package:food_pos/models/table_model.dart';
 import 'package:food_pos/models/order_model.dart';
 import 'package:food_pos/models/kot_model.dart';
 import 'package:food_pos/models/expense_model.dart';
+import 'package:food_pos/models/inventory_model.dart';
 import 'package:food_pos/screens/dashboard/pos_dashboard_screen.dart';
 import 'package:food_pos/screens/order_flow/table_selection_screen.dart';
 import 'package:provider/provider.dart';
@@ -130,6 +131,35 @@ void main() {
       expect(find.text("Ground Floor"), findsOneWidget);
       expect(find.text("T01"), findsOneWidget);
       expect(find.text("T05"), findsOneWidget);
+    });
+
+    test('Record Purchase mirrors stock intake into local inventory', () {
+      final provider = fixtureProvider();
+      provider.addInventoryItem(InventoryItem(
+        id: 'inv-1',
+        name: 'Paneer',
+        availableStock: 5.0,
+        minStock: 2.0,
+        unit: 'KG',
+        costPerUnit: 100.0,
+      ));
+
+      provider.createPurchase(
+        invoiceNo: 'INV-77',
+        status: 'paid',
+        totalAmount: 650,
+        lines: [
+          {'inventory_item_id': 'inv-1', 'name': 'Paneer', 'qty': 10, 'unit_cost_paise': 5000},
+          // Unknown id and non-positive qty must be skipped, not crash.
+          {'inventory_item_id': 'inv-404', 'name': 'Ghost', 'qty': 3, 'unit_cost_paise': 100},
+          {'inventory_item_id': 'inv-1', 'name': 'Paneer', 'qty': 0, 'unit_cost_paise': 100},
+        ],
+      );
+
+      expect(
+        provider.inventory.firstWhere((i) => i.id == 'inv-1').availableStock,
+        15.0,
+      );
     });
 
     test('Cash Drawer Expected Cash formula calculates correctly', () {
