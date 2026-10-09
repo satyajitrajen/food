@@ -236,10 +236,9 @@ func (s *Server) handleCreateOrder(w http.ResponseWriter, r *http.Request) {
 		taxPercent := 5.0
 		var st *models.Settings
 		if v, err := s.Store.GetSettings(r.Context(), outletID); err == nil {
+			// The configured rate wins, including 0% (GST-exempt outlets).
 			st = v
-			if v.GSTPercent > 0 {
-				taxPercent = v.GSTPercent
-			}
+			taxPercent = v.GSTPercent
 		}
 		if req.TaxPercent != nil {
 			taxPercent = *req.TaxPercent

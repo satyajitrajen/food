@@ -512,4 +512,3 @@ func (s *Server) handleZReport(w http.ResponseWriter, r *http.Request) {
 	}
 	httpx.JSON(w, http.StatusOK, z)
 }
-

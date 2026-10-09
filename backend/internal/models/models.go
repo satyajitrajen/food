@@ -177,17 +177,17 @@ type OrderModifier struct {
 }
 
 type OrderItem struct {
-	ID           string          `json:"id"`
-	ClientID     *string         `json:"client_id,omitempty"`
-	MenuItemID   string          `json:"menu_item_id"`
-	VariantID    *string         `json:"variant_id"`
-	Quantity     int             `json:"quantity"`
-	UnitPaise    int64           `json:"unit_paise"`
-	TotalPaise   int64           `json:"total_paise"`
-	Note         *string         `json:"note"`
-	IsKOTSent    bool            `json:"is_kot_sent"`
-	IsCancelled  bool            `json:"is_cancelled"`
-	CancelReason *string         `json:"cancel_reason"`
+	ID           string  `json:"id"`
+	ClientID     *string `json:"client_id,omitempty"`
+	MenuItemID   string  `json:"menu_item_id"`
+	VariantID    *string `json:"variant_id"`
+	Quantity     int     `json:"quantity"`
+	UnitPaise    int64   `json:"unit_paise"`
+	TotalPaise   int64   `json:"total_paise"`
+	Note         *string `json:"note"`
+	IsKOTSent    bool    `json:"is_kot_sent"`
+	IsCancelled  bool    `json:"is_cancelled"`
+	CancelReason *string `json:"cancel_reason"`
 	// Name/VariantName/IsVeg are snapshotted when the line is added, so a
 	// later menu rename or delete never rewrites a bill.
 	Name        string          `json:"name"`
@@ -197,49 +197,49 @@ type OrderItem struct {
 }
 
 type Order struct {
-	ID              string      `json:"id"`
-	ClientID        *string     `json:"client_id,omitempty"`
-	OutletID        string      `json:"outlet_id"`
-	OrderNumber     string      `json:"order_number"`
-	Type            string      `json:"type"`   // dine_in|takeaway|delivery
-	Status          string      `json:"status"` // received|preparing|ready|served|billing|completed|cancelled|refunded
-	TableID         *string     `json:"table_id"`
-	TableNumber     *string     `json:"table_number"`
-	CustomerName    *string     `json:"customer_name"`
-	CustomerPhone   *string     `json:"customer_phone"`
-	DeliveryAddress *string     `json:"delivery_address"`
-	WaiterID        *string     `json:"waiter_id"`
-	WaiterName      *string     `json:"waiter_name"`
-	GuestCount      int         `json:"guest_count"`
-	OrderNote       *string     `json:"order_note"`
-	SubtotalPaise   int64       `json:"subtotal_paise"`
-	DiscountPercent float64     `json:"discount_percent"`
-	DiscountPaise   int64       `json:"discount_paise"`
-	DiscountReason  *string     `json:"discount_reason"`
-	TaxPercent      float64     `json:"tax_percent"`
-	IsTaxInclusive  bool        `json:"is_tax_inclusive"`
-	TaxPaise        int64       `json:"tax_paise"`
-	ServicePaise    int64       `json:"service_charge_paise"`
+	ID              string  `json:"id"`
+	ClientID        *string `json:"client_id,omitempty"`
+	OutletID        string  `json:"outlet_id"`
+	OrderNumber     string  `json:"order_number"`
+	Type            string  `json:"type"`   // dine_in|takeaway|delivery
+	Status          string  `json:"status"` // received|preparing|ready|served|billing|completed|cancelled|refunded
+	TableID         *string `json:"table_id"`
+	TableNumber     *string `json:"table_number"`
+	CustomerName    *string `json:"customer_name"`
+	CustomerPhone   *string `json:"customer_phone"`
+	DeliveryAddress *string `json:"delivery_address"`
+	WaiterID        *string `json:"waiter_id"`
+	WaiterName      *string `json:"waiter_name"`
+	GuestCount      int     `json:"guest_count"`
+	OrderNote       *string `json:"order_note"`
+	SubtotalPaise   int64   `json:"subtotal_paise"`
+	DiscountPercent float64 `json:"discount_percent"`
+	DiscountPaise   int64   `json:"discount_paise"`
+	DiscountReason  *string `json:"discount_reason"`
+	TaxPercent      float64 `json:"tax_percent"`
+	IsTaxInclusive  bool    `json:"is_tax_inclusive"`
+	TaxPaise        int64   `json:"tax_paise"`
+	ServicePaise    int64   `json:"service_charge_paise"`
 	// ServicePercent > 0 derives ServicePaise from the discounted net on every
 	// billing pass (default from settings on dine-in); a flat
 	// service_charge_paise PATCH clears it.
-	ServicePercent  float64     `json:"service_percent"`
-	PackagingPaise  int64       `json:"packaging_charge_paise"`
-	DeliveryPaise   int64       `json:"delivery_charge_paise"`
-	GrandTotalPaise int64       `json:"grand_total_paise"`
-	InvoiceNumber   *string     `json:"invoice_number"`
-	PaidAt          *time.Time  `json:"paid_at"`
-	PaymentMethod   *string     `json:"payment_method"` // cash|upi|card|credit
-	PaymentRef      *string     `json:"payment_reference"`
-	CustomerID      *string     `json:"customer_id"`
-	PaidPaise       int64       `json:"paid_paise"`
-	ChangePaise     int64       `json:"change_paise"`
+	ServicePercent  float64    `json:"service_percent"`
+	PackagingPaise  int64      `json:"packaging_charge_paise"`
+	DeliveryPaise   int64      `json:"delivery_charge_paise"`
+	GrandTotalPaise int64      `json:"grand_total_paise"`
+	InvoiceNumber   *string    `json:"invoice_number"`
+	PaidAt          *time.Time `json:"paid_at"`
+	PaymentMethod   *string    `json:"payment_method"` // cash|upi|card|credit
+	PaymentRef      *string    `json:"payment_reference"`
+	CustomerID      *string    `json:"customer_id"`
+	PaidPaise       int64      `json:"paid_paise"`
+	ChangePaise     int64      `json:"change_paise"`
 	// RefundedPaise is the cumulative refunded amount (≤ grand total).
-	RefundedPaise   int64       `json:"refunded_paise"`
-	IdempotencyKey  *string     `json:"-"`
-	CreatedAt       time.Time   `json:"created_at"`
-	UpdatedAt       time.Time   `json:"updated_at"`
-	Items           []OrderItem `json:"items"`
+	RefundedPaise  int64       `json:"refunded_paise"`
+	IdempotencyKey *string     `json:"-"`
+	CreatedAt      time.Time   `json:"created_at"`
+	UpdatedAt      time.Time   `json:"updated_at"`
+	Items          []OrderItem `json:"items"`
 }
 
 type OrderCreate struct {
@@ -485,15 +485,15 @@ type CustomerCreate struct {
 }
 
 type InventoryItem struct {
-	ID        string     `json:"id"`
-	OutletID  string     `json:"outlet_id"`
-	Name      string     `json:"name"`
-	Unit      string     `json:"unit"`
-	Stock     float64    `json:"stock"`
-	MinStock  float64    `json:"min_stock"`
-	CostPaise int64      `json:"cost_paise"`
-	BatchNo   *string    `json:"batch_no,omitempty"`
-	RackNo    *string    `json:"rack_no,omitempty"`
+	ID          string     `json:"id"`
+	OutletID    string     `json:"outlet_id"`
+	Name        string     `json:"name"`
+	Unit        string     `json:"unit"`
+	Stock       float64    `json:"stock"`
+	MinStock    float64    `json:"min_stock"`
+	CostPaise   int64      `json:"cost_paise"`
+	BatchNo     *string    `json:"batch_no,omitempty"`
+	RackNo      *string    `json:"rack_no,omitempty"`
 	PurchasedAt *time.Time `json:"purchased_at,omitempty"`
 }
 
@@ -568,16 +568,16 @@ type Purchase struct {
 // ---- Supplier payments (direct payouts against outstanding dues) ----
 
 type SupplierPayment struct {
-	ID           string     `json:"id"`
-	OutletID     string     `json:"outlet_id"`
-	SupplierID   string     `json:"supplier_id"`
-	SupplierName string     `json:"supplier_name"`
-	Amount       int64      `json:"amount_paise"`
-	Method       string     `json:"method"` // cash|upi|bank_transfer
-	Reference    *string    `json:"reference"`
-	StaffID      *string    `json:"staff_id"`
-	StaffName    *string    `json:"staff_name"`
-	Ts           time.Time  `json:"ts"`
+	ID           string    `json:"id"`
+	OutletID     string    `json:"outlet_id"`
+	SupplierID   string    `json:"supplier_id"`
+	SupplierName string    `json:"supplier_name"`
+	Amount       int64     `json:"amount_paise"`
+	Method       string    `json:"method"` // cash|upi|bank_transfer
+	Reference    *string   `json:"reference"`
+	StaffID      *string   `json:"staff_id"`
+	StaffName    *string   `json:"staff_name"`
+	Ts           time.Time `json:"ts"`
 }
 
 type SupplierPaymentCreate struct {

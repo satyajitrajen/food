@@ -1,7 +1,9 @@
 package api
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"strings"
@@ -320,6 +322,37 @@ func publicStaff(list []models.Staff) []models.PublicStaff {
 }
 
 func (s *Server) handleCreateStaff(w http.ResponseWriter, r *http.Request) {
+	s.withIdempotency(w, r, func() (int, any, error) {
+		rec := &captureWriter{header: http.Header{}}
+		s.createStaff(rec, r)
+		if rec.status == 0 {
+			rec.status = http.StatusOK
+		}
+		if rec.status >= 400 {
+			var env struct {
+				Error httpx.AppError `json:"error"`
+			}
+			_ = json.Unmarshal(rec.body.Bytes(), &env)
+			env.Error.Status = rec.status
+			return 0, nil, &env.Error
+		}
+		return rec.status, json.RawMessage(rec.body.Bytes()), nil
+	})
+}
+
+// captureWriter buffers a handler's response so it can run inside
+// withIdempotency.
+type captureWriter struct {
+	header http.Header
+	status int
+	body   bytes.Buffer
+}
+
+func (c *captureWriter) Header() http.Header         { return c.header }
+func (c *captureWriter) Write(b []byte) (int, error) { return c.body.Write(b) }
+func (c *captureWriter) WriteHeader(code int)        { c.status = code }
+
+func (s *Server) createStaff(w http.ResponseWriter, r *http.Request) {
 	var req models.StaffCreate
 	if err := httpx.Decode(r, &req); err != nil {
 		httpx.ErrorJSON(w, r, err)

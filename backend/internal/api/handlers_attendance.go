@@ -102,27 +102,23 @@ func (s *Server) handleListSupplierPayments(w http.ResponseWriter, r *http.Reque
 // (server truth for the client ledger). The drawer leg for cash payouts stays
 // the expense/cash-move flow's job (single source of truth for shift math).
 func (s *Server) handleCreateSupplierPayment(w http.ResponseWriter, r *http.Request) {
-	var req models.SupplierPaymentCreate
-	if err := httpx.Decode(r, &req); err != nil {
-		httpx.ErrorJSON(w, r, err)
-		return
-	}
-	outletID := outletScope(r)
-	if outletID == "" {
-		httpx.ErrorJSON(w, r, httpx.NewError(400, "missing_outlet", "outlet_id is required"))
-		return
-	}
-	if sup, err := s.Store.GetSupplier(r.Context(), pathID(r, "id")); err != nil || sup == nil || sup.OutletID != outletID {
-		httpx.ErrorJSON(w, r, httpx.NewError(400, "invalid_supplier", "Supplier not found in this outlet"))
-		return
-	}
-	claims, _ := claimsFrom(r)
-	pay, sup, err := s.Store.CreateSupplierPayment(r.Context(), outletID, pathID(r, "id"), req, claims.ActorID, claims.Name)
-	if err != nil {
-		httpx.ErrorJSON(w, r, err)
-		return
-	}
-	httpx.JSON(w, http.StatusCreated, map[string]any{"payment": pay, "supplier": sup})
+	s.withIdempotency(w, r, func() (int, any, error) {
+		var req models.SupplierPaymentCreate
+		if err := httpx.Decode(r, &req); err != nil {
+			return 0, nil, err
+		}
+		outletID := outletScope(r)
+		if outletID == "" {
+			return 0, nil, httpx.NewError(400, "missing_outlet", "outlet_id is required")
+		}
+		claims, _ := claimsFrom(r)
+		// The store checks the supplier belongs to this outlet under a row lock.
+		pay, sup, err := s.Store.CreateSupplierPayment(r.Context(), outletID, pathID(r, "id"), req, claims.ActorID, claims.Name)
+		if err != nil {
+			return 0, nil, err
+		}
+		return http.StatusCreated, map[string]any{"payment": pay, "supplier": sup}, nil
+	})
 }
 
 // handleListCashMoves: recent cash-move ledger across the outlet's shifts
