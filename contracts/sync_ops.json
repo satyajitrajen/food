@@ -1,0 +1,180 @@
+{
+  "_doc": "Canonical wire contract for every offline-sync op. 'payload' is what PosProvider enqueues; 'body' is EXACTLY what must reach the server (path ids live in 'path' only — the Go side decodes 'body' with DisallowUnknownFields into 'model'). Tested by test/sync_contract_test.dart and backend/internal/api/sync_contract_test.go. Add an entry whenever an op is added or its body changes.",
+  "ops": {
+    "order.create": {
+      "method": "POST", "path": "/api/v1/orders", "model": "OrderCreate", "idempotent": true,
+      "payload": {"local_id": "ord-local-1", "outlet_id": "out-1", "type": "takeaway", "table_id": null, "customer_name": "Asha", "customer_phone": "9820000000", "delivery_address": null, "waiter_id": "st-1", "waiter_name": "Ravi", "guest_count": 2, "order_note": "less spicy"},
+      "body": {"type": "takeaway", "client_id": "ord-local-1", "customer_name": "Asha", "customer_phone": "9820000000", "waiter_id": "st-1", "waiter_name": "Ravi", "guest_count": 2, "order_note": "less spicy"}
+    },
+    "order.patch": {
+      "method": "PATCH", "path": "/api/v1/orders/ord-1", "model": "OrderPatch", "idempotent": false,
+      "payload": {"outlet_id": "out-1", "order_id": "ord-1", "status": "billing", "waiter_id": "st-1", "guest_count": 3, "order_note": "n", "customer_name": "A", "customer_phone": "9", "discount_percent": 10, "discount_paise": 0, "discount_reason": "regular", "service_charge_paise": 0, "packaging_charge_paise": 1000, "delivery_charge_paise": 0, "manager_pin": "1234"},
+      "body": {"status": "billing", "waiter_id": "st-1", "guest_count": 3, "order_note": "n", "customer_name": "A", "customer_phone": "9", "discount_percent": 10, "discount_paise": 0, "discount_reason": "regular", "service_charge_paise": 0, "packaging_charge_paise": 1000, "delivery_charge_paise": 0, "manager_pin": "1234"}
+    },
+    "order.add_item": {
+      "method": "POST", "path": "/api/v1/orders/ord-1/items", "model": "OrderItemAdd", "idempotent": true,
+      "payload": {"outlet_id": "out-1", "order_id": "ord-1", "local_item_id": "item-local-1", "menu_item_id": "mi-1", "variant_id": "var-1", "quantity": 2, "note": "no onion", "modifiers": ["mod-1"]},
+      "body": {"menu_item_id": "mi-1", "client_id": "item-local-1", "variant_id": "var-1", "quantity": 2, "note": "no onion", "modifiers": [{"modifier_item_id": "mod-1"}]}
+    },
+    "item.qty": {
+      "method": "PATCH", "path": "/api/v1/orders/ord-1/items/it-1", "model": "OrderItemPatch", "idempotent": false,
+      "payload": {"outlet_id": "out-1", "order_id": "ord-1", "item_id": "it-1", "quantity": 3, "manager_pin": "1234"},
+      "body": {"quantity": 3, "manager_pin": "1234"}
+    },
+    "item.cancel": {
+      "method": "POST", "path": "/api/v1/orders/ord-1/items/it-1/cancel", "model": "CancelItemReq", "idempotent": false,
+      "payload": {"outlet_id": "out-1", "order_id": "ord-1", "item_id": "it-1", "reason": "Customer changed mind", "manager_pin": "1234"},
+      "body": {"reason": "Customer changed mind", "manager_pin": "1234"}
+    },
+    "kot.fire": {
+      "method": "POST", "path": "/api/v1/orders/ord-1/kot", "model": "Empty", "idempotent": true,
+      "payload": {"outlet_id": "out-1", "order_id": "ord-1"},
+      "body": {}
+    },
+    "kot.status": {
+      "method": "PATCH", "path": "/api/v1/kots/kot-1", "model": "KOTStatusPatch", "idempotent": false,
+      "payload": {"outlet_id": "out-1", "kot_id": "kot-1", "status": "ready"},
+      "body": {"status": "ready"}
+    },
+    "order.pay": {
+      "method": "POST", "path": "/api/v1/orders/ord-1/pay", "model": "PaymentReq", "idempotent": true,
+      "payload": {"outlet_id": "out-1", "order_id": "ord-1", "method": "card", "amount_received_paise": 50000, "splits": [{"method": "cash", "amount_paise": 20000}, {"method": "card", "amount_paise": 30000}], "reference": "TXN123", "customer_id": "cust-1"},
+      "body": {"method": "card", "amount_received_paise": 50000, "splits": [{"method": "cash", "amount_paise": 20000}, {"method": "card", "amount_paise": 30000}], "reference": "TXN123", "customer_id": "cust-1"}
+    },
+    "order.refund": {
+      "method": "POST", "path": "/api/v1/orders/ord-1/refund", "model": "RefundReq", "idempotent": true,
+      "payload": {"outlet_id": "out-1", "order_id": "ord-1", "amount_paise": 10000, "reason": "cold food", "is_full_refund": false, "mode": "original", "manager_pin": "1234"},
+      "body": {"amount_paise": 10000, "reason": "cold food", "is_full_refund": false, "mode": "original", "manager_pin": "1234"}
+    },
+    "shift.open": {
+      "method": "POST", "path": "/api/v1/shifts/open", "model": "ShiftOpenReq", "idempotent": true,
+      "payload": {"outlet_id": "out-1", "local_id": "sh-local-1", "opening_paise": 500000, "notes": "float", "denominations": {"d500": 10, "d200": 0, "d100": 0, "d50": 0, "d20": 0, "d10": 0}},
+      "body": {"opening_paise": 500000, "notes": "float", "denominations": {"d500": 10, "d200": 0, "d100": 0, "d50": 0, "d20": 0, "d10": 0}}
+    },
+    "shift.close": {
+      "method": "POST", "path": "/api/v1/shifts/current/close", "model": "ShiftCloseReq", "idempotent": true,
+      "payload": {"outlet_id": "out-1", "counted_paise": 480000, "notes": "short 200", "denominations": {"d500": 9, "d200": 1, "d100": 1, "d50": 0, "d20": 3, "d10": 2, "coins_paise": 1500}},
+      "body": {"counted_paise": 480000, "notes": "short 200", "denominations": {"d500": 9, "d200": 1, "d100": 1, "d50": 0, "d20": 3, "d10": 2, "coins_paise": 1500}}
+    },
+    "cash.move": {
+      "method": "POST", "path": "/api/v1/shifts/current/cash-move", "model": "CashMoveReq", "idempotent": true,
+      "payload": {"outlet_id": "out-1", "type": "cash_in", "amount_paise": 10000, "reason": "change", "reference": "r1", "at": "2026-10-09T10:00:00.000Z"},
+      "body": {"type": "cash_in", "amount_paise": 10000, "reason": "change", "reference": "r1", "at": "2026-10-09T10:00:00.000Z"}
+    },
+    "expense.create": {
+      "method": "POST", "path": "/api/v1/expenses", "model": "ExpenseCreate", "idempotent": true,
+      "payload": {"outlet_id": "out-1", "local_id": "exp-local-1", "title": "Gas", "category": "utilities", "amount_paise": 120000, "method": "cash", "vendor": "HP", "reference": "B12", "note": "2 cylinders"},
+      "body": {"title": "Gas", "category": "utilities", "amount_paise": 120000, "method": "cash", "vendor": "HP", "reference": "B12", "note": "2 cylinders"}
+    },
+    "expense.delete": {
+      "method": "DELETE", "path": "/api/v1/expenses/exp-1", "model": "None", "idempotent": false,
+      "payload": {"outlet_id": "out-1", "expense_id": "exp-1"},
+      "body": null
+    },
+    "customer.create": {
+      "method": "POST", "path": "/api/v1/customers", "model": "CustomerCreate", "idempotent": true,
+      "payload": {"outlet_id": "out-1", "local_id": "cust-local-1", "name": "Asha", "phone": "9820000000", "email": "a@x.in", "address": "Pune"},
+      "body": {"name": "Asha", "phone": "9820000000", "email": "a@x.in", "address": "Pune"}
+    },
+    "credit.book": {
+      "method": "POST", "path": "/api/v1/customers/cust-1/credit", "model": "CreditBookReq", "idempotent": true,
+      "payload": {"outlet_id": "out-1", "customer_id": "cust-1", "kind": "settlement", "amount_paise": 5000, "reason": "paid back"},
+      "body": {"kind": "settlement", "amount_paise": 5000, "reason": "paid back"}
+    },
+    "stock.adjust": {
+      "method": "POST", "path": "/api/v1/inventory/inv-1/adjust", "model": "StockAdjust", "idempotent": true,
+      "payload": {"outlet_id": "out-1", "item_id": "inv-1", "delta": -2.5, "reason": "wastage"},
+      "body": {"delta": -2.5, "reason": "wastage"}
+    },
+    "table.status": {
+      "method": "PATCH", "path": "/api/v1/tables/tbl-1", "model": "TablePatch", "idempotent": false,
+      "payload": {"outlet_id": "out-1", "table_id": "tbl-1", "status": "cleaning"},
+      "body": {"status": "cleaning"}
+    },
+    "table.patch": {
+      "method": "PATCH", "path": "/api/v1/tables/tbl-1", "model": "TablePatch", "idempotent": false,
+      "payload": {"outlet_id": "out-1", "table_id": "tbl-1", "floor": "Terrace", "waiter_id": "st-1", "guest_count": 4},
+      "body": {"floor": "Terrace", "waiter_id": "st-1", "guest_count": 4}
+    },
+    "table.move": {
+      "method": "POST", "path": "/api/v1/tables/tbl-1/move", "model": "MoveTableReq", "idempotent": true,
+      "payload": {"outlet_id": "out-1", "from_table_id": "tbl-1", "to_table_id": "tbl-2"},
+      "body": {"to_table_id": "tbl-2"}
+    },
+    "table.merge": {
+      "method": "POST", "path": "/api/v1/tables/tbl-1/merge", "model": "MergeTableReq", "idempotent": true,
+      "payload": {"outlet_id": "out-1", "primary_table_id": "tbl-1", "secondary_table_id": "tbl-2"},
+      "body": {"secondary_table_id": "tbl-2"}
+    },
+    "table.unmerge": {
+      "method": "POST", "path": "/api/v1/tables/tbl-1/unmerge", "model": "Empty", "idempotent": false,
+      "payload": {"outlet_id": "out-1", "table_id": "tbl-1"},
+      "body": {}
+    },
+    "table.create": {
+      "method": "POST", "path": "/api/v1/tables", "model": "Table", "idempotent": true,
+      "payload": {"outlet_id": "out-1", "local_id": "tbl-local-1", "table_number": "T12", "seats": 4, "floor": "Main", "status": "available"},
+      "body": {"table_number": "T12", "seats": 4, "floor": "Main", "status": "available"}
+    },
+    "settings.update": {
+      "method": "PUT", "path": "/api/v1/settings", "model": "Settings", "idempotent": false,
+      "payload": {"outlet_id": "out-1", "restaurant_name": "Green Candle", "gst_percent": 5, "is_gst_inclusive": false, "service_percent": 0, "packaging_paise": 1000, "delivery_paise": 3000, "auto_print_kot": true, "allow_reprint": true, "billing_printer": "192.168.1.50:9100", "kitchen_printer": "", "bar_printer": "", "sections": ["Main"], "upi_id": "gc@upi", "upi_name": "Green Candle", "upi_qr_image": ""},
+      "body": {"restaurant_name": "Green Candle", "gst_percent": 5, "is_gst_inclusive": false, "service_percent": 0, "packaging_paise": 1000, "delivery_paise": 3000, "auto_print_kot": true, "allow_reprint": true, "billing_printer": "192.168.1.50:9100", "kitchen_printer": "", "bar_printer": "", "sections": ["Main"], "upi_id": "gc@upi", "upi_name": "Green Candle", "upi_qr_image": ""}
+    },
+    "outlet.patch": {
+      "method": "PATCH", "path": "/api/v1/outlets/out-1", "model": "OutletPatch", "idempotent": false,
+      "payload": {"outlet_id": "out-1", "name": "Green Candle Balawadi", "address": "Balawadi, Pune", "phone": "9820000000", "email": "gc@x.in", "gstin": "27ABCDE1234F1Z5", "fssai": "11521000000000", "timezone": "Asia/Kolkata"},
+      "body": {"name": "Green Candle Balawadi", "address": "Balawadi, Pune", "phone": "9820000000", "email": "gc@x.in", "gstin": "27ABCDE1234F1Z5", "fssai": "11521000000000", "timezone": "Asia/Kolkata"}
+    },
+    "menu.create": {
+      "method": "POST", "path": "/api/v1/menu", "model": "MenuItemUpsert", "idempotent": true,
+      "payload": {"outlet_id": "out-1", "local_id": "mi-local-1", "category_id": "Starters", "name": "Paneer Tikka", "description": "d", "price_paise": 24000, "is_veg": true, "image_url": "", "is_bestseller": false, "is_available": true, "variants": [{"id": "v1", "name": "Half", "price_paise": 14000}], "modifier_groups": []},
+      "body": {"category_id": "Starters", "name": "Paneer Tikka", "description": "d", "price_paise": 24000, "is_veg": true, "image_url": "", "is_bestseller": false, "is_available": true, "variants": [{"id": "v1", "name": "Half", "price_paise": 14000}], "modifier_groups": []}
+    },
+    "menu.update": {
+      "method": "PATCH", "path": "/api/v1/menu/mi-1", "model": "MenuItemUpsert", "idempotent": false,
+      "payload": {"outlet_id": "out-1", "menu_item_id": "mi-1", "category_id": "Starters", "name": "Paneer Tikka", "price_paise": 25000, "is_veg": true, "image_url": "", "is_bestseller": true, "is_available": false},
+      "body": {"category_id": "Starters", "name": "Paneer Tikka", "price_paise": 25000, "is_veg": true, "image_url": "", "is_bestseller": true, "is_available": false}
+    },
+    "menu.delete": {
+      "method": "DELETE", "path": "/api/v1/menu/mi-1", "model": "None", "idempotent": false,
+      "payload": {"outlet_id": "out-1", "menu_item_id": "mi-1"},
+      "body": null
+    },
+    "staff.create": {
+      "method": "POST", "path": "/api/v1/staff", "model": "StaffCreate", "idempotent": true,
+      "payload": {"outlet_id": "out-1", "local_id": "st-local-1", "name": "Ravi", "role": "waiter", "pin": "4821", "staff_outlet_id": "out-1", "avatar_url": "", "mobile": "9820000000"},
+      "body": {"name": "Ravi", "role": "waiter", "pin": "4821", "outlet_id": "out-1", "avatar_url": "", "mobile": "9820000000"}
+    },
+    "staff.patch": {
+      "method": "PATCH", "path": "/api/v1/staff/st-1", "model": "StaffPatch", "idempotent": false,
+      "payload": {"outlet_id": "out-1", "staff_id": "st-1", "name": "Ravi K", "role": "cashier", "staff_outlet_id": "", "is_active": true, "pin": "482193", "mobile": "9820000001"},
+      "body": {"name": "Ravi K", "role": "cashier", "outlet_id": "", "is_active": true, "pin": "482193", "mobile": "9820000001"}
+    },
+    "inventory.create": {
+      "method": "POST", "path": "/api/v1/inventory", "model": "InventoryItem", "idempotent": true,
+      "payload": {"outlet_id": "out-1", "local_id": "inv-local-1", "name": "Paneer", "unit": "kg", "stock": 5, "min_stock": 1, "cost_paise": 32000, "batch_no": "B1", "rack_no": "R2", "purchased_at": "2026-10-09T10:00:00.000Z"},
+      "body": {"name": "Paneer", "unit": "kg", "stock": 5, "min_stock": 1, "cost_paise": 32000, "batch_no": "B1", "rack_no": "R2", "purchased_at": "2026-10-09T10:00:00.000Z"}
+    },
+    "supplier.create": {
+      "method": "POST", "path": "/api/v1/suppliers", "model": "SupplierCreate", "idempotent": true,
+      "payload": {"outlet_id": "out-1", "local_id": "sup-local-1", "name": "Metro Dairy", "mobile": "9820000000", "email": "m@x.in", "category": "Dairy"},
+      "body": {"name": "Metro Dairy", "mobile": "9820000000", "email": "m@x.in", "category": "Dairy"}
+    },
+    "supplier.payment": {
+      "method": "POST", "path": "/api/v1/suppliers/sup-1/payments", "model": "SupplierPaymentCreate", "idempotent": true,
+      "payload": {"outlet_id": "out-1", "local_id": "spay-local-1", "supplier_id": "sup-1", "amount_paise": 150000, "method": "upi", "at": "2026-10-09T10:00:00.000Z", "reference": "UTR1"},
+      "body": {"amount_paise": 150000, "method": "upi", "at": "2026-10-09T10:00:00.000Z", "reference": "UTR1"}
+    },
+    "purchase.create": {
+      "method": "POST", "path": "/api/v1/purchases", "model": "PurchaseCreate", "idempotent": true,
+      "payload": {"outlet_id": "out-1", "local_id": "pur-local-1", "invoice_no": "INV-9", "supplier_id": "sup-1", "status": "pending", "total_paise": 64000, "purchased_at": "2026-10-09T10:00:00.000Z", "items": [{"inventory_item_id": "inv-1", "name": "Paneer", "qty": 2, "unit_cost_paise": 32000}]},
+      "body": {"invoice_no": "INV-9", "supplier_id": "sup-1", "status": "pending", "total_paise": 64000, "purchased_at": "2026-10-09T10:00:00.000Z", "items": [{"inventory_item_id": "inv-1", "name": "Paneer", "qty": 2, "unit_cost_paise": 32000}]}
+    },
+    "purchase.patch": {
+      "method": "PATCH", "path": "/api/v1/purchases/pur-1", "model": "PurchasePatch", "idempotent": false,
+      "payload": {"outlet_id": "out-1", "purchase_id": "pur-1", "status": "paid"},
+      "body": {"status": "paid"}
+    }
+  }
+}

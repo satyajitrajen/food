@@ -1,6 +1,7 @@
 package web
 
 import (
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -8,6 +9,9 @@ import (
 )
 
 func TestHandlerServesRootAndSPAFallback(t *testing.T) {
+	if _, err := fs.Stat(embedded, "webroot/index.html"); err != nil {
+		t.Skip("landing not built into webroot (run `make web`)")
+	}
 	h := Handler()
 	// "/" → index.html
 	rec := httptest.NewRecorder()

@@ -21,7 +21,8 @@ bin/
 .env.local
 
 # Built web assets (embedded at compile time by `make web`)
-internal/web/webroot/
+internal/web/webroot/*
+!internal/web/webroot/.gitkeep
 
 # IDE and OS
 .DS_Store
