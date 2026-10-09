@@ -7,32 +7,42 @@ export interface FAQItem {
 export const FAQS: FAQItem[] = [
   {
     id: 'faq-1',
-    question: 'How does FoodPOS work when our restaurant internet goes completely down?',
-    answer: 'FoodPOS is built from the ground up as an offline-first system. All billing operations — table orders, menu lookups, modifier selections, and bill settlements — run against a high-speed local device cache. Outbox transactions are queued and cryptographically persisted locally. Once Wi-Fi reconnects, FoodPOS automatically syncs transactions to your cloud database with timestamp integrity, guaranteeing zero lost orders or double bills.',
+    question: 'How does Hishobkr work when our restaurant internet goes down?',
+    answer: 'Hishobkr is offline-first. Table orders, menu lookups, KOTs, and bill settlements run against data stored on the device, and every change is queued in a local outbox. When the connection returns, the queue syncs to the cloud automatically using idempotent requests, so an order is never recorded twice.',
   },
   {
     id: 'faq-2',
-    question: 'Does FoodPOS calculate Indian GST (CGST & SGST) accurately?',
-    answer: 'Yes. FoodPOS provides compliant integer-paise tax math. It computes 5% restaurant GST (2.5% CGST + 2.5% SGST) over the taxable subtotal (net of discounts plus service charges, conforming to Indian F&B tax standards). It also supports composite tax schemes, alcohol tax slabs, and inclusive vs exclusive item pricing.',
+    question: 'How does Hishobkr handle GST (CGST & SGST)?',
+    answer: 'GST is configurable per outlet: set your GST rate and choose whether menu prices are tax-inclusive or tax-exclusive. Hishobkr splits the tax into CGST and SGST, computes it with integer-paise math, and prints your GSTIN on every GST invoice.',
   },
   {
     id: 'faq-3',
-    question: 'Can our captains and waitstaff use standard Android tablets or phones for table ordering?',
-    answer: 'Yes! FoodPOS runs natively on Android tablets, desktop PCs (Windows & Linux), and in the browser. Waiters can carry lightweight 8-inch or 10-inch Android tablets directly to tables to punch orders and fire KOTs in real-time.',
+    question: 'Can our captains and waiters use Android tablets or phones for table ordering?',
+    answer: 'Yes. Hishobkr runs on Android tablets and phones, on Windows desktops, and in the browser. Waiters can take orders at the table and fire KOTs straight to the kitchen display. Each staff member signs in with their own 4–6 digit PIN.',
   },
   {
     id: 'faq-4',
-    question: 'How does the Kitchen Display System (KDS) replace printed paper KOTs?',
-    answer: 'FoodPOS includes a dedicated display-only Kitchen role (Chef station). Chefs view live order tickets color-coded by waiting time and advance them through an immutable status state machine: New → Preparing → Ready → Served. This eliminates lost paper slips, kitchen confusion, and costly printer ink roll replacements.',
+    question: 'How does the Kitchen Display replace printed paper KOTs?',
+    answer: 'Hishobkr includes a display-only Kitchen role. KOTs appear on the kitchen screen as soon as they are fired, and chefs move each ticket from New to Preparing to Ready. Marking a ticket Ready notifies the floor, and the waiter marks it Served.',
   },
   {
     id: 'faq-5',
-    question: 'Which thermal printers and cash drawers are supported?',
-    answer: 'FoodPOS supports industry-standard 2-inch (58mm) and 3-inch (80mm) ESC/POS thermal receipt printers over USB, Bluetooth, and LAN/Wi-Fi (including brands like Epson, TVS, NGX, Everycom, and Posiflex). It also sends kick-signals to RJ11 cash drawers upon bill settlement.',
+    question: 'Which receipt printers are supported?',
+    answer: 'Hishobkr prints to ESC/POS thermal receipt printers (80 mm) connected over your local network (LAN or Wi-Fi). You can also share bills to guests on WhatsApp instead of printing.',
   },
   {
     id: 'faq-6',
-    question: 'How does shift closing prevent cash leaks and register shortages?',
-    answer: 'Cashiers perform a blind cash count at the end of each shift, entering physical currency denominations. FoodPOS cross-references this count against opening cash, cash sales, paid-in/paid-out entries, cash refunds, and petty cash expenses. It generates an instant Z-Report highlighting any variance, with an operational benchmark of keeping discrepancy within ±₹50.',
+    question: 'Does Hishobkr support takeaway, delivery, and split payments?',
+    answer: 'Yes. Besides dine-in tables, you can punch takeaway and delivery orders, and settle any bill across more than one payment mode, for example part cash and part UPI.',
+  },
+  {
+    id: 'faq-7',
+    question: 'How does shift closing catch cash shortages?',
+    answer: 'At the end of a shift the cashier does a blind cash count, entering the physical notes and coins without seeing the expected total. Hishobkr compares the count against opening cash, cash sales, paid-in/paid-out entries, and cash refunds, and the Z-report shows any variance.',
+  },
+  {
+    id: 'faq-8',
+    question: 'What does the plan include?',
+    answer: 'One plan at ₹1,999 per year: up to 5 outlets and 20 staff members, with a 7-day free trial. Start the trial from the owner console; you can enable auto-renew by UPI or card at any time.',
   },
 ];

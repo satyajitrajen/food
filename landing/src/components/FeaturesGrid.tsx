@@ -10,15 +10,15 @@ interface BentoFeature {
 
 const BENTO_FEATURES: BentoFeature[] = [
   {
-    title: 'Real-Time Sales & Z-Reports',
-    desc: 'Track live revenue, hourly sales velocity, and peak dining trends. Automated end-of-day Z-reports reconcile the register and eliminate cash drawer shortages.',
+    title: 'Sales Reports & Z-Reports',
+    desc: 'Sales by day, item, and payment mode, plus an end-of-shift Z-report that reconciles the register against a blind cash count so shortages surface the same night.',
     image: '/images/feature-reports.png',
-    imageAlt: 'Restaurant sales revenue analytics and Z-Report cashier reconciliation',
+    imageAlt: 'Sales report and Z-Report cash reconciliation screen',
     variant: 'wide',
   },
   {
     title: 'Live Kitchen Display & Order Flow',
-    desc: 'Every order shoots to the kitchen the second it is punched. Chefs progress tickets from New to Ready in one tap, notifying servers the instant food is up.',
+    desc: 'Every KOT reaches the kitchen display the moment it is fired. Chefs move tickets from New to Preparing to Ready, and marking a ticket Ready notifies the floor.',
     image: '/images/feature-kot.png',
     imageAlt: 'Live Kitchen Display System (KDS) screen with active tickets',
     variant: 'wide',
@@ -32,14 +32,14 @@ const BENTO_FEATURES: BentoFeature[] = [
   },
   {
     title: 'Instant WhatsApp Bills & Receipts',
-    desc: 'Send clean, branded PDF bills straight to your guest’s WhatsApp. Eliminate paper roll expenses and thermal printer jams.',
+    desc: 'Share the bill to your guest’s WhatsApp as a message or PDF, alongside or instead of a printed receipt.',
     image: '/images/feature-whatsapp.png',
-    imageAlt: 'Instant WhatsApp digital bill receipt and PDF delivery',
+    imageAlt: 'Bill shared to a guest on WhatsApp',
     variant: 'compact',
   },
   {
-    title: 'Flexible Split Tender Payments',
-    desc: 'Split any check across Cash, UPI QR code, and Card simultaneously with integer-paise math that always balances to the exact rupee.',
+    title: 'Split Tender Payments',
+    desc: 'Settle one bill across Cash, UPI, and Card with paise-exact math that always balances to the bill total. Works for dine-in, takeaway, and delivery orders.',
     image: '/images/feature-split.png',
     imageAlt: 'Split tender checkout across cash, UPI QR and card',
     variant: 'compact',

@@ -21,7 +21,9 @@ export const App: React.FC = () => {
   };
 
   // Owner & superadmin console: rendered standalone (no marketing chrome).
-  if (currentPath.startsWith('/console')) {
+  // /reset and /verify are the account e-mail links (backend mail templates).
+  const bare = currentPath.split('?')[0];
+  if (currentPath.startsWith('/console') || bare === '/reset' || bare === '/verify') {
     return <ConsoleApp />;
   }
 

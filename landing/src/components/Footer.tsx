@@ -1,6 +1,6 @@
 import React from 'react';
 import { useRouter } from '../router';
-import { WHATSAPP_NUMBER } from '../console/api';
+import { WHATSAPP_NUMBER, SUPPORT_EMAIL } from '../console/api';
 import { MessageCircle, Mail, MapPin } from 'lucide-react';
 
 export const Footer: React.FC = () => {
@@ -30,16 +30,16 @@ export const Footer: React.FC = () => {
               <img src="/logo.png" alt="Hishobkr" style={{ height: '36px', width: 'auto', display: 'block' }} />
             </div>
             <p>
-              The offline-first restaurant POS engineered for Indian dining, cafés, and QSRs. Fast billing, instant KOTs, and zero downtime.
+              The offline-first restaurant POS engineered for Indian dining, cafés, and QSRs. Fast billing, instant KOTs, and billing that keeps working offline.
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <MapPin size={14} style={{ color: 'var(--terracotta)' }} />
+                <MapPin size={14} style={{ color: 'var(--brand-primary)' }} />
                 <span>Pune, Maharashtra, India</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Mail size={14} style={{ color: 'var(--terracotta)' }} />
-                <span>support@hishobkr.com</span>
+                <Mail size={14} style={{ color: 'var(--brand-primary)' }} />
+                <a href={`mailto:${SUPPORT_EMAIL}`} style={{ color: 'inherit' }}>{SUPPORT_EMAIL}</a>
               </div>
             </div>
           </div>
@@ -66,9 +66,9 @@ export const Footer: React.FC = () => {
             </ul>
           </div>
 
-          {/* Compliance & Google Play Legal Col */}
+          {/* Legal Col */}
           <div>
-            <h4 className="footer-heading">Play Store Compliance</h4>
+            <h4 className="footer-heading">Legal</h4>
             <ul className="footer-links">
               <li>
                 <a href="/privacy-policy" onClick={(e) => handleLink(e, '/privacy-policy')}>
@@ -97,16 +97,27 @@ export const Footer: React.FC = () => {
           <div>
             <h4 className="footer-heading">Connect</h4>
             <ul className="footer-links">
-              <li>
-                <a
-                  href={`https://wa.me/${WHATSAPP_NUMBER}?text=Hi%20FoodPOS%2C%20I%20would%20like%20to%20speak%20with%20a%20product%20specialist.`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: '#25D366', fontWeight: 600 }}
-                >
-                  <MessageCircle size={16} /> WhatsApp Support
-                </a>
-              </li>
+              {WHATSAPP_NUMBER ? (
+                <li>
+                  <a
+                    href={`https://wa.me/${WHATSAPP_NUMBER}?text=Hi%20Hishobkr%2C%20I%20would%20like%20to%20speak%20with%20a%20product%20specialist.`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: 'var(--brand-primary)', fontWeight: 600 }}
+                  >
+                    <MessageCircle size={16} /> WhatsApp Support
+                  </a>
+                </li>
+              ) : (
+                <li>
+                  <a
+                    href={`mailto:${SUPPORT_EMAIL}`}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: 'var(--brand-primary)', fontWeight: 600 }}
+                  >
+                    <Mail size={16} /> Email Support
+                  </a>
+                </li>
+              )}
               <li>
                 <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                   Monday &ndash; Sunday: 9 AM &ndash; 11 PM IST

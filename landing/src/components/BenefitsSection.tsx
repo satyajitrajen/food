@@ -10,8 +10,8 @@ import {
 const BENEFITS = [
   {
     icon: <Zap size={22} />,
-    title: '90-Second Billing',
-    desc: 'Section, table, order, KOT, and settle. The whole loop fits inside the 90-second window a waiter has during peak service.',
+    title: 'Fast Table-to-Bill Flow',
+    desc: 'Section, table, order, KOT, and settle in a few taps, so the whole loop fits the short window a waiter has during peak service.',
   },
   {
     icon: <Database size={22} />,
@@ -21,25 +21,26 @@ const BENEFITS = [
   {
     icon: <ChefHat size={22} />,
     title: 'Live Kitchen Display',
-    desc: 'No more lost paper KOT slips. Chefs work an immutable New → Preparing → Ready flow and the waiters are notified automatically.',
+    desc: 'No more lost paper KOT slips. Chefs work a New → Preparing → Ready flow and the floor is notified when food is ready.',
   },
   {
     icon: <ShieldCheck size={22} />,
-    title: 'Theft-Proof Cash Counts',
-    desc: 'Denomination-level blind counts, cash-in/out logs, and Z-reports make unrecorded payouts and register shortages visible.',
+    title: 'Blind Cash Counts',
+    desc: 'Blind denomination counts at shift close, cash-in/out logs, and Z-reports make unrecorded payouts and register shortages visible.',
   },
   {
     icon: <Rocket size={22} />,
     title: 'Multi-Outlet SaaS',
-    desc: 'One owner console across every branch, with per-outlet staff, menus, and reports, plus your own kitchen branding.',
+    desc: 'One owner console across up to 5 outlets, with per-outlet staff, menus, and reports.',
   },
 ];
 
 const TAGS = [
-  '5% GST Accurate',
+  'Configurable GST',
   'WhatsApp Bills',
-  'UPI & Card Splits',
+  '4–6 Digit Staff PINs',
   'Split Tender',
+  'Takeaway & Delivery',
   'Multi-Outlet',
   'Free Updates',
 ];
@@ -55,7 +56,7 @@ export const BenefitsSection: React.FC = () => {
             Unlock a New Era of Restaurant Operations, Even When the Internet Drops
           </h2>
           <p className="t-benefits-desc">
-            FoodPOS treats a restaurant like the high-pressure machine it is. Every screen
+            Hishobkr treats a restaurant like the high-pressure machine it is. Every screen
             is built so a full dining room stays smooth, accurate, and audit-clean from the
             first order to the final Z-report.
           </p>

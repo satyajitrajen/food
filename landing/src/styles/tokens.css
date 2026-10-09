@@ -1,4 +1,4 @@
-/* FoodPOS Design Tokens — Gourmet Street & Dining System */
+/* Hishobkr Design Tokens — brand green + black */
 :root {
   /* Canvas & Framing */
   --bg-canvas: #F5F1EA;
@@ -13,13 +13,17 @@
   --pill-active-text: #0C0C0C;
   --pill-inactive-text: #B8B3AC;
 
-  /* Primary Brand — Vibrant Gourmet Orange / Coral */
-  --orange-primary: #FF5722;
-  --orange-hover: #F4511E;
-  --orange-active: #E64A19;
-  --orange-light: #FFF2ED;
-  --orange-border: #FFD8CC;
-  --orange-glow: rgba(255, 87, 34, 0.28);
+  /* Primary brand — Hishobkr green (matches the app's primary) + black.
+     --brand-primary is 5.5:1 on white: safe for body text, links and
+     white-on-green buttons. --brand-accent is for dark (#111) surfaces only. */
+  --brand-primary: #067A37;
+  --brand-primary-hover: #05692F;
+  --brand-primary-active: #045A28;
+  --brand-primary-light: #E8F5EE;
+  --brand-primary-border: #B9DFC8;
+  --brand-glow: rgba(6, 122, 55, 0.24);
+  --brand-accent: #3DDC84;
+  --brand-dark: #111111;
 
   /* Secondary Accents */
   --color-black: #0E0E0E;
@@ -27,8 +31,8 @@
   --color-emerald: #2D6A4F;
   --color-emerald-light: #F0F7F4;
   --color-emerald-border: #D1E7DD;
-  --color-amber: #E28743;
-  --color-amber-light: #FEF7EF;
+  --color-warning: #B45309;
+  --color-warning-light: #FEF6E7;
 
   /* Typography Colors */
   --text-heading: #121212;
@@ -45,7 +49,7 @@
   /* Shadows */
   --shadow-frame: 0 32px 72px -16px rgba(40, 30, 20, 0.08), 0 12px 28px -8px rgba(40, 30, 20, 0.04);
   --shadow-float-card: 0 16px 36px -8px rgba(0, 0, 0, 0.16), 0 6px 14px -4px rgba(0, 0, 0, 0.08);
-  --shadow-pill: 0 8px 24px -4px rgba(255, 87, 34, 0.3);
+  --shadow-pill: 0 8px 24px -4px rgba(6, 122, 55, 0.28);
   --shadow-nav: 0 20px 40px -10px rgba(0, 0, 0, 0.35);
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.04);
   --shadow-md: 0 8px 20px rgba(0, 0, 0, 0.06);
@@ -63,15 +67,6 @@
   --font-mono: 'JetBrains Mono', monospace;
 
   /* Compatibility Aliases */
-  --terracotta: var(--orange-primary);
-  --terracotta-hover: var(--orange-hover);
-  --terracotta-active: var(--orange-active);
-  --terracotta-light: var(--orange-light);
-  --terracotta-border: var(--orange-border);
-  --spice-ochre: var(--color-amber);
-  --spice-ochre-light: var(--color-amber-light);
-  --spice-ochre-border: #FCE6D2;
-  --spice-ochre-dark: #C66E2B;
   --emerald-herbal: var(--color-emerald);
   --emerald-herbal-light: var(--color-emerald-light);
   --emerald-herbal-border: var(--color-emerald-border);

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { X, Sparkles, CheckCircle2, MessageCircle, ArrowRight, Loader2 } from 'lucide-react';
-import { WHATSAPP_NUMBER, createLead } from '../console/api';
+import { X, Sparkles, CheckCircle2, MessageCircle, ArrowRight, Loader2, Mail } from 'lucide-react';
+import { WHATSAPP_NUMBER, SUPPORT_EMAIL, createLead } from '../console/api';
 
 interface DemoModalProps {
   isOpen: boolean;
@@ -58,9 +58,9 @@ export const DemoModal: React.FC<DemoModalProps> = ({ isOpen, onClose, defaultPl
       return;
     }
     setSubmitting(true);
-    // Fallback reference for when the API is unreachable — the WhatsApp
+    // No reference is shown when the API is unreachable — the WhatsApp
     // button below still gets the lead to a human.
-    let ref = `DEMO-${Math.floor(1000 + Math.random() * 9000)}`;
+    let ref = '';
     let ok = false;
     try {
       const res = await createLead({
@@ -95,7 +95,7 @@ export const DemoModal: React.FC<DemoModalProps> = ({ isOpen, onClose, defaultPl
   };
 
   const whatsappMessage = encodeURIComponent(
-    `Hi FoodPOS Team! I would like to schedule a 15-minute live demo.\n\nRestaurant: ${restaurantName}\nCity: ${city}\nContact: ${contactName}\nPhone: ${phone}\nFormat: ${outletFormat}\nTicket: ${demoId || 'NEW'}`
+    `Hi Hishobkr team! I would like to schedule a 15-minute live demo.\n\nRestaurant: ${restaurantName}\nCity: ${city}\nContact: ${contactName}\nPhone: ${phone}\nFormat: ${outletFormat}${demoId ? `\nReference: ${demoId}` : ''}`
   );
 
   return (
@@ -116,11 +116,11 @@ export const DemoModal: React.FC<DemoModalProps> = ({ isOpen, onClose, defaultPl
             <span className="hero-pill-badge" style={{ marginBottom: '12px', display: 'inline-block' }}>
               15-MIN PERSONALIZED WALKTHROUGH
             </span>
-            <h3 className="modal-title" id="demo-modal-title">Book a Live FoodPOS Demo</h3>
+            <h3 className="modal-title" id="demo-modal-title">Book a Hishobkr Demo</h3>
             <p className="modal-subtitle">
-              See how FoodPOS operates offline, handles rush-hour KOTs, and balances your drawer.
+              See how Hishobkr works offline, handles rush-hour KOTs, and closes a shift with a blind cash count.
               {defaultPlan && (
-                <span style={{ color: 'var(--terracotta)', fontWeight: 600 }}>
+                <span style={{ color: 'var(--brand-primary)', fontWeight: 600 }}>
                   {' '}Selected interest: {defaultPlan} Plan.
                 </span>
               )}
@@ -148,10 +148,11 @@ export const DemoModal: React.FC<DemoModalProps> = ({ isOpen, onClose, defaultPl
                 />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+              <div className="demo-form-row">
                 <div className="form-group">
-                  <label className="form-label">City *</label>
+                  <label className="form-label" htmlFor="demo-city">City *</label>
                   <select
+                    id="demo-city"
                     className="form-select"
                     value={city}
                     onChange={(e) => setCity(e.target.value)}
@@ -168,8 +169,9 @@ export const DemoModal: React.FC<DemoModalProps> = ({ isOpen, onClose, defaultPl
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Outlet Format</label>
+                  <label className="form-label" htmlFor="demo-format">Outlet Format</label>
                   <select
+                    id="demo-format"
                     className="form-select"
                     value={outletFormat}
                     onChange={(e) => setOutletFormat(e.target.value)}
@@ -182,11 +184,13 @@ export const DemoModal: React.FC<DemoModalProps> = ({ isOpen, onClose, defaultPl
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+              <div className="demo-form-row">
                 <div className="form-group">
-                  <label className="form-label">Owner / Manager Name</label>
+                  <label className="form-label" htmlFor="demo-contact">Owner / Manager Name</label>
                   <input
+                    id="demo-contact"
                     type="text"
+                    autoComplete="name"
                     placeholder="e.g. Satyajit"
                     className="form-input"
                     value={contactName}
@@ -249,11 +253,16 @@ export const DemoModal: React.FC<DemoModalProps> = ({ isOpen, onClose, defaultPl
             </div>
 
             <h3 className="modal-title" style={{ fontSize: '1.5rem' }}>
-              Demo Request Confirmed!
+              {saved ? 'Demo request received' : 'Almost there'}
             </h3>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', marginBottom: '20px' }}>
-              Thank you, <strong>{contactName || restaurantName}</strong>! Your demo reference code is{' '}
-              <span style={{ fontWeight: 700, color: 'var(--text-espresso)' }}>{demoId}</span>.
+              Thank you, <strong>{contactName || restaurantName}</strong>!
+              {saved && demoId && (
+                <>
+                  {' '}Your reference is{' '}
+                  <span style={{ fontWeight: 700, color: 'var(--text-espresso)' }}>{demoId}</span>.
+                </>
+              )}
             </p>
 
             <div
@@ -270,27 +279,40 @@ export const DemoModal: React.FC<DemoModalProps> = ({ isOpen, onClose, defaultPl
               <div><strong>Restaurant:</strong> {restaurantName} ({city})</div>
               <div><strong>Outlet Type:</strong> {outletFormat}</div>
               <div><strong>WhatsApp:</strong> {phone}</div>
-              <div style={{ marginTop: '8px', color: 'var(--emerald-herbal)', fontWeight: 600 }}>
-                ✓ An onboarding specialist will contact you within 2 business hours.
-              </div>
+              {saved && (
+                <div style={{ marginTop: '8px', color: 'var(--emerald-herbal)', fontWeight: 600 }}>
+                  ✓ We&apos;ll reach out on WhatsApp to fix a time.
+                </div>
+              )}
             </div>
 
             {!saved && (
-              <p style={{ color: 'var(--terracotta)', fontSize: '0.85rem', marginBottom: '12px' }}>
-                We couldn't save your request just now — please use WhatsApp below so we don't miss you.
+              <p role="alert" style={{ color: 'var(--non-veg-red)', fontSize: '0.85rem', marginBottom: '12px' }}>
+                We couldn't save your request just now — please{' '}
+                {WHATSAPP_NUMBER ? 'message us on WhatsApp below' : 'email us using the button below'} so we don't miss you.
               </p>
             )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <a
-                href={`https://wa.me/${WHATSAPP_NUMBER}?text=${whatsappMessage}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn btn-whatsapp"
-                style={{ width: '100%' }}
-              >
-                <MessageCircle size={18} /> Chat with Specialist on WhatsApp Now <ArrowRight size={16} />
-              </a>
+              {WHATSAPP_NUMBER ? (
+                <a
+                  href={`https://wa.me/${WHATSAPP_NUMBER}?text=${whatsappMessage}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn btn-whatsapp"
+                  style={{ width: '100%' }}
+                >
+                  <MessageCircle size={18} /> Chat with us on WhatsApp <ArrowRight size={16} />
+                </a>
+              ) : (
+                <a
+                  href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('Hishobkr demo request')}&body=${whatsappMessage}`}
+                  className="btn btn-primary"
+                  style={{ width: '100%' }}
+                >
+                  <Mail size={18} /> Email us <ArrowRight size={16} />
+                </a>
+              )}
 
               <button onClick={handleReset} className="btn btn-secondary" style={{ width: '100%' }}>
                 Done
