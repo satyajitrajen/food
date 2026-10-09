@@ -80,6 +80,8 @@ OrderStatus orderStatusFromApi(String s) {
       return OrderStatus.completed;
     case 'cancelled':
       return OrderStatus.cancelled;
+    case 'refunded':
+      return OrderStatus.refunded;
     default:
       return OrderStatus.received;
   }
@@ -145,26 +147,14 @@ String tableStatusToApi(TableStatus s) {
   }
 }
 
-String paymentMethodToApi(String label) {
-  switch (label) {
-    case 'UPI':
-      return 'upi';
-    case 'Card':
-      return 'card';
-    default:
-      return 'cash';
-  }
-}
+String paymentMethodToApi(String label) => PaymentMethodX.fromLabel(label).name;
 
+/// Refund modes: 'Cash' | 'UPI' | 'Original Method' (labels or API values).
 String refundModeToApi(String label) {
-  switch (label) {
-    case 'UPI':
-      return 'upi';
-    case 'Original':
-      return 'original';
-    default:
-      return 'cash';
-  }
+  final l = label.trim().toLowerCase();
+  if (l == 'upi') return 'upi';
+  if (l.startsWith('original')) return 'original';
+  return 'cash';
 }
 
 String staffRoleFromApi(String s) {
@@ -399,8 +389,11 @@ RestaurantOrder orderFromApi(
       deliveryCharge: toRupees(_int(j['delivery_charge_paise'])),
       invoiceNumber: _optStr(j['invoice_number']),
       paidAt: _dt(j['paid_at']),
-      paymentMethod: _optStr(j['payment_method']),
+      paymentMethod: _optStr(j['payment_method']) == null
+          ? null
+          : PaymentMethodX.fromLabel(_optStr(j['payment_method'])).label,
       totalPaid: toRupees(_int(j['paid_paise'])),
+      refundedAmount: toRupees(_int(j['refunded_paise'])),
     );
 
 KitchenOrderTicket kotFromApi(Map<String, dynamic> j) => KitchenOrderTicket(
@@ -588,7 +581,7 @@ DashboardStats dashboardReportFromApi(Map<String, dynamic> j) => DashboardStats(
 
 Map<String, double> _paiseMapToRupees(dynamic v) {
   if (v is! Map) return const {};
-  return v.map((k, value) => MapEntry(k.toString(), toRupees(_int(v))));
+  return v.map((k, value) => MapEntry(k.toString(), toRupees(_int(value))));
 }
 
 List<String> _strList(dynamic v) =>
@@ -616,7 +609,7 @@ List<Map<String, dynamic>> menuModifierGroupsToApi(List<ModifierGroup> groups) =
 RestaurantSettings settingsFromApi(Map<String, dynamic> j) {
   final base = RestaurantSettings();
   return base.copyWith(
-    restaurantName: _str(j['restaurant_name'], base.restaurantName),
+    restaurantName: _str(j['restaurant_name']),
     gstPercentage: _double(j['gst_percent']),
     isGstInclusive: j['is_gst_inclusive'] == true,
     defaultServiceChargePercent: _double(j['service_percent']),

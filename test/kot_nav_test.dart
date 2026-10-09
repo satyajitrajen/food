@@ -12,13 +12,15 @@ import 'package:provider/provider.dart';
 /// - "Floor Tables" returns to the shell with the Tables tab active.
 /// - Add More stays in the cart (no automatic pop/redirect).
 void main() {
-  Widget wrapProvider(PosProvider provider) => ChangeNotifierProvider<PosProvider>.value(
+  Widget wrapProvider(PosProvider provider) =>
+      ChangeNotifierProvider<PosProvider>.value(
         value: provider,
         child: const MaterialApp(home: CartViewScreen()),
       );
 
-  testWidgets('all-sent cart shows View Order + Checkout, no auto redirect',
-      (tester) async {
+  testWidgets('all-sent cart shows View Order + Checkout, no auto redirect', (
+    tester,
+  ) async {
     final provider = fixtureProvider();
     provider.selectTable(provider.tables.first);
     provider.addToCart(provider.menuItems.first);
@@ -38,30 +40,36 @@ void main() {
     expect(find.textContaining('Details'), findsOneWidget);
   });
 
-  testWidgets('KOT Sent dialog: each action navigates distinctly',
-      (tester) async {
+  testWidgets('KOT Sent dialog: each action navigates distinctly', (
+    tester,
+  ) async {
     var viewOrderTaps = 0;
     var floorTaps = 0;
     var addMoreTaps = 0;
 
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(
-        body: Builder(
-          builder: (context) => Center(
-            child: ElevatedButton(
-              onPressed: () => KOTSentDialog.show(
-                context,
-                kot: stubKot,
-                onAddMoreItems: () => addMoreTaps++,
-                onViewOrder: () => viewOrderTaps++,
-                onGoToTables: () => floorTaps++,
+    await tester.pumpWidget(
+      ChangeNotifierProvider<PosProvider>.value(
+        value: fixtureProvider(),
+        child: MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => Center(
+                child: ElevatedButton(
+                  onPressed: () => KOTSentDialog.show(
+                    context,
+                    kot: stubKot,
+                    onAddMoreItems: () => addMoreTaps++,
+                    onViewOrder: () => viewOrderTaps++,
+                    onGoToTables: () => floorTaps++,
+                  ),
+                  child: const Text('open'),
+                ),
               ),
-              child: const Text('open'),
             ),
           ),
         ),
       ),
-    ));
+    );
 
     await tester.tap(find.text('open'));
     await tester.pumpAndSettle();

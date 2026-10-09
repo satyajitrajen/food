@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../core/share/bill_pdf.dart';
 import '../../core/share/whatsapp_bill.dart';
+import '../../core/format.dart';
 import '../../core/theme/app_theme.dart';
+import '../../widgets/bill_breakdown.dart';
 import '../../models/order_model.dart';
 import '../../providers/pos_provider.dart';
 import '../../widgets/dialog_controller_scope.dart';
@@ -114,8 +115,14 @@ class PaymentSuccessScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final paidDate = order.paidAt ?? DateTime.now();
-    final dateFormatted = DateFormat('dd MMM yyyy, hh:mm a').format(paidDate);
+    final provider = context.watch<PosProvider>();
+    // Follow the order to its server version (real invoice number) once the
+    // payment is acknowledged.
+    final order = provider.orderById(this.order.id) ?? this.order;
+    final settings = provider.settings;
+    final paidDate = order.paidAt ?? order.createdAt;
+    final pending = order.invoiceNumber == null;
+    final name = settings.restaurantName.isEmpty ? provider.currentOutlet.name : settings.restaurantName;
 
     return Scaffold(
       backgroundColor: AppColors.creamBg,
@@ -127,98 +134,93 @@ class PaymentSuccessScreen extends StatelessWidget {
               constraints: const BoxConstraints(maxWidth: 440),
               child: Column(
                 children: [
-                  // Success Tick Animation Header
                   Container(
                     width: 72,
                     height: 72,
                     decoration: const BoxDecoration(
-                      color: AppColors.vegGreenBg,
+                      color: AppColors.successBg,
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.check_circle_rounded, color: AppColors.vegGreen, size: 48),
+                    child: const Icon(Icons.check_circle_rounded, color: AppColors.success, size: 48),
                   ),
                   const SizedBox(height: 16),
-                  const Text(
-                    'Payment Successful!',
-                    style: TextStyle(fontWeight: FontWeight.w900, fontSize: 24),
+                  Text(
+                    order.paymentMethod == 'Credit' ? 'Billed to customer account' : 'Payment received',
+                    style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 24),
+                    textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '₹${order.grandTotal.toStringAsFixed(0)} received via ${order.paymentMethod ?? "Cash"}',
+                    '${formatInr(order.grandTotal)} · ${order.paymentMethod ?? 'Cash'}',
                     style: const TextStyle(color: AppColors.primaryGreen, fontWeight: FontWeight.w800, fontSize: 16),
                   ),
                   const SizedBox(height: 24),
-
-                  // Thermal Receipt Paper Roll Preview
                   Container(
                     padding: const EdgeInsets.all(22),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: AppColors.creamCard,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(color: AppColors.borderLight, width: 1.5),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.04),
-                          blurRadius: 16,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
                     ),
                     child: Column(
                       children: [
-                        // Restaurant Header
-                        const Text(
-                          'SPICE HAVEN RESTO & BAR',
+                        Text(
+                          name.toUpperCase(),
                           textAlign: TextAlign.center,
-                          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 0.5),
+                          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 0.5),
                         ),
-                        const SizedBox(height: 2),
-                        const Text(
-                          'Plot 42, High Street, Baner, Pune - 411045',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: AppColors.textMuted, fontSize: 11),
-                        ),
-                        const Text(
-                          'GSTIN: 27AAAAA0000A1Z5 · FSSAI: 11521000000123',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: AppColors.textLight, fontSize: 10),
-                        ),
+                        if (settings.address.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            settings.address,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
+                          ),
+                        ],
+                        if (settings.gstin.isNotEmpty || settings.fssai.isNotEmpty)
+                          Text(
+                            [
+                              if (settings.gstin.isNotEmpty) 'GSTIN: ${settings.gstin}',
+                              if (settings.fssai.isNotEmpty) 'FSSAI: ${settings.fssai}',
+                            ].join(' · '),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(color: AppColors.textLight, fontSize: 10),
+                          ),
                         const Divider(height: 20, thickness: 1, color: AppColors.borderMedium),
-
-                        // Tax Invoice Metadata
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              'Invoice: ${order.invoiceNumber ?? order.orderNumber}',
-                              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+                            Expanded(
+                              child: Text(
+                                pending ? 'Invoice: pending sync' : 'Invoice: ${order.invoiceNumber}',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 12,
+                                  color: pending ? AppColors.warning : AppColors.textDark,
+                                ),
+                              ),
                             ),
-                            Text(
-                              dateFormatted,
-                              style: const TextStyle(color: AppColors.textLight, fontSize: 11),
-                            ),
+                            Text(formatDateTime(paidDate),
+                                style: const TextStyle(color: AppColors.textLight, fontSize: 11)),
                           ],
                         ),
                         const SizedBox(height: 4),
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              order.tableNumber != null
-                                  ? 'Table: ${order.tableNumber}'
-                                  : 'Type: ${order.orderTypeLabel}',
-                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                            Expanded(
+                              child: Text(
+                                order.tableNumber != null
+                                    ? 'Table ${order.tableNumber} · ${order.orderNumber}'
+                                    : '${order.orderTypeLabel} · ${order.orderNumber}',
+                                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                              ),
                             ),
-                            Text(
-                              'Cashier: ${order.waiterName ?? "Staff"}',
-                              style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
-                            ),
+                            if (order.waiterName != null)
+                              Text(order.waiterName!,
+                                  style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
                           ],
                         ),
                         const Divider(height: 20, thickness: 1, color: AppColors.borderMedium),
-
-                        // Items Breakdown
-                        for (var item in order.activeItems) ...[
+                        for (final item in order.activeItems)
                           Padding(
                             padding: const EdgeInsets.symmetric(vertical: 4),
                             child: Row(
@@ -229,74 +231,18 @@ class PaymentSuccessScreen extends StatelessWidget {
                                     style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
                                   ),
                                 ),
-                                Text(
-                                  '₹${item.totalPrice.toStringAsFixed(0)}',
-                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-                                ),
+                                Text(formatInr(item.totalPrice),
+                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
                               ],
                             ),
                           ),
-                        ],
                         const Divider(height: 20, thickness: 1, color: AppColors.borderMedium),
-
-                        // Taxes & Total
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text('Subtotal', style: TextStyle(fontSize: 12, color: AppColors.textMuted)),
-                            Text('₹${order.subtotal.toStringAsFixed(0)}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-                          ],
-                        ),
-                        if (order.computedDiscount > 0) ...[
-                          const SizedBox(height: 4),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text('Discount', style: TextStyle(fontSize: 12, color: AppColors.vegGreen)),
-                              Text('−₹${order.computedDiscount.toStringAsFixed(0)}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.vegGreen)),
-                            ],
-                          ),
-                        ],
-                        const SizedBox(height: 4),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            // B4: derived from the order's real tax rate.
-                            Text('CGST (${(order.taxPercent / 2).toStringAsFixed(1)}%)',
-                                style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
-                            Text('₹${order.cgst.toStringAsFixed(0)}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text('SGST (${(order.taxPercent / 2).toStringAsFixed(1)}%)',
-                                style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
-                            Text('₹${order.sgst.toStringAsFixed(0)}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                          ],
-                        ),
-                        const Divider(height: 20, thickness: 1.5, color: AppColors.textDark),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text('TOTAL PAID', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
-                            Text('₹${order.grandTotal.toStringAsFixed(0)}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: AppColors.primaryGreen)),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text('Payment Mode', style: TextStyle(fontSize: 12, color: AppColors.textMuted)),
-                            Text(order.paymentMethod ?? 'Cash', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-                          ],
-                        ),
+                        BillBreakdown(order: order, showPayment: true),
                         const Divider(height: 24, thickness: 1, color: AppColors.borderLight),
                         const Text(
-                          '*** THANK YOU FOR VISITING! ***\nPLEASE VISIT AGAIN',
+                          'Thank you for visiting!',
                           textAlign: TextAlign.center,
-                          style: TextStyle(color: AppColors.textLight, fontSize: 10, letterSpacing: 0.5),
+                          style: TextStyle(color: AppColors.textLight, fontSize: 11),
                         ),
                       ],
                     ),

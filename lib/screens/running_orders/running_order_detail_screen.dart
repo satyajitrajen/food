@@ -7,7 +7,7 @@ import '../../widgets/custom_badge.dart';
 import '../modals/move_table_dialog.dart';
 import '../modals/merge_tables_dialog.dart';
 import '../modals/cancel_item_dialog.dart';
-import '../billing/bill_preview_screen.dart';
+import '../payment/payment_screen.dart';
 import '../pos_menu/pos_menu_screen.dart';
 import '../../widgets/system_insets.dart';
 
@@ -279,7 +279,7 @@ class RunningOrderDetailScreen extends StatelessWidget {
                             onPressed: () {
                               provider.openRunningOrder(currentOrder);
                               Navigator.of(context).push(
-                                MaterialPageRoute(builder: (_) => const BillPreviewScreen()),
+                                MaterialPageRoute(builder: (_) => const PaymentScreen()),
                               );
                             },
                             icon: const Icon(Icons.receipt, size: 18),

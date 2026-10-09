@@ -3,9 +3,11 @@ import 'order_model.dart';
 enum KOTStatus { newTicket, preparing, ready, served, cancelled }
 
 class KitchenOrderTicket {
-  final String id;
+  /// Local optimistic tickets carry a terminal-generated id until the server
+  /// ack adopts its authoritative id/number (see PosProvider._upsertServerKot).
+  String id;
   final String outletId;
-  final String kotNumber; // e.g. 'KOT #1204'
+  String kotNumber; // e.g. 'KOT #1204'
   final String orderId;
   final String? tableNumber;
   final OrderType orderType;
@@ -14,6 +16,11 @@ class KitchenOrderTicket {
   KOTStatus status;
   final List<OrderItem> items;
   final String? specialInstructions;
+
+  /// True while this ticket is a local optimistic write awaiting the server's
+  /// authoritative copy; used to reconcile the SSE/ack ticket with the
+  /// optimistic one instead of rendering both.
+  bool pendingServerAck;
 
   KitchenOrderTicket({
     required this.id,
@@ -27,6 +34,7 @@ class KitchenOrderTicket {
     this.status = KOTStatus.newTicket,
     required this.items,
     this.specialInstructions,
+    this.pendingServerAck = false,
   });
 
   String get statusLabel {

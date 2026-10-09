@@ -10,7 +10,7 @@ import '../modals/kot_sent_dialog.dart';
 import '../modals/manager_pin_dialog.dart';
 import '../../widgets/confirm_dialog.dart';
 import '../../widgets/system_insets.dart';
-import '../billing/bill_preview_screen.dart';
+import '../payment/payment_screen.dart';
 import '../running_orders/running_order_detail_screen.dart';
 
 class CartViewScreen extends StatelessWidget {
@@ -408,7 +408,7 @@ class CartViewScreen extends StatelessWidget {
                         style: ElevatedButton.styleFrom(backgroundColor: AppColors.vegGreen),
                         onPressed: () {
                           Navigator.of(context).push(
-                            MaterialPageRoute(builder: (_) => const BillPreviewScreen()),
+                            MaterialPageRoute(builder: (_) => const PaymentScreen()),
                           );
                         },
                         icon: const Icon(Icons.point_of_sale, size: 16),

@@ -254,7 +254,8 @@ void main() {
       );
       expect(completedOrder, isNotNull);
       expect(completedOrder!.status, OrderStatus.completed);
-      expect(completedOrder.invoiceNumber, isNotNull);
+      // Invoice numbers are server-assigned (GST-sequential), never local.
+      expect(completedOrder.invoiceNumber, isNull);
       // Table freed up
       expect(table.status, TableStatus.available);
       expect(table.activeOrderId, isNull);

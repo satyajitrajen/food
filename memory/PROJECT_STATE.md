@@ -1,6 +1,15 @@
 # Project State (updated: 2026-09-13)
 
 ## Now
+Demo capture 2026-10-09: `demo/SCENARIOS.md` contains 31 shooting scripts;
+`demo/RECORDED.md` lists two captured sales/operations takes and quick copies.
+`tool/demo_main.dart` reuses the existing in-memory fixture loader without API
+calls; `tool/record-demo.ps1` records the Android emulator. Demo analysis,
+x64 release build, isolation widget test and video decoding passed. Existing
+KOT dialog widget test fails due to missing PosProvider in its fixture.
+Pixel 6 emulator currently runs the isolated demo; restore with normal
+`flutter run -d emulator-5554`. Server/hardware scenarios remain scripted only.
+
 Branch `feature/saas-conversion`: SaaS layer complete (org/tenant model, three
 token scopes, entitlement 402 gate, Razorpay + manual billing, React landing +
 /console embedded in the Go binary). Product review 2026-09-13 found 4 HIGH +

@@ -1,9 +1,10 @@
 import 'menu_model.dart';
 
 enum OrderType { dineIn, takeaway, delivery }
-enum OrderStatus { received, preparing, ready, served, billing, completed, cancelled }
+enum OrderStatus { received, preparing, ready, served, billing, completed, cancelled, refunded }
 
-enum PaymentMethod { cash, upi, card }
+/// `credit` = pay later, booked against a customer's ledger.
+enum PaymentMethod { cash, upi, card, credit }
 
 extension PaymentMethodX on PaymentMethod {
   String get label {
@@ -14,17 +15,21 @@ extension PaymentMethodX on PaymentMethod {
         return 'UPI';
       case PaymentMethod.card:
         return 'Card';
+      case PaymentMethod.credit:
+        return 'Credit';
     }
   }
 
+  /// Accepts UI labels ('UPI') and server values ('upi') alike.
   static PaymentMethod fromLabel(String? s) {
-    switch (s) {
-      case 'Cash':
-        return PaymentMethod.cash;
-      case 'UPI':
+    switch ((s ?? '').trim().toLowerCase()) {
+      case 'upi':
         return PaymentMethod.upi;
-      case 'Card':
+      case 'card':
         return PaymentMethod.card;
+      case 'credit':
+      case 'credit / pay later':
+        return PaymentMethod.credit;
       default:
         return PaymentMethod.cash;
     }
@@ -121,6 +126,9 @@ class RestaurantOrder {
   String? paymentMethod;
   double totalPaid;
 
+  /// Sum of refunds issued against this bill (partial refunds add up).
+  double refundedAmount;
+
   RestaurantOrder({
     required this.id,
     required this.orderNumber,
@@ -150,6 +158,7 @@ class RestaurantOrder {
     this.paidAt,
     this.paymentMethod,
     this.totalPaid = 0.0,
+    this.refundedAmount = 0.0,
   });
 
   List<OrderItem> get activeItems =>
@@ -221,11 +230,15 @@ class RestaurantOrder {
         return 'Completed';
       case OrderStatus.cancelled:
         return 'Cancelled';
+      case OrderStatus.refunded:
+        return 'Refunded';
     }
   }
 
   bool get isClosed =>
-      status == OrderStatus.completed || status == OrderStatus.cancelled;
+      status == OrderStatus.completed ||
+      status == OrderStatus.cancelled ||
+      status == OrderStatus.refunded;
 
   /// Deep copy — safe to snapshot for history/persistence.
   RestaurantOrder copy() => RestaurantOrder(
@@ -257,5 +270,6 @@ class RestaurantOrder {
         paidAt: paidAt,
         paymentMethod: paymentMethod,
         totalPaid: totalPaid,
+        refundedAmount: refundedAmount,
       );
 }

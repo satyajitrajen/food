@@ -212,7 +212,11 @@ func (s *Server) handleCreateOrder(w http.ResponseWriter, r *http.Request) {
 			if err := s.Store.UpdateTableForOrder(r.Context(), *req.TableID, o.ID, 0, o.GuestCount); err != nil {
 				return 0, nil, err
 			}
-			s.publish(r, "table.updated", outletID, o)
+			// Broadcast the table row itself — publishing the order here made
+			// terminals render the order as a phantom 0-seat table.
+			if t, err := s.Store.GetTable(r.Context(), *req.TableID); err == nil {
+				s.publish(r, "table.updated", outletID, t)
+			}
 		}
 		s.publish(r, "order.updated", outletID, o)
 		return http.StatusCreated, o, nil

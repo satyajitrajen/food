@@ -172,6 +172,12 @@ func (s *Server) handleCreateExpense(w http.ResponseWriter, r *http.Request) {
 		if exp.Method == "Cash" || exp.Method == "cash" {
 			if shift, err := s.Store.GetCurrentShift(r.Context(), outletID); err == nil && shift != nil {
 				_ = s.Store.AddShiftExpense(r.Context(), shift.ID, exp.Amount, +1)
+				// Re-fetch so the broadcast carries the post-update drawer
+				// math — publishing the pre-update shift would pull every
+				// terminal's drawer back to stale numbers.
+				if updated, err := s.Store.GetCurrentShift(r.Context(), outletID); err == nil && updated != nil {
+					shift = updated
+				}
 				s.publish(r, "shift.updated", outletID, shift)
 			}
 		}
@@ -197,6 +203,10 @@ func (s *Server) handleDeleteExpense(w http.ResponseWriter, r *http.Request) {
 	if exp.Method == "Cash" || exp.Method == "cash" {
 		if shift, err := s.Store.GetCurrentShift(r.Context(), exp.OutletID); err == nil && shift != nil {
 			_ = s.Store.AddShiftExpense(r.Context(), shift.ID, exp.Amount, -1)
+			// Broadcast the post-reversal shift, not the stale pre-update copy.
+			if updated, err := s.Store.GetCurrentShift(r.Context(), exp.OutletID); err == nil && updated != nil {
+				shift = updated
+			}
 			s.publish(r, "shift.updated", exp.OutletID, shift)
 		}
 	}

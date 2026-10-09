@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/kot_model.dart';
+import '../../providers/pos_provider.dart';
 
 class KOTSentDialog extends StatelessWidget {
   final KitchenOrderTicket kot;
@@ -37,6 +39,13 @@ class KOTSentDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Live-lookup the ticket: the optimistic local copy is adopted by the
+    // server's authoritative ticket (real KOT number) moments after the fire;
+    // without the watch this dialog keeps showing the terminal-local guess.
+    final live = context.watch<PosProvider>().kots.firstWhere(
+          (k) => identical(k, kot) || k.id == kot.id,
+          orElse: () => kot,
+        );
     return Dialog(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 460),
@@ -63,12 +72,12 @@ class KOTSentDialog extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                '${kot.kotNumber} · Table ${kot.tableNumber ?? "Counter"}',
+                '${live.kotNumber} · Table ${live.tableNumber ?? "Counter"}',
                 style: const TextStyle(color: AppColors.primaryGreen, fontWeight: FontWeight.w700, fontSize: 14),
               ),
               const SizedBox(height: 4),
               Text(
-                '${kot.totalQuantity} items dispatched to kitchen station.',
+                '${live.totalQuantity} items dispatched to kitchen station.',
                 style: const TextStyle(color: AppColors.textMuted, fontSize: 13),
               ),
               const SizedBox(height: 24),

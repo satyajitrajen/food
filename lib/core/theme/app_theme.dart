@@ -9,25 +9,37 @@ class AppColors {
   static const Color borderLight = Color(0xFFEBE3D5); // Gentle divider & border
   static const Color borderMedium = Color(0xFFD8CEBE); // Active input border
 
-  // Accents — Hishobkr brand green sampled from assets/logo.png (#08A84C)
-  static const Color primaryGreen = Color(0xFF08A84C); // Brand green
-  static const Color primaryGreenDark = Color(0xFF07873D); // Pressed state
+  // Accents — Hishobkr brand green. The logo green (#08A84C) is only 3.1:1
+  // against white, below WCAG AA for button labels and text, so interactive
+  // and text uses take the deeper shade; the logo shade stays decorative.
+  static const Color brandGreen = Color(0xFF08A84C); // Logo / decorative only
+  static const Color primaryGreen = Color(0xFF067A37); // 5.4:1 on white
+  static const Color primaryGreenDark = Color(0xFF05652D); // Pressed state
   static const Color primaryGreenLight = Color(0xFFE6F6EC); // Light badge fill
 
   // Charcoal & Text — logo wordmark charcoal (#142029)
   static const Color textDark = Color(0xFF142029); // Deep slate-black
   static const Color textMuted = Color(0xFF6B655D); // Warm grey secondary
-  static const Color textLight = Color(0xFF9E978C); // Caption / placeholder
+  static const Color textLight = Color(0xFF746E65); // Caption (4.8:1 on white)
 
   // Status & Indicators
-  static const Color vegGreen = Color(0xFF2B8A3E); // Basil green veg mark
+  static const Color vegGreen = Color(0xFF237A35); // Basil green veg mark
   static const Color vegGreenBg = Color(0xFFEBFBEE);
-  static const Color nonVegRed = Color(0xFFE03131); // Red non-veg mark
+  static const Color nonVegRed = Color(0xFFC92A2A); // Red non-veg mark
   static const Color nonVegRedBg = Color(0xFFFFF5F5);
-  static const Color saffronAmber = Color(0xFFF59F00); // Pending / Preparing / Dues
+  static const Color saffronAmber = Color(0xFF9A6200); // Pending / Dues (AA on its bg)
   static const Color saffronAmberBg = Color(0xFFFFF9DB);
   static const Color infoBlue = Color(0xFF1971C2);
   static const Color infoBlueBg = Color(0xFFE7F5FF);
+
+  // Semantic states — use these for success/error/warning UI, not the
+  // veg/non-veg food marks above.
+  static const Color success = Color(0xFF237A35);
+  static const Color successBg = Color(0xFFEBFBEE);
+  static const Color danger = Color(0xFFC92A2A);
+  static const Color dangerBg = Color(0xFFFFF5F5);
+  static const Color warning = Color(0xFF9A6200);
+  static const Color warningBg = Color(0xFFFFF9DB);
 }
 
 class AppTheme {
@@ -84,6 +96,27 @@ class AppTheme {
           fontWeight: FontWeight.w700,
         ),
       ),
+      appBarTheme: AppBarTheme(
+        backgroundColor: AppColors.creamCard,
+        foregroundColor: AppColors.textDark,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0.5,
+        titleTextStyle: baseTextTheme.titleLarge?.copyWith(
+          color: AppColors.textDark,
+          fontWeight: FontWeight.w800,
+          fontSize: 18,
+        ),
+      ),
+      snackBarTheme: const SnackBarThemeData(behavior: SnackBarBehavior.floating),
+      chipTheme: ChipThemeData(
+        selectedColor: AppColors.primaryGreenLight,
+        checkmarkColor: AppColors.primaryGreen,
+        side: const BorderSide(color: AppColors.borderLight),
+        labelStyle: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.textDark),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+      materialTapTargetSize: MaterialTapTargetSize.padded,
       cardTheme: CardThemeData(
         color: AppColors.creamCard,
         elevation: 0,

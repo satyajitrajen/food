@@ -297,13 +297,54 @@ class PosProvider extends ChangeNotifier {
       return;
     }
     final idx = _kots.indexWhere((k) => k.id == incoming.id);
-    final prevStatus = idx >= 0 ? _kots[idx].status : null;
+    var prevStatus = idx >= 0 ? _kots[idx].status : null;
     if (idx >= 0) {
       _kots[idx] = incoming;
+    } else if (_adoptPendingServerKot(incoming)) {
+      // Local optimistic copy absorbed; the server ticket took its place.
+      prevStatus = null;
     } else {
       _kots.insert(0, incoming);
     }
     _maybeFireReadyAlert(previous: prevStatus, kot: incoming);
+  }
+
+  /// Replaces the terminal's optimistic [KOT] for an order with the server's
+  /// authoritative copy. Without this, every fire rendered twice on the KDS:
+  /// once as the local guess (terminal counter) and once as the server ticket
+  /// (outlet counter) that arrives right after via ack/SSE. Matching is by
+  /// order + exact item multiset so legitimate multi-fire tickets (different
+  /// courses fired separately) never collapse into each other.
+  bool _adoptPendingServerKot(KitchenOrderTicket incoming) {
+    if (incoming.items.isEmpty) return false;
+    final pending = _kots.indexWhere((k) =>
+        k.pendingServerAck &&
+        k.orderId == incoming.orderId &&
+        _sameTicketItems(k, incoming));
+    if (pending == -1) return false;
+    final local = _kots[pending];
+    local
+      ..id = incoming.id
+      ..kotNumber = incoming.kotNumber
+      ..status = incoming.status
+      ..pendingServerAck = false
+      ..items
+          .clear()
+      ..items.addAll(incoming.items);
+    return true;
+  }
+
+  bool _sameTicketItems(KitchenOrderTicket a, KitchenOrderTicket b) {
+    String sig(KitchenOrderTicket k) {
+      final names = k.items
+          .where((i) => !i.isCancelled)
+          .map((i) => '${i.menuItem.name} x${i.quantity}')
+          .toList()
+        ..sort();
+      return names.join('|');
+    }
+
+    return sig(a) == sig(b) && sig(a).isNotEmpty;
   }
 
   void _upsertServerTable(Map<String, dynamic> j) {
@@ -1851,6 +1892,13 @@ class PosProvider extends ChangeNotifier {
   RestaurantOrder? _activeOrder;
   RestaurantOrder? get activeOrder => _activeOrder;
 
+  RestaurantOrder? orderById(String id) {
+    for (final o in _orders) {
+      if (o.id == id) return o;
+    }
+    return null;
+  }
+
   void startNewOrder(OrderType type, {String? customerName, String? customerPhone, String? address}) {
     _orderCounter++;
     // Mirror the outlet settings defaults (same rules the server applies on
@@ -2039,6 +2087,9 @@ class PosProvider extends ChangeNotifier {
       items: unsentItems.map((i) => i.copy()).toList(),
       specialInstructions: _activeOrder!.orderNote,
       status: KOTStatus.newTicket,
+      // Optimistic write: the number above is a terminal-local guess until the
+      // server ack adopts its authoritative KOT number.
+      pendingServerAck: true,
     );
 
     _kots.insert(0, kot);
@@ -2268,13 +2319,21 @@ class PosProvider extends ChangeNotifier {
   }
 
   // Payment Execution & Receipt
-  int _invoiceCounter = 1044;
 
+  /// Settles the active order. [splits] carries one leg per tender for split
+  /// payments; [reference] is the card/UPI slip number; Credit (pay later)
+  /// needs [creditCustomerId] and books the bill to that customer's ledger
+  /// instead of the drawer. Returns null when the payment does not cover the
+  /// bill. The invoice number is assigned by the server; the receipt prints
+  /// once the payment is confirmed (or immediately when offline, marked
+  /// pending).
   RestaurantOrder? completePayment({
     required String paymentMethod,
     required double amountPaid,
     List<({String method, double amount})>? splits,
     double? cashTendered,
+    String? reference,
+    String? creditCustomerId,
   }) {
     if (_activeOrder == null) return null;
     final due = _activeOrder!.grandTotal;
@@ -2290,24 +2349,26 @@ class PosProvider extends ChangeNotifier {
     for (final leg in legs) {
       if (leg.amount < -0.005) return null;
       allocated += leg.amount;
-      if (leg.method == 'Cash' || leg.method == 'cash') cashLeg += leg.amount;
+      if (PaymentMethodX.fromLabel(leg.method) == PaymentMethod.cash) cashLeg += leg.amount;
     }
     if (allocated + 0.005 < due || allocated > amountPaid + 0.005) return null;
     if (splits != null && cashTendered != null && cashTendered + 0.005 < cashLeg) {
       return null; // cash received short of the cash leg
     }
+    final isCredit = PaymentMethodX.fromLabel(paymentMethod) == PaymentMethod.credit;
+    if (isCredit && (creditCustomerId == null || creditCustomerId.isEmpty)) return null;
 
-    _invoiceCounter++;
     final completed = _activeOrder!;
     completed.status = OrderStatus.completed;
     completed.paidAt = DateTime.now();
-    completed.invoiceNumber = 'INV-$_invoiceCounter';
-    completed.paymentMethod = paymentMethod;
+    completed.invoiceNumber = null; // server-assigned on ack
+    completed.paymentMethod = PaymentMethodX.fromLabel(paymentMethod).label;
     // Record what the customer actually handed over (includes cash change);
     // shift tender splits book only the bill allocation.
     completed.totalPaid = splits == null ? amountPaid : allocated;
 
-    // Update Shift Sales by tender per leg (enum-safe).
+    // Update Shift Sales by tender per leg (enum-safe). Credit is not money
+    // in the drawer: it lands on the customer's outstanding instead.
     if (_currentShift != null) {
       for (final leg in legs) {
         switch (PaymentMethodX.fromLabel(leg.method)) {
@@ -2320,8 +2381,14 @@ class PosProvider extends ChangeNotifier {
           case PaymentMethod.card:
             _currentShift!.cardSales += leg.amount;
             break;
+          case PaymentMethod.credit:
+            break;
         }
       }
+    }
+    if (isCredit) {
+      final cust = _customers.where((c) => c.id == creditCustomerId).firstOrNull;
+      cust?.outstandingCredit += due;
     }
 
     // Free up Table
@@ -2337,25 +2404,19 @@ class PosProvider extends ChangeNotifier {
       }
     }
 
-    // Record Customer Spend
+    // Record spend on a known customer; the server creates/updates the
+    // customer record itself from the order's phone, so no temp local id
+    // is minted here (it would never map to a server id).
     if (completed.customerPhone != null && completed.customerPhone!.isNotEmpty) {
       final normalizedPhone = _normalizePhone(completed.customerPhone!);
-      Customer? cust;
-      for (final c in _customers) {
-        if (_normalizePhone(c.phone) == normalizedPhone) {
-          cust = c;
-          break;
-        }
+      final cust = _customers
+          .where((c) => _normalizePhone(c.phone) == normalizedPhone)
+          .firstOrNull;
+      if (cust != null) {
+        cust.visits += 1;
+        cust.lifetimeSpend += completed.grandTotal;
+        cust.lastVisit = DateTime.now();
       }
-      cust ??= Customer(
-        id: 'cust-${DateTime.now().millisecondsSinceEpoch}',
-        name: completed.customerName ?? 'Guest',
-        phone: normalizedPhone,
-      );
-      if (!_customers.contains(cust)) _customers.insert(0, cust);
-      cust.visits += 1;
-      cust.lifetimeSpend += completed.grandTotal;
-      cust.lastVisit = DateTime.now();
     }
 
     // Keep completed order visible to transactions/refunds even if no KOT was fired
@@ -2366,11 +2427,14 @@ class PosProvider extends ChangeNotifier {
     _activeOrder = null;
     _selectedTable = null;
     notifyListeners();
-    _push('order.pay', {
-      'order_id': completed.id,
-      'method': paymentMethodToApi(legs.first.method),
+    final orderId = completed.id;
+    unawaited(_push('order.pay', {
+      'order_id': orderId,
+      'method': paymentMethodToApi(splits != null && splits.length > 1
+          ? legs.first.method
+          : paymentMethod),
       'amount_received_paise': toPaise(amountPaid),
-      if (splits != null)
+      if (splits != null && splits.length > 1)
         'splits': [
           for (final leg in splits)
             {
@@ -2378,8 +2442,13 @@ class PosProvider extends ChangeNotifier {
               'amount_paise': toPaise(leg.amount),
             }
         ],
-    });
-    _printReceipt(completed);
+      if (reference != null && reference.trim().isNotEmpty) 'reference': reference.trim(),
+      if (isCredit) 'customer_id': creditCustomerId,
+    }).then((_) {
+      // Print from server truth (real invoice number) when the ack landed.
+      final latest = _orders.where((o) => o.id == orderId || o.id == _sync?.resolveId(orderId)).firstOrNull;
+      _printReceipt(latest ?? completed);
+    }));
     return completed;
   }
 
@@ -2398,14 +2467,18 @@ class PosProvider extends ChangeNotifier {
   }) {
     final order = _orders.where((o) => o.id == orderId).firstOrNull;
     if (order == null) return false;
-    final paid = order.totalPaid > 0 ? order.totalPaid : order.grandTotal;
-    if (amount <= 0 || amount > paid + 0.005) return false;
-    if (order.status == OrderStatus.cancelled) return false;
+    if (order.status != OrderStatus.completed) return false;
+    // Cap by the bill (not cash tendered, which includes change) minus what
+    // was already refunded.
+    final refundable = order.grandTotal - order.refundedAmount;
+    if (amount <= 0 || amount > refundable + 0.005) return false;
 
     final tender = PaymentMethodX.fromLabel(order.paymentMethod);
-    final isCashRefund = refundMode == 'Cash' || tender == PaymentMethod.cash;
-    if (isFullRefund) {
-      order.status = OrderStatus.cancelled;
+    final mode = refundModeToApi(refundMode);
+    final isCashRefund = mode == 'cash' || (mode == 'original' && tender == PaymentMethod.cash);
+    order.refundedAmount += amount;
+    if (isFullRefund || order.refundedAmount >= order.grandTotal - 0.005) {
+      order.status = OrderStatus.refunded;
     }
     if (isCashRefund) {
       _currentShift?.refundsCash += amount;
