@@ -15,7 +15,11 @@ import '../running_orders/running_order_detail_screen.dart';
 import '../../core/format.dart';
 
 class CartViewScreen extends StatelessWidget {
-  const CartViewScreen({super.key});
+  /// True when shown as the side panel of the POS on wide screens (no back
+  /// navigation, the menu is right next to it).
+  final bool embedded;
+
+  const CartViewScreen({super.key, this.embedded = false});
 
   @override
   Widget build(BuildContext context) {
@@ -26,9 +30,8 @@ class CartViewScreen extends StatelessWidget {
       return Scaffold(
         backgroundColor: AppColors.creamBg,
         appBar: AppBar(
-          title: const Text('Current Order', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
-          backgroundColor: Colors.white,
-          elevation: 0,
+          automaticallyImplyLeading: !embedded,
+          title: const Text('Current order'),
         ),
         body: SafeArea(
           top: false,
@@ -38,12 +41,15 @@ class CartViewScreen extends StatelessWidget {
               children: [
                 const Icon(Icons.shopping_basket_outlined, size: 54, color: AppColors.textLight),
                 const SizedBox(height: 12),
-                const Text('Your order cart is empty', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Add Dishes from Menu'),
-                ),
+                Text(embedded ? 'Tap dishes to add them' : 'No items yet',
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                if (!embedded) ...[
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Add dishes from menu'),
+                  ),
+                ],
               ],
             ),
           ),
@@ -58,6 +64,7 @@ class CartViewScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.creamBg,
       appBar: AppBar(
+        automaticallyImplyLeading: !embedded,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -361,7 +368,7 @@ class CartViewScreen extends StatelessWidget {
                                       // The dialog pops itself; callbacks must
                                       // not pop again (they navigate instead).
                                       // Back to the menu to keep adding.
-                                      onAddMoreItems: () => Navigator.of(context).maybePop(),
+                                      onAddMoreItems: embedded ? () {} : () => Navigator.of(context).maybePop(),
                                       onViewOrder: () {
                                         if (order == null) return;
                                         // Replace the cart with the order

@@ -102,6 +102,25 @@ class _PosMenuScreenState extends State<PosMenuScreen> {
 
   @override
   Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Tablets/desktop: menu and the running cart side by side, so adding,
+        // sending the KOT and billing never leave this screen.
+        if (constraints.maxWidth >= 900) {
+          return Row(
+            children: [
+              Expanded(child: _buildMenu(context, wide: true)),
+              const VerticalDivider(width: 1, color: AppColors.borderLight),
+              const SizedBox(width: 400, child: CartViewScreen(embedded: true)),
+            ],
+          );
+        }
+        return _buildMenu(context, wide: false);
+      },
+    );
+  }
+
+  Widget _buildMenu(BuildContext context, {required bool wide}) {
     final provider = context.watch<PosProvider>();
     final activeOrder = provider.activeOrder;
     final tableNumber = activeOrder?.tableNumber ?? provider.selectedTable?.tableNumber;
@@ -294,7 +313,7 @@ class _PosMenuScreenState extends State<PosMenuScreen> {
       ),
       // Bottom Floating Cart Bar (explicit bottom inset: bare SafeArea inside
       // bottomSheet slides under the opaque system nav on some devices).
-      bottomSheet: (activeOrder != null && activeOrder.items.isNotEmpty)
+      bottomSheet: (!wide && activeOrder != null && activeOrder.items.isNotEmpty)
           ? Container(
               padding: BottomInsets.barAll(context),
               decoration: BoxDecoration(
