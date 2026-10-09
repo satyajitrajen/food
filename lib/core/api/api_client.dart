@@ -175,7 +175,11 @@ class ApiClient {
   }
 
   Future<bool> refreshSession() async {
-    return (await refreshSessionWithPayload()) != null;
+    try {
+      return (await refreshSessionWithPayload()) != null;
+    } on NetworkException {
+      return false;
+    }
   }
 
   /// Rotates the session and returns the full refresh response (tokens plus
@@ -190,6 +194,9 @@ class ApiClient {
           body: {'refresh_token': refresh}, auth: false);
       _storeSession(data);
       return data is Map ? data.cast<String, dynamic>() : null;
+    } on NetworkException {
+      // Offline is not "signed out": keep the session for when we're back.
+      rethrow;
     } catch (_) {
       session = null;
       onSessionChanged?.call(null);

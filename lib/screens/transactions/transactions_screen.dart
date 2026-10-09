@@ -120,7 +120,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                   controller: _searchController,
                   onChanged: (_) => setState(() {}),
                   decoration: InputDecoration(
-                    hintText: 'Search invoice number (e.g. INV-1040) or customer...',
+                    hintText: 'Search invoice, order or customer',
                     prefixIcon: const Icon(Icons.search, size: 20),
                     suffixIcon: _searchController.text.isNotEmpty
                         ? IconButton(

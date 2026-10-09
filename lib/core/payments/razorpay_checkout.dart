@@ -60,7 +60,7 @@ Map<String, dynamic> subscriptionCheckoutOptions({
       'subscription_id': subscriptionId,
       'name': 'Hishobkr',
       'description': planName,
-      'theme': {'color': '#E2572B'},
+      'theme': {'color': '#067A37'},
       if (email != null && email.isNotEmpty) 'prefill': {'email': email},
     };
 
@@ -78,5 +78,5 @@ Map<String, dynamic> orderCheckoutOptions({
       'currency': currency,
       'name': 'Hishobkr',
       'description': description,
-      'theme': {'color': '#E2572B'},
+      'theme': {'color': '#067A37'},
     };

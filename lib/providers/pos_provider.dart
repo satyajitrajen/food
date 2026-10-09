@@ -1032,6 +1032,8 @@ class PosProvider extends ChangeNotifier {
   Future<void> _push(String type, Map<String, dynamic> payload) {
     final sync = _sync;
     if (sync == null) return Future.value();
+    final orderId = payload['order_id'];
+    if (type != 'order.create' && orderId is String) _flushDraft(orderId);
     return sync.push(type, {'outlet_id': _currentOutlet.id, ...payload});
   }
 
@@ -1293,7 +1295,8 @@ class PosProvider extends ChangeNotifier {
         phone: '',
       );
     }
-    if (_sync?.online ?? false) {
+    var restoreOffline = !(_sync?.online ?? false);
+    if (!restoreOffline) {
       try {
         final data = await _api!.refreshSessionWithPayload();
         final staffMap = data?['staff'] is Map
@@ -1310,11 +1313,15 @@ class PosProvider extends ChangeNotifier {
         _applyLoginEntitlement(data);
         _isOfflineMode = false;
         _lastSyncError = null;
+      } on NetworkException {
+        // Server dropped mid-restore: continue offline with the cached login.
+        restoreOffline = true;
       } catch (_) {
         await _sessionStore?.clear();
         return false;
       }
-    } else {
+    }
+    if (restoreOffline) {
       Staff? match =
           _staffList.where((s) => s.id == snap.staffId).firstOrNull;
       match ??= await _pinVault?.lookup(snap.staffId);
@@ -1689,11 +1696,8 @@ class PosProvider extends ChangeNotifier {
     _selectedTable = table;
     // Check if table has an active order
     if (table.activeOrderId != null) {
-      final existing = _orders.firstWhere(
-        (o) => o.id == table.activeOrderId,
-        orElse: () => _createNewOrderForTable(table),
-      );
-      _activeOrder = existing;
+      _activeOrder = _orders.where((o) => o.id == table.activeOrderId).firstOrNull ??
+          _createNewOrderForTable(table);
     } else {
       _activeOrder = _createNewOrderForTable(table);
     }
@@ -1703,13 +1707,13 @@ class PosProvider extends ChangeNotifier {
   RestaurantOrder _createNewOrderForTable(RestaurantTable table) {
     _orderCounter++;
     final waiterId = _currentStaff?.role == StaffRole.waiter ? _currentStaff?.id : null;
-    final waiterName = table.assignedWaiter ?? (_currentStaff?.role == StaffRole.waiter ? _currentStaff?.name : 'Staff');
+    final waiterName = table.assignedWaiter ?? (_currentStaff?.role == StaffRole.waiter ? _currentStaff?.name : null);
     if (table.assignedWaiter == null && _currentStaff?.role == StaffRole.waiter) {
       table.assignedWaiter = _currentStaff?.name;
     }
     final order = RestaurantOrder(
       id: 'ord-${DateTime.now().millisecondsSinceEpoch}',
-      orderNumber: 'ORD-$_orderCounter',
+      orderNumber: 'New #$_orderCounter',
       orderType: OrderType.dineIn,
       tableId: table.id,
       tableNumber: table.tableNumber,
@@ -1725,7 +1729,25 @@ class PosProvider extends ChangeNotifier {
     return order;
   }
 
-  void _pushOrderCreate(RestaurantOrder order) {
+  /// Orders opened on this terminal but not yet sent to the server. A table
+  /// tap only opens a draft; the server order is created with the first real
+  /// write (item, guest details, KOT, payment), so browsing tables or
+  /// cancelling the guest dialog never leaves ghost orders behind.
+  final Set<String> _draftOrders = {};
+
+  void _pushOrderCreate(RestaurantOrder order) => _draftOrders.add(order.id);
+
+  /// Sends the deferred order.create for [orderId] (with the order's latest
+  /// guest/customer details) ahead of the op that depends on it.
+  void _flushDraft(String orderId) {
+    if (!_draftOrders.remove(orderId)) return;
+    final order = _activeOrder?.id == orderId
+        ? _activeOrder
+        : _orders.where((o) => o.id == orderId).firstOrNull;
+    if (order != null) _sendOrderCreate(order);
+  }
+
+  void _sendOrderCreate(RestaurantOrder order) {
     _push('order.create', {
       'local_id': order.id,
       'type': orderTypeToApi(order.orderType),
@@ -1906,7 +1928,8 @@ class PosProvider extends ChangeNotifier {
   }
 
   // Active Order / Cart State
-  int _orderCounter = 1044;
+  // Terminal-local label until the server assigns the real order number.
+  int _orderCounter = 0;
   RestaurantOrder? _activeOrder;
   RestaurantOrder? get activeOrder => _activeOrder;
 
@@ -1923,7 +1946,7 @@ class PosProvider extends ChangeNotifier {
     // order create) so offline-created orders bill identically once synced.
     _activeOrder = RestaurantOrder(
       id: 'ord-${DateTime.now().millisecondsSinceEpoch}',
-      orderNumber: 'ORD-$_orderCounter',
+      orderNumber: 'New #$_orderCounter',
       orderType: type,
       createdAt: DateTime.now(),
       customerName: customerName,
@@ -2060,11 +2083,23 @@ class PosProvider extends ChangeNotifier {
       if (customerPhone != null && customerPhone.trim().isNotEmpty) {
         _activeOrder!.customerPhone = customerPhone.trim();
       }
-      if (waiter != null) _activeOrder!.waiterName = waiter;
+      final waiterStaff = waiter == null
+          ? null
+          : _staffList.where((s) => s.name == waiter).firstOrNull;
+      if (waiter != null) {
+        _activeOrder!.waiterName = waiter;
+        _activeOrder!.waiterId = waiterStaff?.id ?? _activeOrder!.waiterId;
+      }
       notifyListeners();
+      if (_draftOrders.contains(_activeOrder!.id)) {
+        // Not on the server yet: the create carries these details.
+        _flushDraft(_activeOrder!.id);
+        return _syncTableGuests(count, waiter);
+      }
       _push('order.patch', {
         'order_id': _activeOrder!.id,
         'guest_count': count,
+        if (waiterStaff != null) 'waiter_id': waiterStaff.id,
         if (customerName != null && customerName.isNotEmpty) 'customer_name': customerName,
         if (customerPhone != null && customerPhone.trim().isNotEmpty)
           'customer_phone': customerPhone.trim(),
@@ -2072,6 +2107,10 @@ class PosProvider extends ChangeNotifier {
     } else {
       notifyListeners();
     }
+    _syncTableGuests(count, waiter);
+  }
+
+  void _syncTableGuests(int count, String? waiter) {
     if (_selectedTable != null) {
       _selectedTable!.guestCount = count;
       if (waiter != null) _selectedTable!.assignedWaiter = waiter;
@@ -2079,7 +2118,7 @@ class PosProvider extends ChangeNotifier {
   }
 
   // KOT System
-  int _kotCounter = 1203;
+  int _kotCounter = 0;
   final List<KitchenOrderTicket> _kots = [];
   // Strict outlet isolation: the KDS only ever shows this terminal's outlet.
   // Tickets without an outlet (legacy) are hidden, never shown cross-outlet.
@@ -2096,7 +2135,7 @@ class PosProvider extends ChangeNotifier {
     final kot = KitchenOrderTicket(
       id: 'kot-${DateTime.now().millisecondsSinceEpoch}',
       outletId: _currentOutlet.id,
-      kotNumber: 'KOT #$_kotCounter',
+      kotNumber: 'KOT (sending #$_kotCounter)',
       orderId: _activeOrder!.id,
       tableNumber: _activeOrder!.tableNumber ?? _selectedTable?.tableNumber,
       orderType: _activeOrder!.orderType,
@@ -3200,29 +3239,19 @@ class PosProvider extends ChangeNotifier {
   int get pendingSyncCount => apiEnabled ? (_sync?.pending ?? 0) : _pendingSyncCount;
   bool get realtimeConnected => _realtime?.connected ?? false;
 
-  void toggleOfflineMode() {
-    final goingOffline = !isOfflineMode;
-    _isOfflineMode = goingOffline;
-    _sync?.setForceOffline(goingOffline);
-    if (!goingOffline) {
-      unawaited(triggerSync());
-    } else if (!apiEnabled) {
-      _pendingSyncCount = 4;
-    }
-    notifyListeners();
-  }
 
-  Future<void> triggerSync() async {
-    if (apiEnabled && _sync != null) {
-      final ok = await _sync!.probe();
-      if (ok) {
-        _lastSyncError = null;
-        await hydrateOutlet();
-      }
-    } else {
-      _pendingSyncCount = 0;
+
+  /// Probes the server, drains the outbox and re-reads the outlet. Returns
+  /// true only when the server answered and nothing is left queued.
+  Future<bool> triggerSync() async {
+    if (!apiEnabled || _sync == null) return false;
+    final ok = await _sync!.probe();
+    if (ok) {
+      _hydrating = false;
+      await hydrateOutlet();
     }
     notifyListeners();
+    return ok && (_sync?.pending ?? 0) == 0;
   }
 
   // ---- Printing (P5.1: ESC/POS hooks) ----
@@ -3251,9 +3280,10 @@ class PosProvider extends ChangeNotifier {
     }
   }
 
+  /// Auto-prints the bill at payment. Silent when no printer is set up (a
+  /// terminal without a printer is a valid setup); real failures surface.
   void _printReceipt(RestaurantOrder order) {
-    if (!apiEnabled) return;
-    if (!_settings.allowReprint && order.invoiceNumber == null) return;
+    if (!apiEnabled || _effectivePrinter is NullPrinter) return;
     _sendPrint(buildReceiptBytes(order, _settings), _effectivePrinter);
   }
 
@@ -3278,11 +3308,13 @@ class PosProvider extends ChangeNotifier {
   }
 
   void _printKot(KitchenOrderTicket kot) {
-    if (!apiEnabled) return;
+    if (!apiEnabled || !_settings.autoPrintKOT) return;
     final setting = _settings.kitchenPrinter.trim().isNotEmpty
         ? _settings.kitchenPrinter
         : _settings.billingPrinter;
-    _sendPrint(buildKotBytes(kot, _settings), printerFromSetting(setting));
+    final printer = printerFromSetting(setting);
+    if (printer is NullPrinter) return;
+    _sendPrint(buildKotBytes(kot, _settings), printer);
   }
 
   void _sendPrint(List<int> bytes, PrinterAdapter adapter) {

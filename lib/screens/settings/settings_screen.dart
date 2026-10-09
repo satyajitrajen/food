@@ -81,7 +81,7 @@ class SettingsScreen extends StatelessWidget {
                       ? '${settings.gstPercentage}% Inclusive of GST (CGST ${(settings.gstPercentage / 2).toStringAsFixed(1)}% + SGST ${(settings.gstPercentage / 2).toStringAsFixed(1)}%)'
                       : '${settings.gstPercentage}% Exclusive (CGST ${(settings.gstPercentage / 2).toStringAsFixed(1)}% + SGST ${(settings.gstPercentage / 2).toStringAsFixed(1)}%)',
                 ),
-                _buildSettingItem('Menu Pricing', settings.isGstInclusive ? 'Inclusive of GST' : 'Exclusive of GST (+5%)'),
+                _buildSettingItem('Menu Pricing', settings.isGstInclusive ? 'Inclusive of GST' : 'Exclusive of GST (+${settings.gstPercentage.toStringAsFixed(settings.gstPercentage % 1 == 0 ? 0 : 1)}%)'),
                 _buildSettingItem('Service Charge', '${settings.defaultServiceChargePercent}% (Dine-In Optional)'),
                 _buildSettingItem('Packaging Charge', '₹${settings.defaultPackagingCharge.toStringAsFixed(0)} flat rate'),
               ],
@@ -470,7 +470,7 @@ class SettingsScreen extends StatelessWidget {
                       controller: idC,
                       decoration: const InputDecoration(
                         labelText: 'UPI ID',
-                        hintText: 'e.g. spicehaven@okhdfcbank',
+                        hintText: 'e.g. yourshop@okhdfcbank',
                       ),
                     ),
                     const SizedBox(height: 10),

@@ -14,14 +14,14 @@ class OpenShiftScreen extends StatefulWidget {
 }
 
 class _OpenShiftScreenState extends State<OpenShiftScreen> {
-  final TextEditingController _cashController = TextEditingController(text: '5000');
+  final TextEditingController _cashController = TextEditingController(text: '0');
   final TextEditingController _notesController = TextEditingController();
 
   // Denominations counters
-  int _c500 = 6;
-  int _c200 = 5;
-  int _c100 = 8;
-  int _c50 = 4;
+  int _c500 = 0;
+  int _c200 = 0;
+  int _c100 = 0;
+  int _c50 = 0;
 
   double get _computedTotal => (_c500 * 500 + _c200 * 200 + _c100 * 100 + _c50 * 50).toDouble();
 

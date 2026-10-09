@@ -15,8 +15,18 @@ class NullPrinter implements PrinterAdapter {
   @override
   String get name => 'None';
 
+  /// No printer configured: fail loudly so callers never report a print
+  /// that did not happen.
   @override
-  Future<void> send(List<int> bytes) async {}
+  Future<void> send(List<int> bytes) async {
+    throw const PrinterNotConfigured();
+  }
+}
+
+class PrinterNotConfigured implements Exception {
+  const PrinterNotConfigured();
+  @override
+  String toString() => 'No printer configured. Add it in Settings → Printers (IP:port).';
 }
 
 /// Chooses a printer from a settings string shaped "host:port".
