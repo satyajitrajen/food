@@ -73,6 +73,12 @@ class _PaymentScreenState extends State<PaymentScreen> {
   Future<void> _collect(PosProvider provider, RestaurantOrder order) async {
     final total = order.grandTotal;
     setState(() => _error = null);
+    // Every sale is booked to an open cash shift (the server refuses
+    // payments without one).
+    if (provider.apiEnabled && provider.currentShift == null) {
+      setState(() => _error = 'Open a shift first (Shift & Cash → Open shift), then collect payment.');
+      return;
+    }
     RestaurantOrder? done;
     switch (_mode) {
       case _Mode.cash:

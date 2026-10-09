@@ -98,8 +98,10 @@ class SelectOutletScreen extends StatelessWidget {
                               ));
                               return;
                             }
-                            provider.selectOutlet(outlet);
+                            // Sign out first so the switch reloads the new
+                            // outlet's sign-in roster.
                             provider.logout();
+                            provider.selectOutlet(outlet);
                             Navigator.of(context).pushAndRemoveUntil(
                               MaterialPageRoute(builder: (_) => const PinLoginScreen()),
                               (route) => false,

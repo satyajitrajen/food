@@ -583,9 +583,14 @@ class PosProvider extends ChangeNotifier {
           ..addAll((outlets['outlets'] as List)
               .whereType<Map>()
               .map((o) => outletFromApi(o.cast<String, dynamic>())));
+        if (_currentOutlet.isNone && _outlets.isNotEmpty) _currentOutlet = _outlets.first;
       }
-      final staff = await _api!.request('GET', '/api/v1/staff',
-          auth: false, query: orgQuery);
+      // The public roster is filtered server-side to staff who can sign in at
+      // this outlet (it no longer carries outlet ids).
+      final staff = await _api!.request('GET', '/api/v1/staff', auth: false, query: {
+        ...?orgQuery,
+        if (!_currentOutlet.isNone) 'outlet_id': _currentOutlet.id,
+      });
       if (staff is Map && staff['staff'] is List) {
         _staffList
           ..clear()
@@ -775,6 +780,8 @@ class PosProvider extends ChangeNotifier {
       _currentOutlet = _outlets.first;
     }
     notifyListeners();
+    // Narrow the sign-in roster to the chosen outlet.
+    unawaited(hydratePublic());
   }
 
   /// Self-service organization onboarding (SaaS): creates the org + owner
