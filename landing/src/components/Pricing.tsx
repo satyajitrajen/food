@@ -1,9 +1,19 @@
 import React from 'react';
 import { Check } from 'lucide-react';
 import { useRouter } from '../router';
+import { PLAN, REGISTER_PATH } from '../data/plan';
 
-// Plan code must match the backend catalog seeded in store/saas.go.
-const PLAN_CODE = 'pro';
+// Only list what the backend enforces or the app ships (see data/plan.ts).
+const FEATURES = [
+  `Up to ${PLAN.maxOutlets} outlets · ${PLAN.maxStaff} staff members`,
+  'Offline-first billing with automatic cloud sync',
+  'Unlimited orders & KOTs · kitchen display',
+  'Dine-in tables, takeaway & delivery orders',
+  'Split payments across cash, UPI & card',
+  'Configurable GST invoices + end-of-shift Z-report',
+  'WhatsApp bills · network thermal printing',
+  'Reports, inventory, cash management & staff attendance',
+];
 
 export const Pricing: React.FC = () => {
   const { navigate } = useRouter();
@@ -25,10 +35,10 @@ export const Pricing: React.FC = () => {
                 />
                 <path
                   d="M0,64 C85,32 155,78 235,38 C295,8 340,52 380,32 L380,0 L0,0 Z"
-                  fill="rgba(255, 107, 53, 0.12)"
+                  fill="rgba(61, 220, 132, 0.12)"
                 />
               </svg>
-              <h3 className="p-banner-title">Pro Dining</h3>
+              <h3 className="p-banner-title">{PLAN.shortName}</h3>
               <span className="p-popular-badge">Annual</span>
             </div>
 
@@ -39,53 +49,24 @@ export const Pricing: React.FC = () => {
 
               <div className="p-price-box">
                 <div className="p-price-row">
-                  <span className="p-price-val">₹1,999</span>
+                  <span className="p-price-val">{PLAN.priceLabel}</span>
                   <div className="p-price-term">
                     <span>INR /</span>
-                    <span>year</span>
+                    <span>{PLAN.period}</span>
                   </div>
                 </div>
-                <button
-                  className="p-btn p-btn-secondary"
-                  onClick={() => navigate(`/console/register?plan=${PLAN_CODE}`)}
-                >
-                  Start 7-day free trial
+                <button className="p-btn p-btn-primary" onClick={() => navigate(REGISTER_PATH)}>
+                  Start {PLAN.trialDays}-day free trial
                 </button>
               </div>
 
               <ul className="p-features">
-                <li className="p-feature-item">
-                  <Check size={16} strokeWidth={2.4} />
-                  <span>Up to 5 Devices (POS + Kitchen Display + Waiter phones)</span>
-                </li>
-                <li className="p-feature-item">
-                  <Check size={16} strokeWidth={2.4} />
-                  <span>Up to 5 Outlets · 20 Staff Members</span>
-                </li>
-                <li className="p-feature-item">
-                  <Check size={16} strokeWidth={2.4} />
-                  <span>100% Offline-First Durability</span>
-                </li>
-                <li className="p-feature-item">
-                  <Check size={16} strokeWidth={2.4} />
-                  <span>Unlimited Orders &amp; KOTs · Dedicated KDS</span>
-                </li>
-                <li className="p-feature-item">
-                  <Check size={16} strokeWidth={2.4} />
-                  <span>Table &amp; Floor Zones (AC, Garden, Bar)</span>
-                </li>
-                <li className="p-feature-item">
-                  <Check size={16} strokeWidth={2.4} />
-                  <span>GST Billing + End-of-Day Z-Report</span>
-                </li>
-                <li className="p-feature-item">
-                  <Check size={16} strokeWidth={2.4} />
-                  <span>WhatsApp Digital Bills · Thermal Bluetooth &amp; USB Print</span>
-                </li>
-                <li className="p-feature-item">
-                  <Check size={16} strokeWidth={2.4} />
-                  <span>Reports, Inventory, Cash Drawer &amp; Staff Attendance</span>
-                </li>
+                {FEATURES.map((f) => (
+                  <li className="p-feature-item" key={f}>
+                    <Check size={16} strokeWidth={2.4} aria-hidden="true" />
+                    <span>{f}</span>
+                  </li>
+                ))}
               </ul>
             </div>
           </div>

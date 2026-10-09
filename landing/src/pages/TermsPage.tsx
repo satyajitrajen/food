@@ -8,7 +8,7 @@ export const TermsPage: React.FC = () => {
   return (
     <div className="policy-page container">
       <button onClick={() => navigate('/')} className="btn btn-secondary" style={{ marginBottom: '28px' }}>
-        <ArrowLeft size={16} /> Back to FoodPOS Home
+        <ArrowLeft size={16} /> Back to Hishobkr Home
       </button>
 
       <div className="policy-header">
@@ -21,41 +21,41 @@ export const TermsPage: React.FC = () => {
 
       <div className="policy-body">
         <p>
-          These Terms of Service (&ldquo;Terms&rdquo;) constitute a binding agreement between you (&ldquo;Customer&rdquo;, &ldquo;Merchant&rdquo;, or &ldquo;User&rdquo;) and <strong>FoodPOS</strong> governing access to and use of our Point-of-Sale software, tablet applications, and cloud services.
+          These Terms of Service (&ldquo;Terms&rdquo;) constitute a binding agreement between you (&ldquo;Customer&rdquo;, &ldquo;Merchant&rdquo;, or &ldquo;User&rdquo;) and <strong>Hishobkr</strong> governing access to and use of our Point-of-Sale software, tablet applications, and cloud services.
         </p>
 
         <h2>1. License & Scope of Service</h2>
         <p>
-          Subject to your subscription tier, FoodPOS grants you a non-exclusive, non-transferable, revocable license to install and operate the FoodPOS application on authorized devices (Android tablets, Windows desktop devices, or kitchen displays) within the specified restaurant outlets.
+          Subject to your subscription tier, Hishobkr grants you a non-exclusive, non-transferable, revocable license to install and operate the Hishobkr application on authorized devices (Android tablets and phones, Windows desktops, or kitchen displays) within the specified restaurant outlets.
         </p>
 
         <h2>2. Merchant Responsibilities</h2>
-        <p>As a FoodPOS merchant, you agree to:</p>
+        <p>As a Hishobkr merchant, you agree to:</p>
         <ul>
           <li>Maintain confidential PINs and master credentials for your staff roles.</li>
           <li>Ensure accurate tax rates (GSTIN, CGST/SGST/IGST percentages) configured for your food and beverage menu items.</li>
           <li>Comply with local FSSAI packaging, licensing, and hygiene standards.</li>
-          <li>Accurately declare daily cash drawer balances during shift open and closing reconciliation.</li>
+          <li>Accurately declare opening cash and blind cash counts during shift open and closing reconciliation.</li>
         </ul>
 
         <h2>3. Offline Durability & Cloud Synchronization</h2>
         <p>
-          FoodPOS is engineered to operate seamlessly during network failures using a local outbox. However, Merchants are responsible for ensuring that devices are periodically connected to a functional internet connection to synchronize offline transaction queues, update tax catalogs, and maintain cloud backups.
+          Hishobkr is engineered to operate seamlessly during network failures using a local outbox. However, Merchants are responsible for ensuring that devices are periodically connected to a functional internet connection to synchronize offline transaction queues, update menus and tax settings, and maintain cloud backups.
         </p>
 
         <h2>4. Hardware Compatibility</h2>
         <p>
-          FoodPOS works with standard ESC/POS thermal receipt printers (USB, Bluetooth, and LAN) and Android tablets running Android 9.0 (Pie) or higher. While we test extensively with popular printer brands (Epson, TVS, NGX, Posiflex), FoodPOS is not responsible for physical hardware failure or cabling malfunctions on site.
+          Hishobkr prints to ESC/POS thermal receipt printers reachable over the local network (LAN or Wi-Fi) and runs on Android tablets and phones, Windows desktops, and modern web browsers. Hishobkr is not responsible for physical hardware failure, network outages, or cabling malfunctions on site.
         </p>
 
         <h2>5. Subscription, Billing & Renewals</h2>
         <p>
-          The FoodPOS Pro Dining plan is billed annually in advance in Indian Rupees (INR). Unless cancelled before the renewal date, subscriptions automatically renew. Tax invoices with proper input tax credit (ITC) are issued upon payment.
+          The Hishobkr Pro Dining plan is billed annually in advance in Indian Rupees (INR). Unless cancelled before the renewal date, subscriptions automatically renew. Tax invoices with proper input tax credit (ITC) are issued upon payment.
         </p>
 
         <h2>6. Limitation of Liability</h2>
         <p>
-          To the maximum extent permitted by Indian law, FoodPOS shall not be liable for indirect, incidental, or consequential damages arising from hardware downtime, kitchen delays, or power failures at the merchant&apos;s physical premises.
+          To the maximum extent permitted by Indian law, Hishobkr shall not be liable for indirect, incidental, or consequential damages arising from hardware downtime, kitchen delays, or power failures at the merchant&apos;s physical premises.
         </p>
 
         <h2>7. Governing Law & Dispute Resolution</h2>
@@ -65,7 +65,7 @@ export const TermsPage: React.FC = () => {
 
         <h2>8. Contact Legal Support</h2>
         <p>
-          For legal inquiries or notices, reach out to <a href="mailto:legal@foodpos.app" style={{ color: 'var(--terracotta)', fontWeight: 600 }}>legal@foodpos.app</a>.
+          For legal inquiries or notices, reach out to <a href="mailto:support@hishobkr.com" style={{ color: 'var(--brand-primary)', fontWeight: 600 }}>support@hishobkr.com</a>.
         </p>
       </div>
     </div>

@@ -1,6 +1,12 @@
-/* FoodPOS landing — UI polish layer (loaded after app.css).
+/* Hishobkr landing — UI polish layer (loaded after app.css).
    Fixes the referenced-but-undefined .btn* primitives and adds consistent
    motion, hover states, focus rings and spacing refinements. */
+
+/* Demo form: two columns on wide screens, one on phones */
+.demo-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 480px) {
+  .demo-form-row { grid-template-columns: 1fr; gap: 0; }
+}
 
 /* ---------- Buttons: define the primitives components actually use ---------- */
 .btn {
@@ -24,20 +30,20 @@
 .btn:focus-visible,
 .btn-pill-primary:focus-visible,
 .btn-pill-outline:focus-visible {
-  outline: 3px solid rgba(255, 87, 34, 0.45);
+  outline: 3px solid rgba(6, 122, 55, 0.45);
   outline-offset: 3px;
 }
 .btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
 .btn-primary {
-  background: var(--orange-primary, #ff5722);
+  background: var(--brand-primary);
   color: #fff;
-  box-shadow: var(--shadow-pill, 0 12px 24px rgba(255, 87, 34, 0.3));
+  box-shadow: var(--shadow-pill);
 }
 .btn-primary:hover:not(:disabled) {
-  background: #f4511e;
+  background: var(--brand-primary-hover);
   transform: translateY(-2px);
-  box-shadow: 0 16px 30px rgba(255, 87, 34, 0.35);
+  box-shadow: 0 16px 30px rgba(6, 122, 55, 0.35);
 }
 
 .btn-secondary {
@@ -47,8 +53,8 @@
   box-shadow: 0 4px 14px rgba(28, 25, 23, 0.06);
 }
 .btn-secondary:hover:not(:disabled) {
-  border-color: var(--orange-primary, #ff5722);
-  color: var(--orange-primary, #ff5722);
+  border-color: var(--brand-primary);
+  color: var(--brand-primary);
   transform: translateY(-2px);
 }
 
@@ -64,12 +70,10 @@
 
 /* ---------- Consistent hover lift for cards ---------- */
 .pricing-card,
-.testimonial-card,
 .faq-item {
   transition: transform 0.22s ease, box-shadow 0.25s ease, border-color 0.2s ease;
 }
-.pricing-card:hover,
-.testimonial-card:hover {
+.pricing-card:hover {
   transform: translateY(-4px);
   box-shadow: var(--shadow-float-card, 0 18px 40px rgba(28, 25, 23, 0.12));
 }
@@ -92,7 +96,7 @@ section[id] { scroll-margin-top: 92px; }
 .faq-item.open .faq-icon { transform: rotate(45deg); }
 .faq-item .faq-answer { transition: opacity 0.18s ease; }
 
-::selection { background: rgba(255, 87, 34, 0.22); }
+::selection { background: rgba(6, 122, 55, 0.22); }
 a { transition: color 0.18s ease; }
 .toggle-btn { transition: background 0.18s ease, color 0.18s ease; }
 
@@ -105,8 +109,7 @@ a { transition: color 0.18s ease; }
 /* ---------- Responsive refinements ---------- */
 @media (max-width: 720px) {
   .btn { padding: 12px 20px; font-size: 14px; }
-  .pricing-card:hover,
-  .testimonial-card:hover { transform: none; }
+  .pricing-card:hover { transform: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
@@ -146,9 +149,9 @@ a { transition: color 0.18s ease; }
 /* ---------- Report fix: keyboard focus on demo form fields ---------- */
 .form-input:focus-visible,
 .form-select:focus-visible {
-  outline: 2px solid var(--orange-primary, #ff5722);
+  outline: 2px solid var(--brand-primary);
   outline-offset: 2px;
-  border-color: var(--orange-primary, #ff5722);
+  border-color: var(--brand-primary);
   background-color: #ffffff;
 }
 
@@ -188,7 +191,7 @@ a { transition: color 0.18s ease; }
   .phone-screen { border-radius: 36px; }
   .micro-pill-title { font-size: 0.9rem; }
   .micro-pill-desc { font-size: 0.78rem; }
-  .pricing-card, .testimonial-card { padding: 20px; }
+  .pricing-card { padding: 20px; }
   .faq-question { padding: 14px; }
   /* iOS Safari zoom guard: form inputs stay ≥16px on narrow screens */
   .form-input, .form-select { font-size: 1rem; }

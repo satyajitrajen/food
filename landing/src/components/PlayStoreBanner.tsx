@@ -1,105 +1,62 @@
 import React from 'react';
-import { Tablet, Monitor, Printer, QrCode } from 'lucide-react';
+import { Tablet, Monitor, Printer, Globe, ArrowRight } from 'lucide-react';
+import { useRouter } from '../router';
+import { PLAN, REGISTER_PATH } from '../data/plan';
 
-export const PlayStoreBanner: React.FC = () => {
+interface PlayStoreBannerProps {
+  onOpenDemo: () => void;
+}
+
+const DEVICES = [
+  { icon: Tablet, label: 'Android tablets & phones', note: 'Captain ordering' },
+  { icon: Monitor, label: 'Windows desktop billing counter', note: 'Cashier' },
+  { icon: Globe, label: 'Any modern browser', note: 'Owner & kitchen screens' },
+  { icon: Printer, label: 'ESC/POS thermal printers (80 mm)', note: 'LAN / Wi-Fi' },
+];
+
+export const PlayStoreBanner: React.FC<PlayStoreBannerProps> = ({ onOpenDemo }) => {
+  const { navigate } = useRouter();
+
   return (
-    <section className="section" style={{ padding: '40px 0' }}>
+    <section id="hardware" className="section" style={{ padding: '40px 0' }}>
       <div className="t-container">
         <div className="playstore-banner">
           <div className="playstore-grid">
             <div>
-              <span className="hero-pill-badge" style={{ backgroundColor: 'rgba(255,255,255,0.15)', color: '#FFFFFF', borderColor: 'rgba(255,255,255,0.25)', marginBottom: '16px', display: 'inline-block' }}>
-                HARDWARE AGNOSTIC ARCHITECTURE
+              <span className="hero-pill-badge playstore-eyebrow">
+                NO PROPRIETARY HARDWARE
               </span>
               <h2 className="playstore-title">
-                Deploy on Any Android Tablet or Windows Desktop
+                Runs on the Tablets and PCs You Already Have
               </h2>
               <p className="playstore-desc">
-                No expensive proprietary hardware lock-in. Run FoodPOS on readily available commercial Android tablets (8&quot; to 12&quot;) for captains, or Windows desktop billing counters with instant USB/Bluetooth thermal printer connectivity.
+                No hardware lock-in. Captains take orders on everyday Android tablets or phones,
+                the counter bills from a Windows PC, and receipts go to a network thermal printer.
               </p>
 
               <div className="playstore-badges">
-                <a
-                  href="#playstore"
-                  className="badge-button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    alert('FoodPOS is currently rolling out on Google Play Console. Download demo APK or schedule onboarding.');
-                  }}
-                >
-                  <img
-                    src="/images/google-play.svg"
-                    alt="Google Play"
-                    width="24"
-                    height="26"
-                    style={{ flexShrink: 0, display: 'block' }}
-                  />
-                  <div style={{ textAlign: 'left' }}>
-                    <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', opacity: 0.85 }}>Available on</div>
-                    <div style={{ fontSize: '1rem', fontWeight: 700, lineHeight: 1.2 }}>Google Play</div>
-                  </div>
-                </a>
-
-                <a
-                  href="#windows"
-                  className="badge-button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    alert('Windows Desktop installer available for onboarding partners.');
-                  }}
-                >
-                  <img
-                    src="/images/windows.svg"
-                    alt="Windows"
-                    width="22"
-                    height="22"
-                    style={{ flexShrink: 0, display: 'block' }}
-                  />
-                  <div style={{ textAlign: 'left' }}>
-                    <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', opacity: 0.85 }}>Download for</div>
-                    <div style={{ fontSize: '1rem', fontWeight: 700, lineHeight: 1.2 }}>Windows PC</div>
-                  </div>
-                </a>
+                <button type="button" className="t-btn t-btn-light" onClick={() => navigate(REGISTER_PATH)}>
+                  Start {PLAN.trialDays}-day free trial
+                  <ArrowRight size={18} aria-hidden="true" />
+                </button>
+                <button type="button" className="badge-button" onClick={onOpenDemo}>
+                  Talk to us
+                </button>
               </div>
             </div>
 
-            {/* Device Compatibility Matrix */}
+            {/* Supported devices */}
             <div className="playstore-device-mock">
-              <div style={{ fontSize: '0.85rem', fontWeight: 700, letterSpacing: '0.05em', color: '#D6C7B7', textTransform: 'uppercase' }}>
-                Tested Peripheral Ecosystem
-              </div>
-
-              <div className="device-row">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <Printer size={18} style={{ color: 'var(--spice-ochre)' }} />
-                  <span>58mm & 80mm ESC/POS Thermal Printers</span>
+              <div className="playstore-device-head">Supported devices</div>
+              {DEVICES.map(({ icon: Icon, label, note }) => (
+                <div className="device-row" key={label}>
+                  <div className="device-row-label">
+                    <Icon size={18} aria-hidden="true" />
+                    <span>{label}</span>
+                  </div>
+                  <span className="device-row-note">{note}</span>
                 </div>
-                <span style={{ fontSize: '0.75rem', color: '#85E3B3', fontWeight: 700 }}>USB • BT • LAN</span>
-              </div>
-
-              <div className="device-row">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <Tablet size={18} style={{ color: 'var(--terracotta)' }} />
-                  <span>Android OS Tablets (8&quot;, 10&quot;, 12&quot;)</span>
-                </div>
-                <span style={{ fontSize: '0.75rem', color: '#85E3B3', fontWeight: 700 }}>Android 9.0+</span>
-              </div>
-
-              <div className="device-row">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <QrCode size={18} style={{ color: '#E28743' }} />
-                  <span>Handheld USB 2D Barcode Scanners</span>
-                </div>
-                <span style={{ fontSize: '0.75rem', color: '#85E3B3', fontWeight: 700 }}>Plug & Play</span>
-              </div>
-
-              <div className="device-row">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <Monitor size={18} style={{ color: '#85E3B3' }} />
-                  <span>Kitchen Display Monitors & TVs</span>
-                </div>
-                <span style={{ fontSize: '0.75rem', color: '#85E3B3', fontWeight: 700 }}>Web KDS Ready</span>
-              </div>
+              ))}
             </div>
           </div>
         </div>

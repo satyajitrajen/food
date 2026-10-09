@@ -4,7 +4,6 @@ import { FeaturesGrid } from '../components/FeaturesGrid';
 import { BenefitsSection } from '../components/BenefitsSection';
 import { PlayStoreBanner } from '../components/PlayStoreBanner';
 import { Pricing } from '../components/Pricing';
-import { Testimonials } from '../components/Testimonials';
 import { FAQ } from '../components/FAQ';
 
 interface HomePageProps {
@@ -12,21 +11,13 @@ interface HomePageProps {
 }
 
 export const HomePage: React.FC<HomePageProps> = ({ onOpenDemo }) => {
-  const scrollTo = (targetId: string) => () => {
-    const el = document.getElementById(targetId);
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth' });
-    }
-  };
-
   return (
     <main>
-      <TemplateHero onOpenDemo={() => onOpenDemo()} onScrollToFeatures={scrollTo('features')} />
+      <TemplateHero onOpenDemo={() => onOpenDemo()} />
       <FeaturesGrid />
       <BenefitsSection />
-      <PlayStoreBanner />
+      <PlayStoreBanner onOpenDemo={() => onOpenDemo()} />
       <Pricing />
-      <Testimonials />
       <FAQ />
     </main>
   );

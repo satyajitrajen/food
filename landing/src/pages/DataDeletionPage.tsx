@@ -1,6 +1,6 @@
 import React from 'react';
 import { useRouter } from '../router';
-import { ArrowLeft, Trash2, Mail, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Mail, AlertTriangle } from 'lucide-react';
 
 export const DataDeletionPage: React.FC = () => {
   const { navigate } = useRouter();
@@ -8,7 +8,7 @@ export const DataDeletionPage: React.FC = () => {
   return (
     <div className="policy-page container">
       <button onClick={() => navigate('/')} className="btn btn-secondary" style={{ marginBottom: '28px' }}>
-        <ArrowLeft size={16} /> Back to FoodPOS Home
+        <ArrowLeft size={16} /> Back to Hishobkr Home
       </button>
 
       <div className="policy-header">
@@ -21,22 +21,22 @@ export const DataDeletionPage: React.FC = () => {
 
       <div className="policy-body">
         <p>
-          At FoodPOS, we respect your right to control your personal and business data. Under Google Play&apos;s User Data policy and applicable data privacy regulations, FoodPOS provides a simple, direct mechanism for restaurant owners, staff members, and customers to request complete deletion of their accounts and associated personal data.
+          At Hishobkr, we respect your right to control your personal and business data. Under Google Play&apos;s User Data policy and applicable data privacy regulations, Hishobkr provides a simple, direct mechanism for restaurant owners, staff members, and customers to request complete deletion of their accounts and associated personal data.
         </p>
 
         <h2>1. How to Request Account & Data Deletion</h2>
-        <p>You can initiate a permanent account deletion request through either of the following methods:</p>
+        <p>You can request permanent deletion of your account and its data by email:</p>
 
         <div className="policy-box">
           <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Mail size={20} style={{ color: 'var(--terracotta)' }} />
-            Method A: Email Request (Recommended)
+            <Mail size={20} style={{ color: 'var(--brand-primary)' }} />
+            Email Request
           </h3>
           <p>
             Send an email from your registered restaurant admin email address to:
           </p>
-          <p style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--terracotta)' }}>
-            <a href="mailto:support@foodpos.app?subject=Account%20and%20Data%20Deletion%20Request">support@foodpos.app</a>
+          <p style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--brand-primary)' }}>
+            <a href="mailto:support@hishobkr.com?subject=Account%20and%20Data%20Deletion%20Request">support@hishobkr.com</a>
           </p>
           <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
             Subject Line: <strong>&ldquo;Account and Data Deletion Request — [Your Restaurant Name]&rdquo;</strong><br />
@@ -49,19 +49,6 @@ export const DataDeletionPage: React.FC = () => {
           </ul>
         </div>
 
-        <div className="policy-box">
-          <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Trash2 size={20} style={{ color: 'var(--terracotta)' }} />
-            Method B: In-App Data Erasure
-          </h3>
-          <p style={{ fontSize: '0.9rem', color: 'var(--text-body)' }}>
-            1. Sign in to your FoodPOS app with the <strong>Admin Role</strong>.<br />
-            2. Navigate to <strong>Settings &rarr; System & Data Governance</strong>.<br />
-            3. Click <strong>&ldquo;Request Account & Data Erasure&rdquo;</strong> and enter your Admin master PIN.<br />
-            4. Confirm the prompt to unbind your device and queue your cloud tenant for deletion.
-          </p>
-        </div>
-
         <h2>2. What Data Is Permanently Deleted</h2>
         <p>Upon verification of your request, the following data is permanently purged from our active databases and cloud storage within <strong>48 hours</strong>:</p>
         <ul>
@@ -72,8 +59,8 @@ export const DataDeletionPage: React.FC = () => {
         </ul>
 
         <h2>3. Data Retention Exceptions (Statutory Tax Compliance)</h2>
-        <div className="policy-box" style={{ borderLeftColor: 'var(--spice-ochre)' }}>
-          <AlertTriangle size={24} style={{ color: 'var(--spice-ochre)', marginBottom: '8px' }} />
+        <div className="policy-box" style={{ borderLeftColor: 'var(--color-warning)' }}>
+          <AlertTriangle size={24} style={{ color: 'var(--color-warning)', marginBottom: '8px' }} />
           <h4>Statutory Invoicing Retention Notice</h4>
           <p style={{ margin: 0, fontSize: '0.95rem' }}>
             Under Section 36 of the Central Goods and Services Tax (CGST) Act, 2017, registered businesses are legally obligated to maintain tax invoices, credit notes, and annual financial turnover records for a mandatory statutory period (up to 72 months). 
@@ -90,7 +77,7 @@ export const DataDeletionPage: React.FC = () => {
 
         <h2>5. Contact Us</h2>
         <p>
-          For urgent queries regarding data protection, contact our Data Protection Officer at <a href="mailto:privacy@foodpos.app" style={{ color: 'var(--terracotta)', fontWeight: 600 }}>privacy@foodpos.app</a>.
+          For urgent queries regarding data protection, contact our Data Protection Officer at <a href="mailto:support@hishobkr.com" style={{ color: 'var(--brand-primary)', fontWeight: 600 }}>support@hishobkr.com</a>.
         </p>
       </div>
     </div>

@@ -8,12 +8,12 @@ export const PrivacyPolicyPage: React.FC = () => {
   return (
     <div className="policy-page container">
       <button onClick={() => navigate('/')} className="btn btn-secondary" style={{ marginBottom: '28px' }}>
-        <ArrowLeft size={16} /> Back to FoodPOS Home
+        <ArrowLeft size={16} /> Back to Hishobkr Home
       </button>
 
       <div className="policy-header">
         <span className="section-eyebrow">Google Play Developer Compliance</span>
-        <h1>Privacy Policy for FoodPOS</h1>
+        <h1>Privacy Policy for Hishobkr</h1>
         <div className="policy-meta">
           <strong>Effective Date:</strong> September 9, 2026 • <strong>Last Updated:</strong> September 9, 2026
         </div>
@@ -21,18 +21,18 @@ export const PrivacyPolicyPage: React.FC = () => {
 
       <div className="policy-body">
         <p>
-          Welcome to <strong>FoodPOS</strong> (&ldquo;FoodPOS&rdquo;, &ldquo;we&rdquo;, &ldquo;our&rdquo;, or &ldquo;us&rdquo;). We are committed to protecting the privacy, confidentiality, and data integrity of restaurant owners, food service operators, waitstaff, and their dining patrons.
+          Welcome to <strong>Hishobkr</strong> (&ldquo;Hishobkr&rdquo;, &ldquo;we&rdquo;, &ldquo;our&rdquo;, or &ldquo;us&rdquo;). We are committed to protecting the privacy, confidentiality, and data integrity of restaurant owners, food service operators, waitstaff, and their dining patrons.
         </p>
 
         <p>
-          This Privacy Policy governs the use of the FoodPOS Android Application, Desktop App, and related cloud synchronization services. It discloses what information we collect, how it is processed and stored on your local devices and cloud servers, and your statutory rights.
+          This Privacy Policy governs the use of the Hishobkr Android Application, Desktop App, and related cloud synchronization services. It discloses what information we collect, how it is processed and stored on your local devices and cloud servers, and your statutory rights.
         </p>
 
         <div className="policy-box">
           <ShieldCheck size={24} style={{ color: 'var(--emerald-herbal)', marginBottom: '8px' }} />
           <h4>Privacy Promise</h4>
           <p style={{ margin: 0, fontSize: '0.95rem' }}>
-            FoodPOS does not sell, rent, or monetize your restaurant&apos;s customer lists, sales records, or billing information to third-party advertisers or data brokers.
+            Hishobkr does not sell, rent, or monetize your restaurant&apos;s customer lists, sales records, or billing information to third-party advertisers or data brokers.
           </p>
         </div>
 
@@ -40,7 +40,7 @@ export const PrivacyPolicyPage: React.FC = () => {
 
         <h3>A. Restaurant Account & Staff Profile Data</h3>
         <p>
-          When setting up an outlet on FoodPOS, we collect business registration details such as Restaurant Name, Trade Name, Outlet Address, GSTIN (optional for unregistered entities), and FSSAI license numbers.
+          When setting up an outlet on Hishobkr, we collect business registration details such as Restaurant Name, Trade Name, Outlet Address, GSTIN (optional for unregistered entities), and FSSAI license numbers.
         </p>
         <p>
           For operational authentication, staff profiles include staff names, role assignments (Admin, Manager, Cashier, Waiter, Kitchen), and 4-to-6 digit access PINs. <strong>All staff PINs are salted and hashed using bcrypt before local storage or cloud transmission.</strong>
@@ -58,33 +58,33 @@ export const PrivacyPolicyPage: React.FC = () => {
 
         <h3>C. Transactional & Operational Records</h3>
         <p>
-          FoodPOS stores line-item order details, table numbers, KOT timestamps, payment methods (Cash, UPI, Card), discount authorizations, shift opening/closing cash counts, petty cash expenses, and inventory adjustments.
+          Hishobkr stores line-item order details, table numbers, KOT timestamps, payment methods (Cash, UPI, Card), discount authorizations, shift opening/closing cash counts, petty cash expenses, and inventory adjustments.
         </p>
 
         <h2>2. Android Device Permissions & System Features</h2>
-        <p>FoodPOS requests specific Android permissions strictly to execute its POS and billing duties:</p>
+        <p>Hishobkr requests specific Android permissions strictly to execute its POS and billing duties:</p>
 
         <ul>
           <li>
-            <strong>INTERNET & ACCESS_NETWORK_STATE:</strong> Needed to sync offline order queues to the secure cloud backend when connectivity is detected and receive live KOT updates.
+            <strong>INTERNET & ACCESS_NETWORK_STATE:</strong> Needed to sync offline order queues to the cloud backend when connectivity is detected, receive live KOT updates, and print to network (LAN/Wi-Fi) receipt printers.
           </li>
           <li>
-            <strong>BLUETOOTH & BLUETOOTH_CONNECT / BLUETOOTH_SCAN:</strong> Required to pair with 58mm / 80mm wireless ESC/POS thermal receipt printers.
+            <strong>POST_NOTIFICATIONS & VIBRATE:</strong> Used to alert staff about new KOTs and orders that are ready to serve.
           </li>
           <li>
-            <strong>USB_PERMISSION:</strong> Required to interface with wired USB thermal printers, handheld barcode scanners, and RJ11 cash drawers.
+            <strong>RECEIVE_BOOT_COMPLETED:</strong> Used only to restore scheduled notifications after the device restarts.
           </li>
           <li>
-            <strong>CAMERA (Optional):</strong> Required only if you choose to scan customer loyalty QR codes or BharatQR payment codes using your device&apos;s camera.
+            <strong>Photos (optional):</strong> If you choose to add a photo to a menu item, the system photo picker is used. Hishobkr does not request broad access to your storage.
           </li>
         </ul>
 
         <h2>3. Offline-First Architecture & Data Durability</h2>
         <div className="policy-box">
-          <Database size={24} style={{ color: 'var(--terracotta)', marginBottom: '8px' }} />
+          <Database size={24} style={{ color: 'var(--brand-primary)', marginBottom: '8px' }} />
           <h4>Local Device Storage</h4>
           <p style={{ margin: 0, fontSize: '0.95rem' }}>
-            To withstand Indian broadband and power outages, FoodPOS persists your operational data to encrypted local device storage (SQLite/Hive). When offline, transactions queue safely on the device and automatically sync via idempotent requests once a network connection is re-established.
+            To withstand Indian broadband and power outages, Hishobkr persists your operational data to the app&apos;s private storage on the device. When offline, transactions queue safely on the device and automatically sync via idempotent requests once a network connection is re-established.
           </p>
         </div>
 
@@ -95,7 +95,7 @@ export const PrivacyPolicyPage: React.FC = () => {
 
         <h2>5. Your Rights & Data Deletion Requests</h2>
         <p>
-          Restaurant administrators have the right to inspect, correct, export, or permanently erase their accounts. For complete account closure and data deletion procedures, visit our dedicated <a href="#/data-deletion" onClick={(e) => { e.preventDefault(); navigate('/data-deletion'); }} style={{ color: 'var(--terracotta)', fontWeight: 600, textDecoration: 'underline' }}>Account & Data Deletion Portal</a>.
+          Restaurant administrators have the right to inspect, correct, export, or permanently erase their accounts. For complete account closure and data deletion procedures, visit our dedicated <a href="#/data-deletion" onClick={(e) => { e.preventDefault(); navigate('/data-deletion'); }} style={{ color: 'var(--brand-primary)', fontWeight: 600, textDecoration: 'underline' }}>Account & Data Deletion Portal</a>.
         </p>
 
         <h2>6. Security Measures</h2>
@@ -103,17 +103,15 @@ export const PrivacyPolicyPage: React.FC = () => {
           We employ industry-standard security protocols:
         </p>
         <ul>
-          <li>End-to-end TLS 1.3 encryption for all data in transit.</li>
+          <li>TLS (HTTPS) encryption for all data in transit between the app and our servers.</li>
           <li>Role-based access control with manager-PIN verification gates for refunds, voids, and discounts.</li>
-          <li>Database encryption at rest (AES-256).</li>
         </ul>
 
         <h2>7. Contact Our Privacy Officer</h2>
         <p>If you have any questions, concerns, or requests regarding this Privacy Policy, contact us at:</p>
         <p>
-          <strong>FoodPOS Data Governance Team</strong><br />
-          Email: <a href="mailto:privacy@foodpos.app" style={{ color: 'var(--terracotta)' }}>privacy@foodpos.app</a><br />
-          Helpline: +91 98220 00000<br />
+          <strong>Hishobkr Data Governance Team</strong><br />
+          Email: <a href="mailto:support@hishobkr.com" style={{ color: 'var(--brand-primary)' }}>support@hishobkr.com</a><br />
           Location: Pune, Maharashtra, India
         </p>
       </div>

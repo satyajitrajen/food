@@ -3,7 +3,6 @@ import ReactDOM from 'react-dom/client';
 import { RouterProvider } from './router';
 import { App } from './App';
 import './styles/app.css';
-import './styles/simulator.css';
 import './styles/polish.css';
 import './styles/template.css';
 import './console/console.css';

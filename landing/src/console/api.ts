@@ -1,4 +1,4 @@
-// FoodPOS Console API layer — talks to the Go SaaS backend.
+// Hishobkr Console API layer — talks to the Go SaaS backend.
 function apiBaseUrl(): string {
   const env = (import.meta as any).env;
   return (env && env.VITE_FOODPOS_API_URL) || 'https://food.nexorytechnologies.com';
@@ -147,9 +147,13 @@ export interface RegisterPayload {
   plan_code?: string;
 }
 
-// Sales WhatsApp line; override per deployment with VITE_FOODPOS_WHATSAPP.
+// Sales WhatsApp line, set per deployment with VITE_FOODPOS_WHATSAPP
+// (digits incl. country code). When unset, WhatsApp links are hidden and the
+// UI falls back to e-mail — never ship a placeholder number.
 export const WHATSAPP_NUMBER: string =
-  ((import.meta as any).env && (import.meta as any).env.VITE_FOODPOS_WHATSAPP) || '919822000000';
+  ((import.meta as any).env && (import.meta as any).env.VITE_FOODPOS_WHATSAPP) || '';
+
+export const SUPPORT_EMAIL = 'support@hishobkr.com';
 
 export interface LeadPayload {
   restaurant_name: string;
@@ -167,6 +171,25 @@ export async function createLead(payload: LeadPayload): Promise<{ id: string }> 
 
 export async function registerOrg(payload: RegisterPayload): Promise<any> {
   return request('/api/v1/auth/register', { method: 'POST', body: payload });
+}
+
+// ---- password reset / e-mail verification (links come from backend mail) ----
+
+// Always resolves with a neutral message when the request is accepted; the
+// backend never reveals whether the account exists.
+export async function forgotPassword(email: string): Promise<{ delivered: boolean; message: string }> {
+  return request('/api/v1/auth/account/forgot', { method: 'POST', body: { email } });
+}
+
+export async function resetPassword(token: string, newPassword: string): Promise<{ reset: boolean }> {
+  return request('/api/v1/auth/account/reset', {
+    method: 'POST',
+    body: { token, new_password: newPassword },
+  });
+}
+
+export async function verifyEmail(token: string): Promise<{ verified: boolean }> {
+  return request('/api/v1/auth/account/verify', { method: 'POST', body: { token } });
 }
 
 // ---- Razorpay auto-renew ----
