@@ -36,3 +36,7 @@ Notes:
   totals include it; backend stores delivery_paise). No code change.
 - UX-03/05 fix adds backend `payments` echo on single-order GET; design brief
   DB-order-payments-echo.md + decisions.md entry required (API contract change).
+- UX-01 follow-up (found during batch-10 spot-check): the original batch-1
+  pluralize edits dropped the count at all 17 call sites — plural() returned
+  only the word ("items · ₹520 + tax"). plural() now returns the full counted
+  string ("2 items · ₹520 + tax"); pluralize_test updated.

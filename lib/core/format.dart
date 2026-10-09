@@ -19,8 +19,11 @@ String rupeeInput(double amount) {
   return cents % 100 == 0 ? (cents ~/ 100).toString() : (cents / 100).toStringAsFixed(2);
 }
 
+/// Counted label: plural(1, 'item') → '1 item', plural(3, 'entry',
+/// 'entries') → '3 entries'. Returns the full string including the count,
+/// so templates embed it whole.
 String plural(int count, String singular, [String? pluralWord]) =>
-    count == 1 ? singular : (pluralWord ?? '${singular}s');
+    '$count ${count == 1 ? singular : (pluralWord ?? '${singular}s')}';
 
 final DateFormat _date = DateFormat('d MMM yyyy');
 final DateFormat _dateTime = DateFormat('d MMM yyyy, h:mm a');
