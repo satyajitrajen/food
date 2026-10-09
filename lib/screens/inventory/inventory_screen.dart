@@ -870,7 +870,15 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
               ElevatedButton(
                 onPressed: () {
                   final invoice = invoiceC.text.trim();
-                  if (invoice.isEmpty || total <= 0) return;
+                  if (invoice.isEmpty || total <= 0) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Enter an invoice number and at least one item'),
+                        backgroundColor: AppColors.nonVegRed,
+                      ),
+                    );
+                    return;
+                  }
                   provider.createPurchase(
                     invoiceNo: invoice,
                     supplierId: supplierId,
