@@ -235,6 +235,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
     final completed = _typeFilter == 'All'
         ? inPeriod
         : inPeriod.where((o) => o.orderType == _typeFilters[_typeFilter]).toList();
+    // Expenses carry no order type: under a type filter they'd mix unfiltered
+    // spend with filtered sales, so both the Expenses card and Estimated
+    // Profit render an em dash instead of a number.
+    final typeFiltered = _typeFilter != 'All';
 
     final filteredExpenses =
         provider.expenses.where((e) => _inPeriod(e.date)).toList();
@@ -356,9 +360,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
                         Expanded(
                           child: _buildStatCard(
                             'Expenses',
-                            formatInr(totalExpenses),
+                            typeFiltered ? '—' : formatInr(totalExpenses),
                             Icons.payments_outlined,
                             AppColors.saffronAmber,
+                            subline: typeFiltered ? 'not attributed by order type' : null,
                           ),
                         ),
                       ],
@@ -388,9 +393,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            formatInr(estimatedProfit),
+                            typeFiltered ? '—' : formatInr(estimatedProfit),
                             style: TextStyle(
-                              color: estimatedProfit >= 0 ? AppColors.brandGreen : const Color(0xFFFF8A80),
+                              color: typeFiltered
+                                  ? Colors.white70
+                                  : (estimatedProfit >= 0 ? AppColors.brandGreen : const Color(0xFFFF8A80)),
                               fontWeight: FontWeight.w900,
                               fontSize: 36,
                               letterSpacing: -0.5,
@@ -398,7 +405,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
                           ),
                           const SizedBox(height: 12),
                           Text(
-                            'Net sales ${formatInr(netSales)} − expenses ${formatInr(totalExpenses)}',
+                            typeFiltered
+                                ? 'Expenses are not attributed by order type'
+                                : 'Net sales ${formatInr(netSales)} − expenses ${formatInr(totalExpenses)}',
                             style: const TextStyle(color: Colors.white60, fontSize: 12),
                           ),
                         ],
@@ -596,7 +605,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
         border: Border.all(color: AppColors.borderLight),
       );
 
-  Widget _buildStatCard(String label, String value, IconData icon, Color color) {
+  Widget _buildStatCard(String label, String value, IconData icon, Color color, {String? subline}) {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -628,6 +637,13 @@ class _ReportsScreenState extends State<ReportsScreen> {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
+          if (subline != null)
+            Text(
+              subline,
+              style: const TextStyle(color: AppColors.textMuted, fontSize: 10),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
         ],
       ),
     );

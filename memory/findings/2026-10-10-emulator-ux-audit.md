@@ -18,7 +18,7 @@ locations verified in source. Fixes follow the approved plan
 | UX-10 | HIGH | Inventory | Record Purchase never updates ingredient stock locally despite "Items received (updates stock):" label (backend applies stock; local mirror missing) | pos_provider.dart:3160-3197 | fixed |
 | UX-11 | MED | Staff | Add Staff empty submit silently returns (bare guard, no feedback) | staff_admin_screen.dart:472 | fixed |
 | UX-12 | MED | Reports | Staff Performance lists all orders under "Unassigned" — only waiter-role creators attributed | pos_provider.dart:2014-2015,1749-1750 | fixed |
-| UX-13 | MED | Reports | Expense total + estimated profit shown unfiltered when order-type filter yields 0 orders (expenses not attributable by type) | reports_screen.dart:239-249,356-401 | open |
+| UX-13 | MED | Reports | Expense total + estimated profit shown unfiltered when order-type filter yields 0 orders (expenses not attributable by type) | reports_screen.dart:239-249,356-401 | fixed |
 | UX-14 | MED | Tables | Add Table empty submit silent no-op | settings_screen.dart:927 | fixed |
 | UX-15 | MED | More hub | Waiter role gets completely empty More tab (0 tiles) | more_hub_screen.dart:35-37 | open |
 | UX-16 | LOW | Printing | Print-failure snackbars surface raw SocketException text | pos_provider.dart:3316,3388,3415,3437 | open |
