@@ -3301,10 +3301,10 @@ class PosProvider extends ChangeNotifier {
     unawaited(PushNotificationService.instance.subscribeToTopic('outlet_${outlet.id}'));
     unawaited(_realtime?.disconnect());
     notifyListeners();
-    if (apiEnabled && _currentStaff != null) {
-      unawaited(_postLoginSync());
-    } else if (apiEnabled) {
-      unawaited(hydrateOutlet());
+    // A signed-in session is bound to the previous outlet server-side; the UI
+    // signs the staff member out and back in, which hydrates the new outlet.
+    if (apiEnabled && _currentStaff == null) {
+      unawaited(hydratePublic());
     }
   }
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/pos_provider.dart';
+import 'pin_login_screen.dart';
 import '../../models/outlet_model.dart';
 
 class SelectOutletScreen extends StatelessWidget {
@@ -83,14 +84,32 @@ class SelectOutletScreen extends StatelessWidget {
                             );
                             return;
                           }
+                          final signedIn = provider.apiEnabled && staff != null;
+                          if (signedIn && outlet.id != provider.currentOutlet.id) {
+                            // The server binds a sign-in to one outlet, so
+                            // queued writes must land before the switch and
+                            // the staff member signs in again on the new one.
+                            if (provider.pendingSyncCount > 0) {
+                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                content: Text(
+                                    '${provider.pendingSyncCount} change(s) are still syncing. Switch once they are synced.'),
+                                backgroundColor: AppColors.warning,
+                              ));
+                              return;
+                            }
+                            provider.selectOutlet(outlet);
+                            provider.logout();
+                            Navigator.of(context).pushAndRemoveUntil(
+                              MaterialPageRoute(builder: (_) => const PinLoginScreen()),
+                              (route) => false,
+                            );
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                              content: Text('Sign in to ${outlet.name} with your PIN'),
+                            ));
+                            return;
+                          }
                           provider.selectOutlet(outlet);
                           Navigator.of(context).pop();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('✓ Switched to ${outlet.name} · Counter ${outlet.terminal}'),
-                              backgroundColor: AppColors.vegGreen,
-                            ),
-                          );
                         },
                         borderRadius: BorderRadius.circular(16),
                         child: Padding(
