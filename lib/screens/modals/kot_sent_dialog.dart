@@ -72,7 +72,7 @@ class KOTSentDialog extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                '${live.kotNumber} · Table ${live.tableNumber ?? "Counter"}',
+                '${live.kotNumber} · ${live.tableNumber != null ? 'Table ${live.tableNumber}' : 'Takeaway'}',
                 style: const TextStyle(color: AppColors.primaryGreen, fontWeight: FontWeight.w700, fontSize: 14),
               ),
               const SizedBox(height: 4),

@@ -141,8 +141,12 @@ class _MainAdaptiveShellState extends State<MainAdaptiveShell> {
   Widget build(BuildContext context) {
     // Select only what this shell renders — avoid full-app rebuilds.
     final navIndex = context.select<PosProvider, int>((p) => p.currentNavIndex);
-    final role = context.select<PosProvider, StaffRole?>((p) => p.currentStaff?.role);
-    final staffName = context.select<PosProvider, String?>((p) => p.currentStaff?.name);
+    final role = context.select<PosProvider, StaffRole?>(
+      (p) => p.currentStaff?.role,
+    );
+    final staffName = context.select<PosProvider, String?>(
+      (p) => p.currentStaff?.name,
+    );
     final outlet = context.select<PosProvider, Outlet>((p) => p.currentOutlet);
     final provider = context.read<PosProvider>();
 
@@ -158,23 +162,27 @@ class _MainAdaptiveShellState extends State<MainAdaptiveShell> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isLargeScreen = constraints.maxWidth >= 850;
+        final width = constraints.maxWidth;
 
-        if (!isLargeScreen) {
+        if (width < 600) {
           // Mobile / Handheld Navigation Shell
-          final selectedTab =
-              tabs.contains(currentDest) ? tabs.indexOf(currentDest) : tabs.length - 1;
+          final selectedTab = tabs.contains(currentDest)
+              ? tabs.indexOf(currentDest)
+              : tabs.length - 1;
           return Scaffold(
-            body: IndexedStack(
-              index: index,
-              children: screens,
-            ),
+            body: IndexedStack(index: index, children: screens),
             bottomNavigationBar: Container(
               decoration: const BoxDecoration(
                 color: Colors.white,
-                border: Border(top: BorderSide(color: AppColors.borderLight, width: 1.2)),
+                border: Border(
+                  top: BorderSide(color: AppColors.borderLight, width: 1.2),
+                ),
                 boxShadow: [
-                  BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, -2)),
+                  BoxShadow(
+                    color: Colors.black12,
+                    blurRadius: 10,
+                    offset: Offset(0, -2),
+                  ),
                 ],
               ),
               child: SafeArea(
@@ -192,7 +200,9 @@ class _MainAdaptiveShellState extends State<MainAdaptiveShell> {
                         icon: Icon(_iconFor(d)),
                         selectedIcon: Icon(
                           _selectedIconFor(d),
-                          color: d == AppDest.pos ? AppColors.primaryGreenDark : AppColors.primaryGreen,
+                          color: d == AppDest.pos
+                              ? AppColors.primaryGreenDark
+                              : AppColors.primaryGreen,
                         ),
                         label: d.label,
                       ),
@@ -203,9 +213,66 @@ class _MainAdaptiveShellState extends State<MainAdaptiveShell> {
           );
         }
 
-        // Tablet & Desktop Sidebar Navigation Shell
-        final sidebarDests =
-            destinations.where((d) => d != AppDest.more).toList();
+        if (width < 1024) {
+          // Tablet: compact rail with every destination (incl. More, which
+          // holds Menu/Staff/Printer/Cash drawer/Attendance/QR/Switch outlet).
+          return Scaffold(
+            body: SafeArea(
+              child: Row(
+                children: [
+                  LayoutBuilder(
+                    builder: (context, c) => SingleChildScrollView(
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(minHeight: c.maxHeight),
+                        child: IntrinsicHeight(
+                          child: NavigationRail(
+                            selectedIndex: index,
+                            onDestinationSelected: (i) =>
+                                provider.goToDest(destinations[i]),
+                            labelType: NavigationRailLabelType.all,
+                            backgroundColor: AppColors.creamCard,
+                            indicatorColor: AppColors.primaryGreenLight,
+                            trailing: IconButton(
+                              tooltip: 'Lock register',
+                              icon: const Icon(Icons.lock_outline),
+                              onPressed: () {
+                                provider.logout();
+                                Navigator.of(context).pushAndRemoveUntil(
+                                  MaterialPageRoute(
+                                    builder: (_) => const PinLoginScreen(),
+                                  ),
+                                  (route) => false,
+                                );
+                              },
+                            ),
+                            destinations: [
+                              for (final d in destinations)
+                                NavigationRailDestination(
+                                  icon: Icon(_iconFor(d)),
+                                  selectedIcon: Icon(
+                                    _selectedIconFor(d),
+                                    color: AppColors.primaryGreen,
+                                  ),
+                                  label: Text(d.label),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const VerticalDivider(width: 1, color: AppColors.borderLight),
+                  Expanded(
+                    child: IndexedStack(index: index, children: screens),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        // Desktop / large tablet sidebar.
+        final sidebarDests = destinations;
         return Scaffold(
           body: SafeArea(
             child: Row(
@@ -215,7 +282,12 @@ class _MainAdaptiveShellState extends State<MainAdaptiveShell> {
                   width: 240,
                   decoration: const BoxDecoration(
                     color: Colors.white,
-                    border: Border(right: BorderSide(color: AppColors.borderLight, width: 1.2)),
+                    border: Border(
+                      right: BorderSide(
+                        color: AppColors.borderLight,
+                        width: 1.2,
+                      ),
+                    ),
                   ),
                   child: Column(
                     children: [
@@ -231,15 +303,39 @@ class _MainAdaptiveShellState extends State<MainAdaptiveShell> {
                                 color: AppColors.primaryGreen,
                                 borderRadius: BorderRadius.circular(10),
                               ),
-                              child: const Icon(Icons.restaurant, color: Colors.white, size: 20),
+                              child: const Icon(
+                                Icons.restaurant,
+                                color: Colors.white,
+                                size: 20,
+                              ),
                             ),
                             const SizedBox(width: 12),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text('HISHOBKR', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 1.0)),
-                                Text('Counter ${outlet.terminal}', style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
-                              ],
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'HISHOBKR',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 16,
+                                      letterSpacing: 1.0,
+                                    ),
+                                  ),
+                                  Text(
+                                    [
+                                      outlet.name,
+                                      outlet.terminal,
+                                    ].where((v) => v.isNotEmpty).join(' · '),
+                                    style: const TextStyle(
+                                      color: AppColors.textMuted,
+                                      fontSize: 11,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
@@ -248,7 +344,10 @@ class _MainAdaptiveShellState extends State<MainAdaptiveShell> {
                       // Navigation List
                       Expanded(
                         child: ListView(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 12,
+                          ),
                           children: [
                             for (final d in sidebarDests)
                               _buildSidebarItem(
@@ -264,7 +363,9 @@ class _MainAdaptiveShellState extends State<MainAdaptiveShell> {
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: const BoxDecoration(
-                          border: Border(top: BorderSide(color: AppColors.borderLight)),
+                          border: Border(
+                            top: BorderSide(color: AppColors.borderLight),
+                          ),
                         ),
                         child: Row(
                           children: [
@@ -273,7 +374,11 @@ class _MainAdaptiveShellState extends State<MainAdaptiveShell> {
                               backgroundColor: AppColors.primaryGreenLight,
                               child: Text(
                                 _initialOf(staffName),
-                                style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.primaryGreen, fontSize: 13),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.primaryGreen,
+                                  fontSize: 13,
+                                ),
                               ),
                             ),
                             const SizedBox(width: 10),
@@ -283,22 +388,34 @@ class _MainAdaptiveShellState extends State<MainAdaptiveShell> {
                                 children: [
                                   Text(
                                     staffName ?? 'Staff',
-                                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 13,
+                                    ),
                                   ),
                                   Text(
                                     provider.currentStaff?.roleTitle ?? '',
-                                    style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
+                                    style: const TextStyle(
+                                      color: AppColors.textMuted,
+                                      fontSize: 11,
+                                    ),
                                   ),
                                 ],
                               ),
                             ),
                             IconButton(
-                              icon: const Icon(Icons.lock_outline, size: 18, color: AppColors.textMuted),
+                              icon: const Icon(
+                                Icons.lock_outline,
+                                size: 18,
+                                color: AppColors.textMuted,
+                              ),
                               tooltip: 'Lock Register',
                               onPressed: () {
                                 provider.logout();
                                 Navigator.of(context).pushAndRemoveUntil(
-                                  MaterialPageRoute(builder: (_) => const PinLoginScreen()),
+                                  MaterialPageRoute(
+                                    builder: (_) => const PinLoginScreen(),
+                                  ),
                                   (route) => false,
                                 );
                               },
@@ -312,10 +429,7 @@ class _MainAdaptiveShellState extends State<MainAdaptiveShell> {
 
                 // Content Area
                 Expanded(
-                  child: IndexedStack(
-                    index: index,
-                    children: screens,
-                  ),
+                  child: IndexedStack(index: index, children: screens),
                 ),
               ],
             ),
@@ -325,7 +439,12 @@ class _MainAdaptiveShellState extends State<MainAdaptiveShell> {
     );
   }
 
-  Widget _buildSidebarItem(PosProvider provider, int destIndex, int currentIndex, AppDest dest) {
+  Widget _buildSidebarItem(
+    PosProvider provider,
+    int destIndex,
+    int currentIndex,
+    AppDest dest,
+  ) {
     final isSelected = currentIndex == destIndex;
     return Container(
       margin: const EdgeInsets.only(bottom: 4),

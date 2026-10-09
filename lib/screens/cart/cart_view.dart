@@ -50,7 +50,8 @@ class CartViewScreen extends StatelessWidget {
       );
     }
 
-    final tableName = activeOrder.tableNumber ?? provider.selectedTable?.tableNumber ?? 'Counter';
+    final tableNo = activeOrder.tableNumber ?? provider.selectedTable?.tableNumber;
+    final orderLabel = tableNo != null ? 'Table $tableNo' : activeOrder.orderTypeLabel;
     final hasUnsentItems = activeOrder.items.any((i) => !i.isKOTSent && !i.isCancelled);
 
     return Scaffold(
@@ -59,7 +60,7 @@ class CartViewScreen extends StatelessWidget {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Table $tableName', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+            Text(orderLabel, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
             Text(
               '${activeOrder.orderNumber} · Waiter: ${activeOrder.waiterName ?? provider.currentStaff?.name ?? "Staff"}',
               style: const TextStyle(color: AppColors.textMuted, fontSize: 12),

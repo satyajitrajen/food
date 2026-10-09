@@ -348,7 +348,7 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
                           const SizedBox(width: 8),
                           Flexible(
                             child: Text(
-                              '${provider.currentOutlet.name} · Counter ${provider.currentOutlet.terminal}',
+                              [provider.currentOutlet.name, provider.currentOutlet.terminal].where((v) => v.isNotEmpty).join(' · '),
                               style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
                               overflow: TextOverflow.ellipsis,
                             ),

@@ -140,7 +140,7 @@ class SelectOutletScreen extends StatelessWidget {
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
-                                      'Counter ${outlet.terminal} · GST: ${outlet.gstin}',
+                                      [outlet.terminal, if (outlet.gstin.isNotEmpty) 'GSTIN ${outlet.gstin}'].where((v) => v.isNotEmpty).join(' · '),
                                       style: const TextStyle(color: AppColors.primaryGreen, fontWeight: FontWeight.w600, fontSize: 12),
                                     ),
                                     const SizedBox(height: 2),

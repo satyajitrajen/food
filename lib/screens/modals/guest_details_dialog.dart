@@ -155,7 +155,7 @@ class _GuestDetailsDialogState extends State<GuestDetailsDialog> {
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
-                              'Guest Details — Table ${provider.selectedTable?.tableNumber ?? "Counter"}',
+                              provider.selectedTable == null ? 'Guest details' : 'Guest details · Table ${provider.selectedTable!.tableNumber}',
                               style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
                               overflow: TextOverflow.ellipsis,
                             ),

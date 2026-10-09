@@ -54,19 +54,27 @@ class PosDashboardScreen extends StatelessWidget {
               child: const Icon(Icons.restaurant, color: Colors.white, size: 18),
             ),
             const SizedBox(width: 10),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  provider.currentOutlet.name,
-                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17),
-                ),
-                Text(
-                  'Counter ${provider.currentOutlet.terminal} · Cashier: ${provider.currentStaff?.name ?? "Staff"}'
-                  '${provider.printer != null ? " · 🖨 ${provider.printer!.name}" : ""}',
-                  style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
-                ),
-              ],
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    provider.currentOutlet.name,
+                    style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    [
+                      if (provider.currentOutlet.terminal.isNotEmpty) provider.currentOutlet.terminal,
+                      if (provider.currentStaff != null) provider.currentStaff!.name,
+                    ].join(' · '),
+                    style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -74,11 +82,21 @@ class PosDashboardScreen extends StatelessWidget {
         elevation: 0,
         actions: [
           IconButton(
-            icon: Icon(
-              provider.isOfflineMode ? Icons.cloud_off : Icons.cloud_done_outlined,
-              color: provider.isOfflineMode ? AppColors.saffronAmber : AppColors.vegGreen,
+            icon: Badge(
+              isLabelVisible: provider.pendingSyncCount > 0,
+              label: Text('${provider.pendingSyncCount}'),
+              child: Icon(
+                provider.isOfflineMode
+                    ? Icons.cloud_off
+                    : provider.syncBlockedReason != null
+                        ? Icons.sync_problem_outlined
+                        : Icons.cloud_done_outlined,
+                color: provider.isOfflineMode || provider.syncBlockedReason != null
+                    ? AppColors.warning
+                    : AppColors.success,
+              ),
             ),
-            tooltip: 'Sync & Offline Status',
+            tooltip: 'Sync status',
             onPressed: () => OfflineSyncDialog.show(context),
           ),
           const SizedBox(width: 8),

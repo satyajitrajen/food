@@ -60,7 +60,7 @@ class KOTPreviewDialog extends StatelessWidget {
                             style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
                           ),
                           Text(
-                            'Table: ${activeOrder.tableNumber ?? "Counter"} · Waiter: ${activeOrder.waiterName ?? "Staff"}',
+                            [activeOrder.tableNumber != null ? 'Table ${activeOrder.tableNumber}' : activeOrder.orderTypeLabel, if (activeOrder.waiterName != null) activeOrder.waiterName!].join(' · '),
                             style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
                           ),
                         ],
