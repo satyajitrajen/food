@@ -63,6 +63,7 @@ class _AddChargeDialogState extends State<AddChargeDialog> {
                 children: [
                   const Text('Additional Charges', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
                   IconButton(
+                    tooltip: 'Close',
                     icon: const Icon(Icons.close, size: 20),
                     onPressed: () => Navigator.of(context).pop(),
                   ),

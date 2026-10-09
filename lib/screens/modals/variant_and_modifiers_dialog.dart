@@ -106,6 +106,7 @@ class _VariantAndModifiersDialogState extends State<VariantAndModifiersDialog> {
                     ),
                   ),
                   IconButton(
+                    tooltip: 'Close',
                     icon: const Icon(Icons.close),
                     onPressed: () => Navigator.of(context).pop(),
                   ),
@@ -279,6 +280,7 @@ class _VariantAndModifiersDialogState extends State<VariantAndModifiersDialog> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         IconButton(
+                          tooltip: 'Decrease',
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
                           icon: const Icon(Icons.remove, size: 18),
@@ -292,6 +294,7 @@ class _VariantAndModifiersDialogState extends State<VariantAndModifiersDialog> {
                           ),
                         ),
                         IconButton(
+                          tooltip: 'Add',
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
                           icon: const Icon(Icons.add, size: 18),

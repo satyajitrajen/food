@@ -206,6 +206,7 @@ class CartViewScreen extends StatelessWidget {
                                 Row(
                                   children: [
                                     IconButton(
+                                      tooltip: 'Decrease',
                                       icon: const Icon(Icons.remove_circle_outline, size: 20),
                                       onPressed: () async {
                                         // FR-A3: removing a KOT-sent line needs
@@ -240,6 +241,7 @@ class CartViewScreen extends StatelessWidget {
                                       style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
                                     ),
                                     IconButton(
+                                      tooltip: 'Increase',
                                       icon: const Icon(Icons.add_circle_outline, size: 20, color: AppColors.primaryGreen),
                                       onPressed: () {
                                         // Every add asks again: variant + spice/add-ons + note.
@@ -261,6 +263,7 @@ class CartViewScreen extends StatelessWidget {
                                       },
                                     ),
                                     IconButton(
+                                      tooltip: 'Delete',
                                       icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.textLight),
                                       onPressed: () async {
                                         String? managerPin;

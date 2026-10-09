@@ -78,6 +78,7 @@ class _RefundDialogState extends State<RefundDialog> {
                     style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
                   ),
                   IconButton(
+                    tooltip: 'Close',
                     icon: const Icon(Icons.close, size: 20),
                     onPressed: () => Navigator.of(context).pop(),
                   ),

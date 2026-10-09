@@ -60,6 +60,7 @@ class _ApplyDiscountDialogState extends State<ApplyDiscountDialog> {
                 children: [
                   const Text('Apply Discount', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
                   IconButton(
+                    tooltip: 'Close',
                     icon: const Icon(Icons.close, size: 20),
                     onPressed: () => Navigator.of(context).pop(),
                   ),

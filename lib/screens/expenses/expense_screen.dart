@@ -319,6 +319,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                             style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: AppColors.nonVegRed),
                           ),
                           IconButton(
+                            tooltip: 'Delete',
                             icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.textLight),
                             onPressed: () async {
                               final ok = await showConfirmDialog(

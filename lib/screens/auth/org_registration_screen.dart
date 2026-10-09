@@ -106,6 +106,7 @@ class _OrgRegistrationScreenState extends State<OrgRegistrationScreen> {
         elevation: 0,
         leading: _result == null
             ? IconButton(
+                tooltip: 'Back',
                 icon: const Icon(Icons.arrow_back),
                 onPressed: _busy ? null : () => Navigator.of(context).pop(),
               )

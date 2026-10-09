@@ -123,10 +123,12 @@ class MenuAdminScreen extends StatelessWidget {
                               : null,
                         ),
                         IconButton(
+                          tooltip: 'Edit',
                           icon: const Icon(Icons.edit_outlined, size: 18),
                           onPressed: canManage ? () => _showEditDialog(context, item) : null,
                         ),
                         IconButton(
+                          tooltip: 'Delete',
                           icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.nonVegRed),
                           onPressed: canManage ? () => _confirmDelete(context, provider, item) : null,
                         ),
@@ -632,6 +634,7 @@ class _VariantsEditorDialogState extends State<_VariantsEditorDialog> {
                       ),
                     ),
                     IconButton(
+                      tooltip: 'Decrease',
                       icon: const Icon(Icons.remove_circle_outline, color: AppColors.nonVegRed),
                       onPressed: () => setState(() => _rows.remove(row)),
                     ),
@@ -793,6 +796,7 @@ class _ModifierGroupsEditorDialogState extends State<_ModifierGroupsEditorDialog
                 ),
               ),
               IconButton(
+                tooltip: 'Delete',
                 icon: const Icon(Icons.delete_outline, color: AppColors.nonVegRed),
                 onPressed: () => setState(() => _groups.removeAt(index)),
               ),
@@ -839,6 +843,7 @@ class _ModifierGroupsEditorDialogState extends State<_ModifierGroupsEditorDialog
                     ),
                   ),
                   IconButton(
+                    tooltip: 'Decrease',
                     icon: const Icon(Icons.remove_circle_outline, color: AppColors.nonVegRed),
                     onPressed: () => setState(() => g.items.remove(it)),
                   ),

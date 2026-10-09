@@ -163,6 +163,7 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
                           suffixIcon: _pickerSearchC.text.isEmpty
                               ? null
                               : IconButton(
+                                  tooltip: 'Clear',
                                   icon: const Icon(Icons.clear, size: 18),
                                   onPressed: () {
                                     _pickerSearchC.clear();

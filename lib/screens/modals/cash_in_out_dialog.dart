@@ -98,6 +98,7 @@ class _CashInOutDialogState extends State<CashInOutDialog> {
                     ],
                   ),
                   IconButton(
+                    tooltip: 'Close',
                     icon: const Icon(Icons.close, size: 20),
                     onPressed: () => Navigator.of(context).pop(),
                   ),

@@ -99,6 +99,7 @@ class _ManagerPinDialogState extends State<ManagerPinDialog> {
                     ],
                   ),
                   IconButton(
+                    tooltip: 'Close',
                     icon: const Icon(Icons.close, size: 20),
                     onPressed: () => Navigator.of(context).pop(null),
                   ),

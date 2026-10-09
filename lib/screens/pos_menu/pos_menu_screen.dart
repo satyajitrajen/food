@@ -205,6 +205,7 @@ class _PosMenuScreenState extends State<PosMenuScreen> {
                 prefixIcon: const Icon(Icons.search, size: 20, color: AppColors.textLight),
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(
+                        tooltip: 'Clear',
                         icon: const Icon(Icons.clear, size: 18),
                         onPressed: () {
                           _searchController.clear();

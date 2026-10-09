@@ -59,6 +59,7 @@ class _OpenShiftScreenState extends State<OpenShiftScreen> {
           Row(
             children: [
               IconButton(
+                tooltip: 'Decrease',
                 icon: const Icon(Icons.remove_circle_outline, size: 20),
                 onPressed: count > 0 ? () => onChanged(count - 1) : null,
               ),
@@ -71,6 +72,7 @@ class _OpenShiftScreenState extends State<OpenShiftScreen> {
                 ),
               ),
               IconButton(
+                tooltip: 'Increase',
                 icon: const Icon(Icons.add_circle_outline, size: 20, color: AppColors.primaryGreen),
                 onPressed: () => onChanged(count + 1),
               ),

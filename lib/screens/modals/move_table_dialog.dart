@@ -65,6 +65,7 @@ class _MoveTableDialogState extends State<MoveTableDialog> {
                     ),
                   ),
                   IconButton(
+                    tooltip: 'Close',
                     icon: const Icon(Icons.close, size: 20),
                     onPressed: () => Navigator.of(context).pop(),
                   ),

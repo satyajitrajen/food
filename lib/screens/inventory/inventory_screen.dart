@@ -793,6 +793,7 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
                       suffixIcon: searchC.text.isEmpty
                           ? null
                           : IconButton(
+                              tooltip: 'Clear',
                               icon: const Icon(Icons.clear, size: 18),
                               onPressed: () {
                                 searchC.clear();
