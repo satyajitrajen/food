@@ -8,6 +8,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../../core/api/api_client.dart';
 import '../../core/media.dart';
 import '../../core/payments/upi_qr.dart';
+import '../../core/format.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/settings_model.dart';
 import '../../models/table_model.dart';
@@ -27,7 +28,7 @@ class SettingsScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.creamBg,
       appBar: AppBar(
-        title: const Text('POS System Settings', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+        title: const Text('Settings'),
         backgroundColor: Colors.white,
         elevation: 0,
       ),
@@ -74,6 +75,13 @@ class SettingsScreen extends StatelessWidget {
               title: 'Taxes & Additional Charges',
               subtitle: 'GST rates, Service charges & Packaging fees',
               icon: Icons.calculate_outlined,
+              trailing: provider.canManage
+                  ? IconButton(
+                      tooltip: 'Edit taxes & charges',
+                      icon: const Icon(Icons.edit_outlined, size: 20),
+                      onPressed: () => _showEditChargesDialog(context, provider, settings),
+                    )
+                  : null,
               children: [
                 _buildSettingItem(
                   'GST Rate',
@@ -82,8 +90,14 @@ class SettingsScreen extends StatelessWidget {
                       : '${settings.gstPercentage}% Exclusive (CGST ${(settings.gstPercentage / 2).toStringAsFixed(1)}% + SGST ${(settings.gstPercentage / 2).toStringAsFixed(1)}%)',
                 ),
                 _buildSettingItem('Menu Pricing', settings.isGstInclusive ? 'Inclusive of GST' : 'Exclusive of GST (+${settings.gstPercentage.toStringAsFixed(settings.gstPercentage % 1 == 0 ? 0 : 1)}%)'),
-                _buildSettingItem('Service Charge', '${settings.defaultServiceChargePercent}% (Dine-In Optional)'),
-                _buildSettingItem('Packaging Charge', '₹${settings.defaultPackagingCharge.toStringAsFixed(0)} flat rate'),
+                _buildSettingItem('Service Charge',
+                    settings.defaultServiceChargePercent > 0 ? '${settings.defaultServiceChargePercent}% on dine-in' : 'None'),
+                _buildSettingItem('Packaging Charge', settings.defaultPackagingCharge > 0
+                    ? '${formatInr(settings.defaultPackagingCharge)} per takeaway/delivery order'
+                    : 'None'),
+                _buildSettingItem('Delivery Charge', settings.defaultDeliveryCharge > 0
+                    ? '${formatInr(settings.defaultDeliveryCharge)} per delivery order'
+                    : 'None'),
               ],
             ),
             const SizedBox(height: 16),
@@ -94,30 +108,38 @@ class SettingsScreen extends StatelessWidget {
 
             // Printer Configuration
             _buildSettingsSection(
-              title: 'Thermal Printers Configuration',
-              subtitle: 'Hardware mapping for Billing, Kitchen KOT, and Bar stations',
+              title: 'Thermal Printers',
+              subtitle: 'Network (LAN/Wi-Fi) ESC/POS printers as IP:port',
               icon: Icons.print_outlined,
+              trailing: provider.canManage
+                  ? IconButton(
+                      tooltip: 'Edit printers',
+                      icon: const Icon(Icons.edit_outlined, size: 20),
+                      onPressed: () => _showEditPrintersDialog(context, provider, settings),
+                    )
+                  : null,
               children: [
-                _buildSettingItem('Billing Counter Printer', settings.billingPrinter),
-                _buildSettingItem('Kitchen KOT Printer', settings.kitchenPrinter),
-                _buildSettingItem('Bar Station Printer', settings.barPrinter),
+                _buildSettingItem('Billing printer',
+                    settings.billingPrinter.isEmpty ? 'Not set' : settings.billingPrinter),
+                _buildSettingItem('Kitchen (KOT) printer',
+                    settings.kitchenPrinter.isEmpty ? 'Uses billing printer' : settings.kitchenPrinter),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   title: const Text('Auto-print KOT on order placement', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
                   value: settings.autoPrintKOT,
                   activeThumbColor: AppColors.primaryGreen,
-                  onChanged: (v) {
-                    provider.updateSettings(settings.copyWith(autoPrintKOT: v));
-                  },
+                  onChanged: provider.canManage
+                      ? (v) => provider.updateSettings(settings.copyWith(autoPrintKOT: v))
+                      : null,
                 ),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   title: const Text('Allow reprint of completed bills', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
                   value: settings.allowReprint,
                   activeThumbColor: AppColors.primaryGreen,
-                  onChanged: (v) {
-                    provider.updateSettings(settings.copyWith(allowReprint: v));
-                  },
+                  onChanged: provider.canManage
+                      ? (v) => provider.updateSettings(settings.copyWith(allowReprint: v))
+                      : null,
                 ),
               ],
             ),
@@ -248,47 +270,252 @@ class SettingsScreen extends StatelessWidget {
     final nameC = TextEditingController(text: settings.restaurantName);
     final addressC = TextEditingController(text: settings.address);
     final phoneC = TextEditingController(text: settings.phone);
+    final emailC = TextEditingController(text: settings.email);
     final gstinC = TextEditingController(text: settings.gstin);
     final fssaiC = TextEditingController(text: settings.fssai);
+    String? gstinErr;
+    String? fssaiErr;
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Edit Restaurant Profile'),
-        content: SizedBox(
-          width: 520,
-          child: SingleChildScrollView(
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          title: const Text('Restaurant profile'),
+          content: SizedBox(
+            width: 520,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Printed on every bill for this outlet.',
+                      style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                  const SizedBox(height: 10),
+                  TextField(controller: nameC, decoration: const InputDecoration(labelText: 'Name on bills')),
+                  const SizedBox(height: 10),
+                  TextField(controller: addressC, maxLines: 2, decoration: const InputDecoration(labelText: 'Address')),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: phoneC,
+                    keyboardType: TextInputType.phone,
+                    decoration: const InputDecoration(labelText: 'Phone'),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: emailC,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: const InputDecoration(labelText: 'Email'),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: gstinC,
+                    textCapitalization: TextCapitalization.characters,
+                    decoration: InputDecoration(labelText: 'GSTIN', errorText: gstinErr),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: fssaiC,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(labelText: 'FSSAI licence no.', errorText: fssaiErr),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () {
+                final gstin = gstinC.text.trim().toUpperCase();
+                final fssai = fssaiC.text.trim();
+                setLocal(() {
+                  gstinErr = gstin.isEmpty || RegExp(r'^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$').hasMatch(gstin)
+                      ? null
+                      : 'GSTIN is 15 characters, e.g. 27ABCDE1234F1Z5';
+                  fssaiErr = fssai.isEmpty || RegExp(r'^\d{14}$').hasMatch(fssai)
+                      ? null
+                      : 'FSSAI licence number is 14 digits';
+                });
+                if (gstinErr != null || fssaiErr != null) return;
+                provider.updateOutletProfile(
+                  name: nameC.text.trim(),
+                  address: addressC.text.trim(),
+                  phone: phoneC.text.trim(),
+                  email: emailC.text.trim(),
+                  gstin: gstin,
+                  fssai: fssai,
+                );
+                Navigator.of(ctx).pop();
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showEditChargesDialog(BuildContext context, PosProvider provider, RestaurantSettings settings) {
+    var gst = settings.gstPercentage;
+    var inclusive = settings.isGstInclusive;
+    final serviceC = TextEditingController(text: rupeeInput(settings.defaultServiceChargePercent));
+    final packagingC = TextEditingController(text: rupeeInput(settings.defaultPackagingCharge));
+    final deliveryC = TextEditingController(text: rupeeInput(settings.defaultDeliveryCharge));
+    String? err;
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          title: const Text('Taxes & charges'),
+          content: SizedBox(
+            width: 480,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('GST rate', style: TextStyle(fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      for (final r in const [0.0, 5.0, 12.0, 18.0, 28.0])
+                        ChoiceChip(
+                          label: Text('${r.toStringAsFixed(0)}%'),
+                          selected: gst == r,
+                          onSelected: (_) => setLocal(() => gst = r),
+                        ),
+                    ],
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Menu prices include GST'),
+                    value: inclusive,
+                    onChanged: (v) => setLocal(() => inclusive = v),
+                  ),
+                  TextField(
+                    controller: serviceC,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(labelText: 'Service charge (%) on dine-in', suffixText: '%'),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: packagingC,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(labelText: 'Packaging per takeaway/delivery order', prefixText: '₹ '),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: deliveryC,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(labelText: 'Delivery charge per delivery order', prefixText: '₹ '),
+                  ),
+                  if (err != null) ...[
+                    const SizedBox(height: 10),
+                    Text(err!, style: const TextStyle(color: AppColors.danger)),
+                  ],
+                  const SizedBox(height: 8),
+                  const Text('Applies to new orders. Open orders keep their charges.',
+                      style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () {
+                final service = double.tryParse(serviceC.text.trim()) ?? -1;
+                final packaging = double.tryParse(packagingC.text.trim()) ?? -1;
+                final delivery = double.tryParse(deliveryC.text.trim()) ?? -1;
+                if (service < 0 || service > 20 || packaging < 0 || delivery < 0) {
+                  setLocal(() => err = 'Service charge must be 0–20% and charges cannot be negative.');
+                  return;
+                }
+                provider.updateSettings(settings.copyWith(
+                  gstPercentage: gst,
+                  isGstInclusive: inclusive,
+                  defaultServiceChargePercent: service,
+                  defaultPackagingCharge: packaging,
+                  defaultDeliveryCharge: delivery,
+                ));
+                Navigator.of(ctx).pop();
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showEditPrintersDialog(BuildContext context, PosProvider provider, RestaurantSettings settings) {
+    final billingC = TextEditingController(text: settings.billingPrinter);
+    final kitchenC = TextEditingController(text: settings.kitchenPrinter);
+    String? billingErr;
+    String? kitchenErr;
+    String? validate(String v) {
+      if (v.trim().isEmpty) return null;
+      return RegExp(r'^[A-Za-z0-9.\-]+:\d{2,5}$').hasMatch(v.trim()) ? null : 'Use IP:port, e.g. 192.168.1.50:9100';
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          title: const Text('Printers'),
+          content: SizedBox(
+            width: 480,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextField(controller: nameC, decoration: const InputDecoration(labelText: 'Restaurant name')),
+                TextField(
+                  controller: billingC,
+                  decoration: InputDecoration(
+                    labelText: 'Billing printer (IP:port)',
+                    hintText: '192.168.1.50:9100',
+                    errorText: billingErr,
+                  ),
+                ),
                 const SizedBox(height: 10),
-                TextField(controller: addressC, decoration: const InputDecoration(labelText: 'Address')),
+                TextField(
+                  controller: kitchenC,
+                  decoration: InputDecoration(
+                    labelText: 'Kitchen KOT printer (optional)',
+                    hintText: 'Leave empty to use the billing printer',
+                    errorText: kitchenErr,
+                  ),
+                ),
                 const SizedBox(height: 10),
-                TextField(controller: phoneC, decoration: const InputDecoration(labelText: 'Phone / Support')),
-                const SizedBox(height: 10),
-                TextField(controller: gstinC, decoration: const InputDecoration(labelText: 'GSTIN')),
-                const SizedBox(height: 10),
-                TextField(controller: fssaiC, decoration: const InputDecoration(labelText: 'FSSAI License')),
+                const Text('Most thermal printers listen on port 9100. Find the IP on the printer\'s self-test slip.',
+                    style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
               ],
             ),
           ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () async {
+                setLocal(() {
+                  billingErr = validate(billingC.text);
+                  kitchenErr = validate(kitchenC.text);
+                });
+                if (billingErr != null || kitchenErr != null) return;
+                provider.updateSettings(settings.copyWith(
+                  billingPrinter: billingC.text.trim(),
+                  kitchenPrinter: kitchenC.text.trim(),
+                ));
+                Navigator.of(ctx).pop();
+                if (billingC.text.trim().isEmpty) return;
+                final messenger = ScaffoldMessenger.of(context);
+                final ok = await provider.printTestPage();
+                messenger.showSnackBar(SnackBar(
+                  content: Text(ok ? 'Saved. Test page printed.' : 'Saved, but test print failed: ${provider.printerError ?? ''}'),
+                  backgroundColor: ok ? AppColors.success : AppColors.danger,
+                ));
+              },
+              child: const Text('Save & test print'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () {
-              provider.updateSettings(settings.copyWith(
-                restaurantName: nameC.text.trim(),
-                address: addressC.text.trim(),
-                phone: phoneC.text.trim(),
-                gstin: gstinC.text.trim(),
-                fssai: fssaiC.text.trim(),
-              ));
-              Navigator.of(ctx).pop();
-            },
-            child: const Text('Save'),
-          ),
-        ],
       ),
     );
   }

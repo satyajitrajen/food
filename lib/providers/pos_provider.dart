@@ -2788,6 +2788,33 @@ class PosProvider extends ChangeNotifier {
     }
   }
 
+  /// Saves the outlet's legal/contact details (printed on bills) to the
+  /// outlet record, and the display name to settings.
+  void updateOutletProfile({
+    required String name,
+    required String address,
+    required String phone,
+    required String email,
+    required String gstin,
+    required String fssai,
+  }) {
+    if (!canManage) return;
+    _currentOutlet = _currentOutlet.copyWith(
+        address: address, phone: phone, email: email, gstin: gstin, fssai: fssai);
+    final i = _outlets.indexWhere((o) => o.id == _currentOutlet.id);
+    if (i >= 0) _outlets[i] = _currentOutlet;
+    _settings = _withOutletProfile(_settings.copyWith(restaurantName: name));
+    notifyListeners();
+    _push('outlet.patch', {
+      'address': address,
+      'phone': phone,
+      'email': email,
+      'gstin': gstin,
+      'fssai': fssai,
+    });
+    _push('settings.update', settingsToApi(_settings));
+  }
+
   void updateSettings(RestaurantSettings s) {
     _settings = s;
     notifyListeners();

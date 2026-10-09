@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_theme.dart';
@@ -34,10 +36,19 @@ class ManagerPinDialog extends StatefulWidget {
 
 class _ManagerPinDialogState extends State<ManagerPinDialog> {
   String _pin = '';
+  Timer? _autoSubmit;
   String? _errorMessage;
   bool _verifying = false;
 
+  @override
+  void dispose() {
+    _autoSubmit?.cancel();
+    super.dispose();
+  }
+
   Future<void> _verifyPin() async {
+    _autoSubmit?.cancel();
+    if (_pin.length < 4) return;
     if (_verifying) return;
     setState(() => _verifying = true);
     final provider = context.read<PosProvider>();
@@ -112,7 +123,7 @@ class _ManagerPinDialogState extends State<ManagerPinDialog> {
               // PIN Dots
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(4, (index) {
+                children: List.generate(_pin.length > 4 ? _pin.length : 4, (index) {
                   final isFilled = index < _pin.length;
                   return Container(
                     margin: const EdgeInsets.symmetric(horizontal: 8),
@@ -139,17 +150,24 @@ class _ManagerPinDialogState extends State<ManagerPinDialog> {
               const SizedBox(height: 20),
               NumericKeypad(
                 onKeyPressed: (digit) {
-                  if (_pin.length < 4) {
-                    setState(() {
-                      _pin += digit;
-                      _errorMessage = null;
-                    });
-                    if (_pin.length == 4) {
-                      _verifyPin();
-                    }
+                  if (_pin.length >= 6) return;
+                  _autoSubmit?.cancel();
+                  setState(() {
+                    _pin += digit;
+                    _errorMessage = null;
+                  });
+                  if (_pin.length == 6) {
+                    _verifyPin();
+                  } else if (_pin.length >= 4) {
+                    _autoSubmit = Timer(const Duration(milliseconds: 900), _verifyPin);
                   }
                 },
+                onSubmit: () {
+                  _autoSubmit?.cancel();
+                  if (_pin.length >= 4) _verifyPin();
+                },
                 onDelete: () {
+                  _autoSubmit?.cancel();
                   if (_pin.isNotEmpty) {
                     setState(() {
                       _pin = _pin.substring(0, _pin.length - 1);

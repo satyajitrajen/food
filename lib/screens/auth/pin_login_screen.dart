@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_theme.dart';
@@ -32,27 +34,39 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
 
   @override
   void dispose() {
+    _autoSubmit?.cancel();
     _pickerSearchC.dispose();
     super.dispose();
   }
 
   bool _verifying = false;
 
-  void _onKeyPress(String digit) {
-    if (_verifying) return;
-    if (_pin.length < 4) {
-      setState(() {
-        _pin += digit;
-        _errorMessage = null;
-      });
+  /// PINs are 4–6 digits. Six digits submit at once; four or five submit
+  /// after a short pause (or Enter), so 4-digit PINs stay one-motion fast
+  /// while longer PINs can still be typed.
+  Timer? _autoSubmit;
 
-      if (_pin.length == 4) {
-        _verifyPin();
-      }
+  void _onKeyPress(String digit) {
+    if (_verifying || _pin.length >= 6) return;
+    _autoSubmit?.cancel();
+    setState(() {
+      _pin += digit;
+      _errorMessage = null;
+    });
+    if (_pin.length == 6) {
+      _verifyPin();
+    } else if (_pin.length >= 4) {
+      _autoSubmit = Timer(const Duration(milliseconds: 900), _verifyPin);
     }
   }
 
+  void _onSubmit() {
+    _autoSubmit?.cancel();
+    if (_pin.length >= 4 && !_verifying) _verifyPin();
+  }
+
   void _onDelete() {
+    _autoSubmit?.cancel();
     if (_pin.isNotEmpty) {
       setState(() {
         _pin = _pin.substring(0, _pin.length - 1);
@@ -62,6 +76,7 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
   }
 
   void _onClear() {
+    _autoSubmit?.cancel();
     setState(() {
       _pin = '';
       _errorMessage = null;
@@ -247,6 +262,8 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
   }
 
   Future<void> _verifyPin() async {
+    _autoSubmit?.cancel();
+    if (_verifying || _pin.length < 4) return;
     if (_verifying || _selectedStaff == null) return;
     setState(() => _verifying = true);
     final provider = context.read<PosProvider>();
@@ -429,7 +446,7 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
                   ] else
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
-                      children: List.generate(4, (index) {
+                      children: List.generate(_pin.length > 4 ? _pin.length : 4, (index) {
                         final isFilled = index < _pin.length;
                         return Container(
                           margin: const EdgeInsets.symmetric(horizontal: 8),
@@ -459,6 +476,7 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
                     onKeyPressed: _onKeyPress,
                     onDelete: _onDelete,
                     onClear: _onClear,
+                    onSubmit: _onSubmit,
                   ),
                 if (provider.apiEnabled)
                   Padding(
