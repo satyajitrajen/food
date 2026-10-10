@@ -1,17 +1,27 @@
-# Recorded demo coverage — 9 October 2026
+# Recorded demo coverage — 10 October 2026
 
-Pixel 6 API 36 emulator, portrait 1080 × 2400, isolated `tool/demo_main.dart` release build. Clips are silent. All business records shown are fictional, in memory, with API calls disabled.
+Pixel 6 API 36 emulator, portrait 1080 × 2400, debug build of `main` (commit `ab5555b`) talking to a local backend with the demo seed (org code `HISHOBKR`, Baner Outlet). Clips are silent. Every order, payment and report shown went through the real server. Idle stretches longer than 3 s are cut to 2.5 s; the last screen holds for 3 s.
 
-| File | Actual recorded content |
-|---|---|
-| recordings/01-sales-demo.mp4 | Admin PIN login; opening shift with default denomination float ₹5000; table T1 with two guests; three dishes and customization dialogs; cart; KOT preview and submission; order detail; bill with ₹600 subtotal and ₹30 GST; cash collection of ₹630 from ₹1000; receipt with ₹370 change. |
-| recordings/01-sales-demo-quick.mp4 | Same sales take at twice the playback speed, 30 fps. |
-| recordings/02-operations-tour.mp4 | More hub; KDS New → Preparing → Ready with confirmations; past cash transaction; refund dialog inspection (cancelled); expense creation ₹100; cash drawer ₹5530 = ₹5000 + ₹630 − ₹100; reports showing one order, ₹630 gross sales, ₹100 expenses, ₹530 estimated margin and category/item breakdown. Kitchen status was demonstrated after payment in this separate UI tour. |
-| recordings/02-operations-tour-quick.mp4 | Same operations tour at twice the playback speed, 30 fps. |
-| recordings/receipt.png | Cash receipt still. |
+Outlet settings at recording time: restaurant name "Green Candle - Baner Outlet", GST 0%, ₹25 takeaway packaging, UPI ID `demo@upi` (a placeholder, not a real payee). Address, GSTIN and FSSAI are still the seed's demo values.
 
-The remaining scenarios in SCENARIOS.md are shooting scripts, not recorded or verified end-to-end. The local fixture has no invoice issuer: “Invoice: pending sync” is expected and remains visible. These takes demonstrate the existing UI, not server reconciliation, actual payment processing or a physical printer.
+| File | Role | Content |
+|---|---|---|
+| recordings/01-waiter.mp4 | Waiter (Amit, PIN 1111) | PIN login → floor plan → T05, 3 guests → Dal Makhani + 2 Butter Naan → KOT #1203 → order details (no Checkout for waiters) → T05 occupied, ₹340. |
+| recordings/02-kitchen.mp4 | Kitchen (Chef Sharma, PIN 5555) | KDS New/Preparing/Ready/Served → start T05 and T01 → mark T05 ready ("notifies the floor") → lock. No "served" button for the kitchen. |
+| recordings/03-manager.mp4 | Manager (Neha, PIN 8888) | Running orders → T03 bill ₹740 → 10% Customer Loyalty discount → ₹666 → ₹1,000 cash, ₹334 change → Green Candle receipt INV-1050 → shift dashboard (drawer ₹3,532) → staff management actions → sections & tables. |
+| recordings/04-cashier-takeaway-upi.mp4 | Cashier (Rahul, PIN 1234) | Takeaway: Paneer Tikka with Medium Spicy + Laccha Onions, Butter Chicken → KOT #1205 → bill ₹670 incl. ₹25 packaging → UPI QR "Green Candle · demo@upi" → paid → receipt INV-1049 listing the add-ons. |
+| recordings/05-cashier-cash-in.mp4 | Cashier | Shift dashboard → Cash In ₹500 (Change Replenishment) → drawer ₹2,866 → transactions filtered to UPI. |
+| recordings/06-admin.mp4 | Admin/owner (Vikram, PIN 2468) | Home dashboard KPIs → reports (today: 6 orders, ₹2,872; order type, payment mode, top items, staff performance; 7-day view) → POS settings with the UPI QR. |
 
-Validation: demo entry point passes targeted Flutter analysis and builds as an x64 release APK. The demo isolation widget test passes. Recording script passes PowerShell syntax parsing. PIN picker tests pass; existing KOT navigation dialog test fails because its fixture does not provide PosProvider. The actual demo app successfully displays the KOT-sent dialog and navigates to order details.
+`recordings/raw-2026-10-10/` holds the untrimmed takes, including earlier manager/admin takes that still show the seed name "Spice Haven".
 
-The emulator now runs the isolated demo. To return it to the normal app, run `flutter run -d emulator-5554` from the repo root. The demo uses the same Android package as the normal app; do not distribute its APK as a production build.
+`recordings/old-2026-10-09/` holds the 9 October set, recorded with the isolated `tool/demo_main.dart` build (fictional in-memory data, no server). It is kept for reference only:
+
+- it shows behaviour since fixed or removed ("Change to return -₹0", the offline sync/"Simulate Offline" dialog, "Invoice: pending sync", `demo@invalid` UPI);
+- `01-sales-demo` stops on the KOT-sent dialog and never reaches payment;
+- `13-cash-and-shift-close` stops on an unsubmitted Cash Out dialog and never closes the shift;
+- `waiter_role_demo-other-session.mp4` is mostly the Android home screen and never logs in.
+
+`recordings/receipt.png` is a still from that old set.
+
+SCENARIOS.md lists further shooting scripts that are not recorded.
