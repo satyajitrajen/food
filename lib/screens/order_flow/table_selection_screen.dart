@@ -8,6 +8,7 @@ import '../modals/guest_details_dialog.dart';
 import '../pos_menu/pos_menu_screen.dart';
 import '../running_orders/running_order_detail_screen.dart';
 import '../../widgets/empty_state.dart';
+import '../settings/dining_sections_screen.dart';
 import '../../widgets/table_status_style.dart';
 import '../../core/format.dart';
 
@@ -34,8 +35,15 @@ class TableSelectionScreen extends StatelessWidget {
         backgroundColor: Colors.white,
         elevation: 0,
         actions: [
+          if (provider.canManage)
+            IconButton(
+              tooltip: 'Manage sections & tables',
+              icon: const Icon(Icons.tune),
+              onPressed: () => Navigator.of(context)
+                  .push(MaterialPageRoute(builder: (_) => const DiningSectionsScreen())),
+            ),
           Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            margin: const EdgeInsets.fromLTRB(4, 8, 16, 8),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             decoration: BoxDecoration(
               color: AppColors.creamSubtle,
@@ -172,7 +180,7 @@ class TableSelectionScreen extends StatelessWidget {
                           : 'No tables match this filter',
                       message: provider.tables.isEmpty
                           ? (provider.canManage
-                                ? 'Add tables in Settings → Dining sections & tables.'
+                                ? 'Add tables with the manage button above (Sections & tables).'
                                 : 'Ask a manager to add tables. Takeaway orders work from the POS tab.')
                           : null,
                       actionLabel: provider.tables.isEmpty ? 'Refresh' : null,

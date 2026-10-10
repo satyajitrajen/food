@@ -21,6 +21,7 @@ import 'attendance_screen.dart';
 import 'customer_menu_qr_screen.dart';
 import '../../widgets/staff_avatar.dart';
 import 'my_profile_screen.dart';
+import '../settings/dining_sections_screen.dart';
 
 /// Secondary operations hub. Tiles are filtered by role — Admin sees the
 /// overall revenue area (Reports) that Manager/Cashier cannot, and back-office
@@ -167,6 +168,16 @@ class MoreHubScreen extends StatelessWidget {
       if (canManage)
         _tile(
           context: context,
+          title: 'Sections & tables',
+          subtitle: 'Dining sections, tables and seats',
+          icon: Icons.layers_outlined,
+          color: AppColors.primaryGreen,
+          bgColor: AppColors.primaryGreenLight,
+          screen: const DiningSectionsScreen(),
+        ),
+      if (canManage)
+        _tile(
+          context: context,
           title: 'Staff Management',
           subtitle: 'Add staff, roles, PIN resets & account status',
           icon: Icons.badge_outlined,
@@ -178,7 +189,7 @@ class MoreHubScreen extends StatelessWidget {
         _tile(
           context: context,
           title: 'POS Configuration & Settings',
-          subtitle: 'Hotel profile, dining sections, tables, tax & printers',
+          subtitle: 'Restaurant profile, tax, UPI & printers',
           icon: Icons.settings_outlined,
           color: AppColors.textDark,
           bgColor: AppColors.creamSubtle,
