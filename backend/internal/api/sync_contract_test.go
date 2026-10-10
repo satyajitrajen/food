@@ -47,7 +47,7 @@ var contractModels = map[string]func() any{
 	"MoveTableReq":          func() any { return &models.MoveTableReq{} },
 	"MergeTableReq":         func() any { return &models.MergeTableReq{} },
 	"Table":                 func() any { return &models.Table{} },
-	"Settings":              func() any { return &models.Settings{} },
+	"Settings":              func() any { return &models.SettingsPatch{} },
 	"OutletPatch":           func() any { return &models.OutletPatch{} },
 	"MenuItemUpsert":        func() any { return &models.MenuItemUpsert{} },
 	"StaffCreate":           func() any { return &models.StaffCreate{} },

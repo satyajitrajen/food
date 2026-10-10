@@ -120,6 +120,12 @@ func (s *Store) CreateOutlet(ctx context.Context, orgID string, o models.Outlet)
 	if err != nil {
 		return nil, err
 	}
+	// Every outlet has a settings row so bills use its configured charges.
+	if _, err := s.DB.ExecContext(ctx,
+		`INSERT INTO settings (outlet_id, restaurant_name, service_percent) VALUES (?, ?, 0) ON CONFLICT DO NOTHING`,
+		id, o.Name); err != nil {
+		return nil, err
+	}
 	defaultCats := []string{"Starters", "Soups", "Main Course", "Biryani", "Chinese", "Pizza", "Drinks", "Desserts"}
 	for i, c := range defaultCats {
 		_, _ = s.DB.ExecContext(ctx,
@@ -139,7 +145,19 @@ type StaffRow struct {
 // ListStaff lists active staff of an org. When outletID is non-empty only that
 // outlet's staff (plus org-wide staff with outlet_id NULL) are returned.
 func (s *Store) ListStaff(ctx context.Context, orgID, outletID string) ([]models.Staff, error) {
-	q := `SELECT id, org_id, outlet_id, name, role, avatar_url, mobile, is_active, COALESCE(is_protected, 0) FROM staff WHERE org_id = ? AND is_active = 1`
+	return s.listStaff(ctx, orgID, outletID, true)
+}
+
+// ListAllStaff includes deactivated staff (manager screen: reactivate).
+func (s *Store) ListAllStaff(ctx context.Context, orgID, outletID string) ([]models.Staff, error) {
+	return s.listStaff(ctx, orgID, outletID, false)
+}
+
+func (s *Store) listStaff(ctx context.Context, orgID, outletID string, activeOnly bool) ([]models.Staff, error) {
+	q := `SELECT id, org_id, outlet_id, name, role, avatar_url, mobile, is_active, COALESCE(is_protected, 0) FROM staff WHERE org_id = ?`
+	if activeOnly {
+		q += ` AND is_active = 1`
+	}
 	args := []any{orgID}
 	if outletID != "" {
 		q += ` AND (outlet_id = ? OR (outlet_id IS NULL AND role != 'waiter'))`
@@ -313,11 +331,18 @@ func (s *Store) PatchTable(ctx context.Context, id string, p models.TablePatch) 
 		}
 	}
 	if p.WaiterID != nil {
-		if _, err := s.DB.ExecContext(ctx, `UPDATE tables SET assigned_waiter_id = ? WHERE id = ?`, *p.WaiterID, id); err != nil {
+		var waiter any = *p.WaiterID
+		if *p.WaiterID == "" {
+			waiter = nil // "" unassigns
+		}
+		if _, err := s.DB.ExecContext(ctx, `UPDATE tables SET assigned_waiter_id = ? WHERE id = ?`, waiter, id); err != nil {
 			return nil, err
 		}
 	}
-	if p.Floor != nil && strings.TrimSpace(*p.Floor) != "" {
+	if p.Floor != nil {
+		if strings.TrimSpace(*p.Floor) == "" {
+			return nil, httpx.NewError(400, "invalid_floor", "Section name is required")
+		}
 		if _, err := s.DB.ExecContext(ctx, `UPDATE tables SET floor = ? WHERE id = ?`, *p.Floor, id); err != nil {
 			return nil, err
 		}
@@ -385,6 +410,70 @@ func (s *Store) PutSettings(ctx context.Context, st models.Settings) error {
 		b2i(st.AutoPrintKOT), b2i(st.AllowReprint), st.BillingPrinter, st.KitchenPrinter, st.BarPrinter, sectionsJSON(st.Sections),
 		st.UPIID, st.UPIName, st.UPIQrImage)
 	return err
+}
+
+// ReapplySettingsToOpenOrders re-rates every open bill of the outlet after a
+// settings change, so "GST 0" (or a new packaging charge) applies to bills
+// that are still running, not only to new ones. Bills already paid keep the
+// rate they were paid at. A flat service charge typed on a bill is kept.
+// Returns the updated orders.
+func (s *Store) ReapplySettingsToOpenOrders(ctx context.Context, st models.Settings,
+	recompute func(*models.Order)) ([]*models.Order, error) {
+	var out []*models.Order
+	err := s.withTx(ctx, func(tx *sql.Tx) error {
+		rows, err := tx.QueryContext(ctx,
+			`SELECT id FROM orders WHERE outlet_id = ? AND status NOT IN ('completed','cancelled','refunded')`, st.OutletID)
+		if err != nil {
+			return err
+		}
+		var ids []string
+		for rows.Next() {
+			var id string
+			if err := rows.Scan(&id); err != nil {
+				rows.Close()
+				return err
+			}
+			ids = append(ids, id)
+		}
+		rows.Close()
+		for _, id := range ids {
+			o, err := s.getOrderQ(ctx, tx, id, true)
+			if err != nil {
+				return err
+			}
+			o.TaxPercent = st.GSTPercent
+			o.IsTaxInclusive = st.IsGSTInclusive
+			switch o.Type {
+			case "dine_in":
+				if o.ServicePercent > 0 || o.ServicePaise == 0 {
+					o.ServicePercent = st.ServicePercent
+					o.ServicePaise = 0
+				}
+			case "takeaway":
+				o.PackagingPaise = st.PackagingPaise
+			case "delivery":
+				o.PackagingPaise = st.PackagingPaise
+				o.DeliveryPaise = st.DeliveryPaise
+			}
+			recompute(o)
+			if err := updateOrderMoney(ctx, tx, o); err != nil {
+				return err
+			}
+			if _, err := tx.ExecContext(ctx, `UPDATE orders SET is_tax_inclusive = ? WHERE id = ?`,
+				b2i(o.IsTaxInclusive), o.ID); err != nil {
+				return err
+			}
+			if o.TableID != nil {
+				if _, err := tx.ExecContext(ctx, `UPDATE tables SET current_amount = ? WHERE id = ? AND active_order_id = ?`,
+					o.GrandTotalPaise, *o.TableID, o.ID); err != nil {
+					return err
+				}
+			}
+			out = append(out, o)
+		}
+		return nil
+	})
+	return out, err
 }
 
 // sectionsJSON encodes a section list for the TEXT column ('[]' when nil).

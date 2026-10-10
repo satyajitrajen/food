@@ -94,11 +94,12 @@ func ApplyBilling(o *models.Order) {
 	o.GrandTotalPaise = net + tax + o.ServicePaise + o.PackagingPaise + o.DeliveryPaise
 }
 
-// UnitPricePaise computes variant/modifier-aware unit price in paise.
-func UnitPricePaise(base int64, variantPrice int64, mods []models.OrderModifier) int64 {
+// UnitPricePaise computes variant/modifier-aware unit price in paise. A
+// chosen variant's price replaces the base price, including a ₹0 variant.
+func UnitPricePaise(base int64, variantPrice *int64, mods []models.OrderModifier) int64 {
 	total := base
-	if variantPrice > 0 {
-		total = variantPrice
+	if variantPrice != nil {
+		total = *variantPrice
 	}
 	for _, m := range mods {
 		total += m.PricePaise

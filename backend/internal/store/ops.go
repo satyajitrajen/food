@@ -360,7 +360,7 @@ func (s *Store) ExpensesByCategory(ctx context.Context, outletID string, from, t
 
 func (s *Store) ListCustomers(ctx context.Context, outletID, q string) ([]models.Customer, error) {
 	query := `SELECT id, outlet_id, name, phone_norm, email, address, visits, lifetime_spend, outstanding_paise, last_visit
-	          FROM customers WHERE outlet_id = ?`
+	          FROM customers WHERE outlet_id = ? AND is_deleted = 0`
 	args := []any{outletID}
 	if q != "" {
 		query += ` AND (name LIKE ? OR phone_norm LIKE ?)`
@@ -405,8 +405,17 @@ func (s *Store) CreateCustomer(ctx context.Context, outletID string, req models.
 	if req.Address != nil {
 		address = *req.Address
 	}
-	_, err := s.DB.ExecContext(ctx, `INSERT INTO customers (id, outlet_id, name, phone_norm, email, address)
-		VALUES (?, ?, ?, ?, ?, ?)`, id, outletID, req.Name, norm, email, address)
+	// A removed customer with the same phone comes back instead of clashing
+	// with the (outlet, phone) unique key.
+	err := s.DB.QueryRowContext(ctx, `INSERT INTO customers (id, outlet_id, name, phone_norm, email, address)
+		VALUES (?, ?, ?, ?, ?, ?)
+		ON CONFLICT (outlet_id, phone_norm) DO UPDATE SET name = EXCLUDED.name, email = EXCLUDED.email,
+		  address = EXCLUDED.address, is_deleted = 0
+		  WHERE customers.is_deleted = 1
+		RETURNING id`, id, outletID, req.Name, norm, email, address).Scan(&id)
+	if err == sql.ErrNoRows {
+		return nil, httpx.NewError(409, "customer_exists", "A customer with this phone already exists")
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -417,7 +426,7 @@ func (s *Store) CreateCustomer(ctx context.Context, outletID string, req models.
 // ---- Inventory ----
 
 func (s *Store) ListInventory(ctx context.Context, outletID string, lowOnly bool) ([]models.InventoryItem, error) {
-	q := `SELECT id, outlet_id, name, unit, stock, min_stock, cost_paise, batch_no, rack_no, purchased_at FROM inventory_items WHERE outlet_id = ?`
+	q := `SELECT id, outlet_id, name, unit, stock, min_stock, cost_paise, batch_no, rack_no, purchased_at FROM inventory_items WHERE outlet_id = ? AND is_deleted = 0`
 	if lowOnly {
 		q += ` AND stock <= min_stock`
 	}
@@ -465,7 +474,7 @@ func (s *Store) AdjustStock(ctx context.Context, outletID, itemID string, delta 
 	err := s.withTx(ctx, func(tx *sql.Tx) error {
 		// Relative, clamped update: concurrent adjustments compose instead of
 		// overwriting each other (read-modify-write lost updates).
-		res, err := tx.ExecContext(ctx, `UPDATE inventory_items SET stock = GREATEST(0, stock + ?) WHERE id = ? AND outlet_id = ?`,
+		res, err := tx.ExecContext(ctx, `UPDATE inventory_items SET stock = GREATEST(0, stock + ?) WHERE id = ? AND outlet_id = ? AND is_deleted = 0`,
 			delta, itemID, outletID)
 		if err != nil {
 			return err
@@ -507,7 +516,7 @@ func (s *Store) CreateInventoryItem(ctx context.Context, outletID string, item m
 // ---- Suppliers & Purchases ----
 
 func (s *Store) ListSuppliers(ctx context.Context, outletID string) ([]map[string]any, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT id, name, mobile, email, category, outstanding FROM suppliers WHERE outlet_id = ?`, outletID)
+	rows, err := s.DB.QueryContext(ctx, `SELECT id, name, mobile, email, category, outstanding FROM suppliers WHERE outlet_id = ? AND is_deleted = 0`, outletID)
 	if err != nil {
 		return nil, err
 	}
@@ -742,7 +751,7 @@ func (s *Store) CreatePurchase(ctx context.Context, outletID string, req models.
 	supplierID := req.SupplierID
 	if supplierID != nil && *supplierID != "" {
 		var name string
-		err := s.DB.QueryRowContext(ctx, `SELECT name FROM suppliers WHERE id = ? AND outlet_id = ?`, *supplierID, outletID).Scan(&name)
+		err := s.DB.QueryRowContext(ctx, `SELECT name FROM suppliers WHERE id = ? AND outlet_id = ? AND is_deleted = 0`, *supplierID, outletID).Scan(&name)
 		if err == sql.ErrNoRows {
 			return nil, httpx.NewError(400, "invalid_supplier", "Supplier not found in this outlet")
 		}
@@ -775,7 +784,7 @@ func (s *Store) CreatePurchase(ctx context.Context, outletID string, req models.
 	for _, line := range req.Items {
 		var stock float64
 		var name string
-		err := tx.QueryRowContext(ctx, `SELECT stock, name FROM inventory_items WHERE id = ? AND outlet_id = ?`, line.InventoryItemID, outletID).Scan(&stock, &name)
+		err := tx.QueryRowContext(ctx, `SELECT stock, name FROM inventory_items WHERE id = ? AND outlet_id = ? AND is_deleted = 0`, line.InventoryItemID, outletID).Scan(&stock, &name)
 		if err == sql.ErrNoRows {
 			return nil, httpx.NewError(400, "invalid_item", "Inventory item not found in this outlet")
 		}
@@ -972,7 +981,7 @@ func bookCreditTx(ctx context.Context, tx *sql.Tx, outletID, customerID, kind st
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
 		var exists int
-		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM customers WHERE id = ? AND outlet_id = ?`, customerID, outletID).
+		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM customers WHERE id = ? AND outlet_id = ? AND is_deleted = 0`, customerID, outletID).
 			Scan(&exists); err != nil {
 			return err
 		}

@@ -93,7 +93,7 @@ func (s *Server) Routes() http.Handler {
 		r.Get("/me", s.handleSaaSMe)
 		r.Get("/org", s.handleSaaSOrg)
 		r.Post("/outlets", s.handleSaaSCreateOutlet)
-		r.Post("/staff", s.handleSaaSCreateStaff)
+		r.With(s.announce("staff")).Post("/staff", s.handleSaaSCreateStaff)
 		r.Post("/subscription/cancel", s.handleSaaSCancelSubscription)
 		r.Post("/subscription/razorpay", s.handleOwnerStartSubscription)
 		r.Post("/subscription/manual-order", s.handleOwnerManualOrder)
@@ -188,8 +188,9 @@ func (s *Server) Routes() http.Handler {
 			r.With(pinLimit).Post("/auth/verify-manager-pin", s.handleVerifyManagerPin)
 
 			// Staff + outlet profile (admin/manager)
-			r.With(manager).Post("/staff", s.handleCreateStaff)
-			r.With(manager).Patch("/staff/{id}", s.handlePatchStaff)
+			r.With(manager, s.announce("staff")).Post("/staff", s.handleCreateStaff)
+			r.With(manager, s.announce("staff")).Patch("/staff/{id}", s.handlePatchStaff)
+			r.With(manager).Get("/staff/all", s.handleListAllStaff)
 			r.With(manager).Patch("/outlets/{id}", s.handlePatchOutlet)
 
 			// Tables
@@ -201,9 +202,9 @@ func (s *Server) Routes() http.Handler {
 			r.With(manager).Post("/tables/{id}/unmerge", s.handleUnmergeTable)
 
 			// Menu
-			r.With(manager).Post("/menu", s.handleCreateMenuItem)
-			r.With(manager).Patch("/menu/{id}", s.handlePatchMenuItem)
-			r.With(manager).Delete("/menu/{id}", s.handleDeleteMenuItem)
+			r.With(manager, s.announce("menu")).Post("/menu", s.handleCreateMenuItem)
+			r.With(manager, s.announce("menu")).Patch("/menu/{id}", s.handlePatchMenuItem)
+			r.With(manager, s.announce("menu")).Delete("/menu/{id}", s.handleDeleteMenuItem)
 			r.With(manager).Post("/uploads/menu-image", s.handleUploadMenuImage)
 			r.With(manager).Post("/uploads/image", s.handleUploadMenuImage)
 
@@ -214,6 +215,7 @@ func (s *Server) Routes() http.Handler {
 			r.Patch("/orders/{id}/items/{itemId}", s.handlePatchOrderItem)
 			r.Post("/orders/{id}/items/{itemId}/cancel", s.handleCancelOrderItem)
 			r.Post("/orders/{id}/kot", s.handleFireKOT)
+			r.Post("/orders/{id}/cancel", s.handleCancelOrder)
 			r.With(noWaiter).Post("/orders/{id}/pay", s.handlePay)
 			r.With(noWaiter).Post("/orders/{id}/refund", s.handleRefund)
 
@@ -223,18 +225,25 @@ func (s *Server) Routes() http.Handler {
 			r.With(noWaiter).Post("/shifts/current/cash-move", s.handleCashMove)
 
 			// Expenses / Customers
-			r.With(noWaiter).Post("/expenses", s.handleCreateExpense)
-			r.With(manager).Delete("/expenses/{id}", s.handleDeleteExpense)
-			r.Post("/customers", s.handleCreateCustomer)
-			r.With(noWaiter).Post("/customers/{id}/credit", s.handleBookCredit)
+			r.With(noWaiter, s.announce("expense")).Post("/expenses", s.handleCreateExpense)
+			r.With(manager, s.announce("expense")).Delete("/expenses/{id}", s.handleDeleteExpense)
+			r.With(manager, s.announce("expense")).Patch("/expenses/{id}", s.handlePatchExpense)
+			r.With(s.announce("customer")).Post("/customers", s.handleCreateCustomer)
+			r.With(noWaiter).Patch("/customers/{id}", s.handlePatchCustomer)
+			r.With(manager).Delete("/customers/{id}", s.handleDeleteCustomer)
+			r.With(noWaiter, s.announce("customer")).Post("/customers/{id}/credit", s.handleBookCredit)
 
 			// Inventory / suppliers / purchases (back office: manager+)
-			r.With(manager).Post("/inventory", s.handleCreateInventoryItem)
-			r.With(manager).Post("/inventory/{id}/adjust", s.handleAdjustStock)
-			r.With(manager).Post("/suppliers", s.handleCreateSupplier)
-			r.With(manager).Post("/suppliers/{id}/payments", s.handleCreateSupplierPayment)
-			r.With(manager).Post("/purchases", s.handleCreatePurchase)
-			r.With(manager).Patch("/purchases/{id}", s.handlePatchPurchase)
+			r.With(manager, s.announce("inventory")).Post("/inventory", s.handleCreateInventoryItem)
+			r.With(manager, s.announce("inventory")).Post("/inventory/{id}/adjust", s.handleAdjustStock)
+			r.With(manager).Patch("/inventory/{id}", s.handlePatchInventoryItem)
+			r.With(manager).Delete("/inventory/{id}", s.handleDeleteInventoryItem)
+			r.With(manager, s.announce("supplier")).Post("/suppliers", s.handleCreateSupplier)
+			r.With(manager).Patch("/suppliers/{id}", s.handlePatchSupplier)
+			r.With(manager).Delete("/suppliers/{id}", s.handleDeleteSupplier)
+			r.With(manager, s.announce("supplier")).Post("/suppliers/{id}/payments", s.handleCreateSupplierPayment)
+			r.With(manager, s.announce("purchase")).Post("/purchases", s.handleCreatePurchase)
+			r.With(manager, s.announce("purchase")).Patch("/purchases/{id}", s.handlePatchPurchase)
 
 			// Settings & reports
 			r.With(manager).Put("/settings", s.handlePutSettings)

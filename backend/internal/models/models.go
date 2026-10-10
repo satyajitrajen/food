@@ -306,6 +306,8 @@ type OrderPatch struct {
 	ServicePercent  *float64 `json:"service_percent,omitempty"`
 	PackagingPaise  *int64   `json:"packaging_charge_paise,omitempty"`
 	DeliveryPaise   *int64   `json:"delivery_charge_paise,omitempty"`
+	// TaxPercent re-rates this one bill's GST (manager only).
+	TaxPercent *float64 `json:"tax_percent,omitempty"`
 	// FR-A3: manager authorization for discounts above threshold.
 	ManagerPin *string `json:"manager_pin,omitempty"`
 }
@@ -660,6 +662,73 @@ type Settings struct {
 	UPIID      string `json:"upi_id"`
 	UPIName    string `json:"upi_name"`
 	UPIQrImage string `json:"upi_qr_image"`
+}
+
+// SettingsPatch is the PUT /settings body: only keys that are sent change,
+// so a client that omits a field never wipes it.
+type SettingsPatch struct {
+	OutletID       *string   `json:"outlet_id,omitempty"`
+	RestaurantName *string   `json:"restaurant_name,omitempty"`
+	GSTPercent     *float64  `json:"gst_percent,omitempty"`
+	IsGSTInclusive *bool     `json:"is_gst_inclusive,omitempty"`
+	ServicePercent *float64  `json:"service_percent,omitempty"`
+	PackagingPaise *int64    `json:"packaging_paise,omitempty"`
+	DeliveryPaise  *int64    `json:"delivery_paise,omitempty"`
+	AutoPrintKOT   *bool     `json:"auto_print_kot,omitempty"`
+	AllowReprint   *bool     `json:"allow_reprint,omitempty"`
+	BillingPrinter *string   `json:"billing_printer,omitempty"`
+	KitchenPrinter *string   `json:"kitchen_printer,omitempty"`
+	BarPrinter     *string   `json:"bar_printer,omitempty"`
+	Sections       *[]string `json:"sections,omitempty"`
+	UPIID          *string   `json:"upi_id,omitempty"`
+	UPIName        *string   `json:"upi_name,omitempty"`
+	UPIQrImage     *string   `json:"upi_qr_image,omitempty"`
+}
+
+// Apply merges the sent keys into st.
+func (p SettingsPatch) Apply(st *Settings) {
+	setS := func(dst *string, v *string) {
+		if v != nil {
+			*dst = *v
+		}
+	}
+	setS(&st.RestaurantName, p.RestaurantName)
+	setS(&st.BillingPrinter, p.BillingPrinter)
+	setS(&st.KitchenPrinter, p.KitchenPrinter)
+	setS(&st.BarPrinter, p.BarPrinter)
+	setS(&st.UPIID, p.UPIID)
+	setS(&st.UPIName, p.UPIName)
+	setS(&st.UPIQrImage, p.UPIQrImage)
+	if p.GSTPercent != nil {
+		st.GSTPercent = *p.GSTPercent
+	}
+	if p.IsGSTInclusive != nil {
+		st.IsGSTInclusive = *p.IsGSTInclusive
+	}
+	if p.ServicePercent != nil {
+		st.ServicePercent = *p.ServicePercent
+	}
+	if p.PackagingPaise != nil {
+		st.PackagingPaise = *p.PackagingPaise
+	}
+	if p.DeliveryPaise != nil {
+		st.DeliveryPaise = *p.DeliveryPaise
+	}
+	if p.AutoPrintKOT != nil {
+		st.AutoPrintKOT = *p.AutoPrintKOT
+	}
+	if p.AllowReprint != nil {
+		st.AllowReprint = *p.AllowReprint
+	}
+	if p.Sections != nil {
+		st.Sections = *p.Sections
+	}
+}
+
+// DefaultSettings mirrors the settings column defaults (service 0 since 016).
+func DefaultSettings(outletID string) Settings {
+	return Settings{OutletID: outletID, GSTPercent: 5, PackagingPaise: 2500, DeliveryPaise: 4000,
+		AutoPrintKOT: true, AllowReprint: true, Sections: []string{}}
 }
 
 // DashboardReport aggregates orders paid in [from, to) (default: today in the

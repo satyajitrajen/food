@@ -197,6 +197,8 @@ func (s *Server) resolveWaiter(r *http.Request, waiterID, outletID string) (stri
 
 func validPercent(v *float64, max float64) bool { return v == nil || (*v >= 0 && *v <= max) }
 
+func isManagerRole(role string) bool { return role == "manager" || role == "admin" }
+
 func (s *Server) handleCreateOrder(w http.ResponseWriter, r *http.Request) {
 	s.withIdempotency(w, r, func() (int, any, error) {
 		var req models.OrderCreate
@@ -233,28 +235,27 @@ func (s *Server) handleCreateOrder(w http.ResponseWriter, r *http.Request) {
 
 		// Charge defaults come from the outlet's settings so what the manager
 		// configures is what new orders bill. An explicit tax_percent wins.
-		taxPercent := 5.0
-		var st *models.Settings
-		if v, err := s.Store.GetSettings(r.Context(), outletID); err == nil {
-			// The configured rate wins, including 0% (GST-exempt outlets).
-			st = v
-			taxPercent = v.GSTPercent
+		// The configured rate wins, including 0% (GST-exempt outlets). An
+		// outlet without a settings row bills with the column defaults.
+		st, err := s.Store.GetSettings(r.Context(), outletID)
+		if err != nil {
+			d := models.DefaultSettings(outletID)
+			st = &d
 		}
+		taxPercent := st.GSTPercent
 		if req.TaxPercent != nil {
 			taxPercent = *req.TaxPercent
 		}
 		var packaging, delivery int64
 		var servicePct float64
-		if st != nil {
-			switch req.Type {
-			case "dine_in":
-				servicePct = st.ServicePercent
-			case "takeaway":
-				packaging = st.PackagingPaise
-			case "delivery":
-				packaging = st.PackagingPaise
-				delivery = st.DeliveryPaise
-			}
+		switch req.Type {
+		case "dine_in":
+			servicePct = st.ServicePercent
+		case "takeaway":
+			packaging = st.PackagingPaise
+		case "delivery":
+			packaging = st.PackagingPaise
+			delivery = st.DeliveryPaise
 		}
 
 		waiterID, waiterName := req.WaiterID, req.WaiterName
@@ -310,7 +311,7 @@ func (s *Server) handleCreateOrder(w http.ResponseWriter, r *http.Request) {
 			GuestCount:      guests,
 			OrderNote:       req.OrderNote,
 			TaxPercent:      taxPercent,
-			IsTaxInclusive:  st != nil && st.IsGSTInclusive,
+			IsTaxInclusive:  st.IsGSTInclusive,
 			ServicePercent:  servicePct,
 			PackagingPaise:  packaging,
 			DeliveryPaise:   delivery,
@@ -369,6 +370,20 @@ func (s *Server) handlePatchOrder(w http.ResponseWriter, r *http.Request) {
 	for _, v := range []*int64{p.ServicePaise, p.PackagingPaise, p.DeliveryPaise, p.DiscountPaise} {
 		if v != nil && *v < 0 {
 			httpx.ErrorJSON(w, r, httpx.NewError(400, "invalid_charge", "charges/discounts cannot be negative"))
+			return
+		}
+	}
+	if p.DiscountPercent != nil && p.DiscountPaise != nil {
+		httpx.ErrorJSON(w, r, httpx.NewError(400, "invalid_discount", "Send either discount_percent or discount_paise, not both"))
+		return
+	}
+	if !validPercent(p.TaxPercent, 28) {
+		httpx.ErrorJSON(w, r, httpx.NewError(400, "invalid_tax", "tax_percent must be between 0 and 28"))
+		return
+	}
+	if p.TaxPercent != nil {
+		if c, _ := claimsFrom(r); c == nil || !isManagerRole(c.Role) {
+			httpx.ErrorJSON(w, r, httpx.NewError(403, "forbidden", "Only managers can change the GST on a bill"))
 			return
 		}
 	}
@@ -433,13 +448,14 @@ func buildOrderItem(menu *models.MenuItem, req models.OrderItemAdd) (*models.Ord
 	if menu.IsDeleted || !menu.IsAvailable {
 		return nil, httpx.NewError(409, "item_unavailable", "This menu item is not available")
 	}
-	var variantPrice int64
+	var variantPrice *int64
 	var variantName *string
 	if req.VariantID != nil && *req.VariantID != "" {
 		found := false
 		for _, v := range menu.Variants {
 			if v.ID == *req.VariantID {
-				variantPrice = v.PricePaise
+				price := v.PricePaise
+				variantPrice = &price
 				variantName = strPtr(v.Name)
 				found = true
 				break

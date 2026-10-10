@@ -459,10 +459,17 @@ func PatchOrderTx(ctx context.Context, tx *sql.Tx, id string, p models.OrderPatc
 	if p.Status != nil {
 		add("status", *p.Status)
 	}
-	if p.WaiterID != nil {
+	switch {
+	case p.WaiterID != nil && *p.WaiterID == "":
+		// "" unassigns the waiter.
+		add("waiter_id", nil)
+		add("waiter_name", nil)
+	case p.WaiterID != nil:
 		add("waiter_id", *p.WaiterID)
-	}
-	if p.WaiterName != nil {
+		if p.WaiterName != nil {
+			add("waiter_name", *p.WaiterName)
+		}
+	case p.WaiterName != nil:
 		add("waiter_name", *p.WaiterName)
 	}
 	if p.OrderNote != nil {
@@ -495,6 +502,13 @@ func PatchOrderTx(ctx context.Context, tx *sql.Tx, id string, p models.OrderPatc
 		add("service_percent", 0)
 	case p.ServicePercent != nil:
 		add("service_percent", *p.ServicePercent)
+		if *p.ServicePercent == 0 {
+			// 0% removes the service charge rather than freezing the old amount.
+			add("service_paise", 0)
+		}
+	}
+	if p.TaxPercent != nil {
+		add("tax_percent", *p.TaxPercent)
 	}
 	if p.PackagingPaise != nil {
 		add("packaging_paise", *p.PackagingPaise)
@@ -817,7 +831,8 @@ func (s *Store) PayOrder(ctx context.Context, in PayInput) error {
 			if _, err := tx.ExecContext(ctx, `INSERT INTO customers (id, outlet_id, name, phone_norm, visits, lifetime_spend, last_visit)
 				VALUES (?, ?, ?, ?, 1, ?, ?)
 				ON CONFLICT (outlet_id, phone_norm) DO UPDATE SET visits = customers.visits + 1,
-				  lifetime_spend = customers.lifetime_spend + EXCLUDED.lifetime_spend, last_visit = EXCLUDED.last_visit`,
+				  lifetime_spend = customers.lifetime_spend + EXCLUDED.lifetime_spend, last_visit = EXCLUDED.last_visit,
+				  is_deleted = 0`,
 				NewID("c"), outletID, name, NormalizePhone(phone.String), total, now); err != nil {
 				return err
 			}

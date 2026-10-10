@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"foodpos/backend/internal/httpx"
 	"foodpos/backend/internal/middleware"
 	"foodpos/backend/internal/models"
+	"foodpos/backend/internal/service"
 	"foodpos/backend/internal/ws"
 )
 
@@ -328,16 +330,30 @@ func (s *Server) handleGetSettings(w http.ResponseWriter, r *http.Request) {
 // always the claims-bound outlet (a body outlet_id is ignored, so a manager
 // can never write another tenant's settings).
 func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
-	var st models.Settings
-	if err := httpx.Decode(r, &st); err != nil {
+	var p models.SettingsPatch
+	if err := httpx.Decode(r, &p); err != nil {
 		httpx.ErrorJSON(w, r, err)
 		return
 	}
-	st.OutletID = outletScope(r)
-	if st.OutletID == "" {
+	outletID := outletScope(r)
+	if outletID == "" {
 		httpx.ErrorJSON(w, r, httpx.NewError(400, "missing_outlet", "outlet_id is required"))
 		return
 	}
+	// Only the keys sent change; everything else keeps its saved value.
+	cur, err := s.Store.GetSettings(r.Context(), outletID)
+	if errors.Is(err, httpx.ErrNotFound) {
+		d := models.DefaultSettings(outletID)
+		cur, err = &d, nil
+	}
+	if err != nil {
+		httpx.ErrorJSON(w, r, err)
+		return
+	}
+	before := *cur
+	st := *cur
+	p.Apply(&st)
+	st.OutletID = outletID
 	switch {
 	case st.GSTPercent < 0 || st.GSTPercent > 28:
 		httpx.ErrorJSON(w, r, httpx.NewError(400, "invalid_tax", "gst_percent must be between 0 and 28"))
@@ -353,6 +369,20 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorJSON(w, r, err)
 		return
 	}
+	// A billing change re-rates bills that are still open.
+	if st.GSTPercent != before.GSTPercent || st.IsGSTInclusive != before.IsGSTInclusive ||
+		st.ServicePercent != before.ServicePercent || st.PackagingPaise != before.PackagingPaise ||
+		st.DeliveryPaise != before.DeliveryPaise {
+		orders, err := s.Store.ReapplySettingsToOpenOrders(r.Context(), st, service.ApplyBilling)
+		if err != nil {
+			httpx.ErrorJSON(w, r, err)
+			return
+		}
+		for _, o := range orders {
+			s.afterOrderWrite(r, o)
+		}
+	}
+	s.publish(r, "settings.updated", outletID, st)
 	httpx.JSON(w, http.StatusOK, st)
 }
 
