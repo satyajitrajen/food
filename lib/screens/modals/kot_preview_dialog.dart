@@ -149,20 +149,25 @@ class KOTPreviewDialog extends StatelessWidget {
               Row(
                 children: [
                   Expanded(
+                    flex: 2,
                     child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14)),
                       onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('Back to Cart'),
+                      child: const FittedBox(fit: BoxFit.scaleDown, child: Text('Back to cart', maxLines: 1)),
                     ),
                   ),
                   const SizedBox(width: 12),
+                  // The primary action gets more width and never wraps.
                   Expanded(
+                    flex: 3,
                     child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14)),
                       onPressed: () {
                         Navigator.of(context).pop();
                         onSendKOT();
                       },
                       icon: const Icon(Icons.send_rounded, size: 18),
-                      label: const Text('Send to Kitchen'),
+                      label: const FittedBox(fit: BoxFit.scaleDown, child: Text('Send to kitchen', maxLines: 1)),
                     ),
                   ),
                 ],
