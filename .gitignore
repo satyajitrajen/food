@@ -71,6 +71,7 @@ landing/dist/
 .mimosa/
 backend/.mimosa/
 demo/recordings/**/*.mp4
+demo/recordings/final/_work/
 demo/voiceover/*.wav
 demo/voiceover/*.m4a
 demo/voiceover/*.mp3
