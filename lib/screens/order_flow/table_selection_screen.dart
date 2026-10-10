@@ -65,73 +65,87 @@ class TableSelectionScreen extends StatelessWidget {
         top: false,
         child: Column(
           children: [
-            // Floor Tabs + Status Filter
+            // Section + status filters: two dropdowns in one row.
             Container(
               color: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+              child: Row(
                 children: [
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: floors.map((f) {
-                        final isSelected = provider.selectedFloor == f;
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: ChoiceChip(
-                            label: Text(f),
-                            selected: isSelected,
-                            selectedColor: AppColors.primaryGreen,
-                            labelStyle: TextStyle(
-                              color: isSelected
-                                  ? Colors.white
-                                  : AppColors.textDark,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13,
-                            ),
-                            onSelected: (_) => provider.setFloor(f),
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      initialValue: floors.contains(provider.selectedFloor) ? provider.selectedFloor : 'All',
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Section',
+                        isDense: true,
+                        prefixIcon: Icon(Icons.layers_outlined, size: 20),
+                      ),
+                      items: [
+                        for (final f in floors)
+                          DropdownMenuItem(
+                            value: f,
+                            child: Text(f == 'All' ? 'All sections' : f, overflow: TextOverflow.ellipsis),
                           ),
-                        );
-                      }).toList(),
+                      ],
+                      onChanged: (f) {
+                        if (f != null) provider.setFloor(f);
+                      },
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: PosProvider.tableStatusFilters.map((s) {
-                        final isSelected = provider.selectedTableStatus == s;
-                        final status = TableStatusStyle.fromLabel(s);
-                        final style = status == null ? null : TableStatusStyle.of(status);
-                        final count = status == null
-                            ? provider.tables.length
-                            : provider.tables.where((t) => t.status == status).length;
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: Tooltip(
-                            message: s,
-                            child: ChoiceChip(
-                            showCheckmark: false,
-                            avatar: style == null
-                                ? null
-                                : Icon(style.icon, size: 18, color: isSelected ? Colors.white : style.color),
-                            label: Text(style == null ? 'All $count' : '$count',
-                                semanticsLabel: '$s $count'),
-                            selected: isSelected,
-                            selectedColor: AppColors.primaryGreen,
-                            labelStyle: TextStyle(
-                              color: isSelected
-                                  ? Colors.white
-                                  : AppColors.textDark,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13,
-                            ),
-                            onSelected: (_) => provider.setTableStatus(s),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      initialValue: provider.selectedTableStatus,
+                      isExpanded: true,
+                      decoration: InputDecoration(
+                        labelText: 'Status',
+                        isDense: true,
+                        prefixIcon: Icon(
+                          TableStatusStyle.fromLabel(provider.selectedTableStatus) == null
+                              ? Icons.filter_list
+                              : TableStatusStyle.of(TableStatusStyle.fromLabel(provider.selectedTableStatus)!).icon,
+                          size: 20,
+                          color: TableStatusStyle.fromLabel(provider.selectedTableStatus) == null
+                              ? null
+                              : TableStatusStyle.of(TableStatusStyle.fromLabel(provider.selectedTableStatus)!).color,
+                        ),
+                      ),
+                      // The closed field shows just the name; the menu adds
+                      // each status's icon and how many tables are in it.
+                      selectedItemBuilder: (_) => [
+                        for (final f in PosProvider.tableStatusFilters)
+                          Text(f == 'All' ? 'All statuses' : f, overflow: TextOverflow.ellipsis),
+                      ],
+                      items: [
+                        for (final f in PosProvider.tableStatusFilters)
+                          DropdownMenuItem(
+                            value: f,
+                            child: Builder(builder: (_) {
+                              final status = TableStatusStyle.fromLabel(f);
+                              final count = status == null
+                                  ? provider.tables.length
+                                  : provider.tables.where((t) => t.status == status).length;
+                              return Row(
+                                children: [
+                                  if (status != null) ...[
+                                    Icon(TableStatusStyle.of(status).icon,
+                                        size: 18, color: TableStatusStyle.of(status).color),
+                                    const SizedBox(width: 8),
+                                  ],
+                                  Expanded(
+                                    child: Text(f == 'All' ? 'All statuses' : f, overflow: TextOverflow.ellipsis),
+                                  ),
+                                  Text('$count',
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w800, color: AppColors.textMuted)),
+                                ],
+                              );
+                            }),
                           ),
-                          ),
-                        );
-                      }).toList(),
+                      ],
+                      onChanged: (f) {
+                        if (f != null) provider.setTableStatus(f);
+                      },
                     ),
                   ),
                 ],

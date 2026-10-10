@@ -128,7 +128,7 @@ void main() {
       );
 
       expect(find.text("Floor Tables"), findsOneWidget);
-      expect(find.text("Ground Floor"), findsOneWidget);
+      expect(find.text("All sections"), findsOneWidget); // section dropdown
       expect(find.text("T01"), findsOneWidget);
       expect(find.text("T05"), findsOneWidget);
     });
