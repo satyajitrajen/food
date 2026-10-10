@@ -19,6 +19,8 @@ import '../auth/select_outlet_screen.dart';
 import '../printer/printer_status_screen.dart';
 import 'attendance_screen.dart';
 import 'customer_menu_qr_screen.dart';
+import '../../widgets/staff_avatar.dart';
+import 'my_profile_screen.dart';
 
 /// Secondary operations hub. Tiles are filtered by role — Admin sees the
 /// overall revenue area (Reports) that Manager/Cashier cannot, and back-office
@@ -208,8 +210,12 @@ class MoreHubScreen extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            // Staff Profile Banner
-            Container(
+            // Staff profile banner: tap for My profile (details, PIN, photo).
+            InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () => Navigator.of(context)
+                  .push(MaterialPageRoute(builder: (_) => const MyProfileScreen())),
+              child: Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: Colors.white,
@@ -218,11 +224,11 @@ class MoreHubScreen extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  CircleAvatar(
+                  StaffAvatar(
+                    name: provider.currentStaff?.name ?? '',
+                    avatarUrl: provider.currentStaff?.avatarUrl ?? '',
+                    apiBase: provider.apiBaseUrl,
                     radius: 26,
-                    backgroundColor: AppColors.primaryGreenLight,
-                    backgroundImage: NetworkImage(provider.currentStaff?.avatarUrl ?? ''),
-                    onBackgroundImageError: (_, _) {},
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -237,6 +243,9 @@ class MoreHubScreen extends StatelessWidget {
                             '${provider.currentStaff?.roleTitle ?? ""} · ${provider.currentOutlet.name} · ${provider.currentOutlet.terminal}',
                           style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
                         ),
+                        const SizedBox(height: 4),
+                        const Text('My profile, PIN & photo',
+                            style: TextStyle(color: AppColors.primaryGreen, fontSize: 12, fontWeight: FontWeight.w700)),
                       ],
                     ),
                   ),
@@ -253,6 +262,7 @@ class MoreHubScreen extends StatelessWidget {
                   ),
                 ],
               ),
+            ),
             ),
             const SizedBox(height: 20),
             ...tiles,

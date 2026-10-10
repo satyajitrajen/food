@@ -11,6 +11,7 @@ import 'org_setup_screen.dart';
 import '../shift/open_shift_screen.dart';
 import '../shell/main_adaptive_shell.dart';
 import '../kitchen/kitchen_board_screen.dart';
+import '../../widgets/staff_avatar.dart';
 
 class PinLoginScreen extends StatefulWidget {
   const PinLoginScreen({super.key});
@@ -371,11 +372,11 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                       child: Column(
                         children: [
-                          CircleAvatar(
+                          StaffAvatar(
+                            name: _selectedStaff?.name ?? '',
+                            avatarUrl: _selectedStaff?.avatarUrl ?? '',
+                            apiBase: provider.apiBaseUrl,
                             radius: 30,
-                            backgroundColor: AppColors.primaryGreenLight,
-                            backgroundImage: NetworkImage(_selectedStaff?.avatarUrl ?? ''),
-                            onBackgroundImageError: (error, stackTrace) {},
                           ),
                           const SizedBox(height: 8),
                           Row(
@@ -425,8 +426,8 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
                       icon: const Icon(Icons.switch_account_outlined, size: 18),
                       label: Text(
                         outletStaff.length == 1
-                            ? '1 profile on this counter'
-                            : 'Switch profile · ${outletStaff.length} on this counter',
+                            ? '1 profile at this outlet'
+                            : 'Switch profile · ${outletStaff.length} at this outlet',
                         style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
                       ),
                       style: OutlinedButton.styleFrom(

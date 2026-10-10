@@ -2933,6 +2933,70 @@ class PosProvider extends ChangeNotifier {
     return _uploadImage(bytes, filename: filename, contentType: contentType);
   }
 
+  // ---- My profile (self-service; online only) ----
+
+  /// Saves the signed-in staff member's own name / mobile / photo. Returns
+  /// an error message, or null on success.
+  Future<String?> updateMyProfile({String? name, String? mobile, String? avatarUrl}) async {
+    final me = _currentStaff;
+    if (me == null) return 'Not signed in';
+    if (!apiEnabled || _api == null) return 'Profile changes need the server';
+    try {
+      final resp = await _api!.request('PATCH', '/api/v1/me', body: {
+        'name': ?name,
+        'mobile': ?mobile,
+        'avatar_url': ?avatarUrl,
+      });
+      if (resp is Map) {
+        final updated = staffFromApi(resp.cast<String, dynamic>());
+        final merged = Staff(
+          id: me.id,
+          outletId: me.outletId,
+          name: updated.name,
+          role: me.role,
+          pin: me.pin,
+          avatarUrl: updated.avatarUrl,
+          mobile: updated.mobile,
+          isActive: me.isActive,
+          isProtected: me.isProtected,
+        );
+        _currentStaff = merged;
+        final i = _staffList.indexWhere((s) => s.id == me.id);
+        if (i >= 0) _staffList[i] = merged;
+        unawaited(_saveLoginSnapshot());
+        notifyListeners();
+      }
+      return null;
+    } on ApiException catch (e) {
+      return e.message;
+    } on NetworkException {
+      return 'You are offline. Connect to the internet to update your profile.';
+    }
+  }
+
+  /// Changes the signed-in staff member's own PIN. Returns an error message,
+  /// or null on success. The offline PIN cache is updated so the new PIN also
+  /// works without network.
+  Future<String?> changeMyPin(String currentPin, String newPin) async {
+    final me = _currentStaff;
+    if (me == null) return 'Not signed in';
+    if (!apiEnabled || _api == null) return 'PIN changes need the server';
+    try {
+      await _api!.request('POST', '/api/v1/me/pin',
+          body: {'current_pin': currentPin, 'new_pin': newPin});
+      await _pinVault?.remember(staffId: me.id, name: me.name, role: me.role.name, pin: newPin);
+      return null;
+    } on ApiException catch (e) {
+      return e.code == 'pin_locked' ? 'Too many wrong attempts. Try again in 15 minutes.' : e.message;
+    } on NetworkException {
+      return 'You are offline. Connect to the internet to change your PIN.';
+    }
+  }
+
+  /// Uploads a profile photo; returns its /media URL.
+  Future<String> uploadMyAvatar(List<int> bytes, {required String filename, required String contentType}) =>
+      _uploadImage(bytes, filename: filename, contentType: contentType, path: '/api/v1/me/avatar');
+
   /// Uploads a generic settings image (e.g. a custom UPI QR override).
   Future<String> uploadSettingsImage(
     List<int> bytes, {

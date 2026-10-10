@@ -65,6 +65,20 @@ type StaffCreate struct {
 	OutletID  *string `json:"outlet_id,omitempty"` // null = org-wide
 }
 
+// MePatch is a staff member's own profile edit (PATCH /me). Role, outlet
+// and status are not self-editable.
+type MePatch struct {
+	Name      *string `json:"name,omitempty"`
+	Mobile    *string `json:"mobile,omitempty"`
+	AvatarURL *string `json:"avatar_url,omitempty"`
+}
+
+// ChangePINReq changes the caller's own PIN (POST /me/pin).
+type ChangePINReq struct {
+	CurrentPIN string `json:"current_pin"`
+	NewPIN     string `json:"new_pin"`
+}
+
 // StaffPatch is a partial staff update (PATCH /staff/{id}). A non-empty PIN
 // resets the PIN (4-6 digits, enforced by the handler).
 type StaffPatch struct {

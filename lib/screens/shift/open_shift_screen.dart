@@ -6,6 +6,7 @@ import '../../models/shift_model.dart';
 import '../../widgets/confirm_dialog.dart';
 import '../shell/main_adaptive_shell.dart';
 import '../../core/format.dart';
+import '../../widgets/staff_avatar.dart';
 
 class OpenShiftScreen extends StatefulWidget {
   const OpenShiftScreen({super.key});
@@ -122,11 +123,11 @@ class _OpenShiftScreenState extends State<OpenShiftScreen> {
                   ),
                   child: Row(
                     children: [
-                      CircleAvatar(
+                      StaffAvatar(
+                        name: provider.currentStaff?.name ?? '',
+                        avatarUrl: provider.currentStaff?.avatarUrl ?? '',
+                        apiBase: provider.apiBaseUrl,
                         radius: 24,
-                        backgroundColor: AppColors.primaryGreenLight,
-                        backgroundImage: NetworkImage(provider.currentStaff?.avatarUrl ?? ''),
-                        onBackgroundImageError: (_, _) {},
                       ),
                       const SizedBox(width: 14),
                       Column(

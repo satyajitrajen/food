@@ -169,6 +169,12 @@ func (s *Server) Routes() http.Handler {
 		r.Get("/attendance", s.handleListAttendance)
 		r.Get("/settings", s.handleGetSettings)
 
+		// Self-service profile: every signed-in staff member, incl. kitchen.
+		r.Get("/me", s.handleGetMe)
+		r.Patch("/me", s.handlePatchMe)
+		r.With(pinLimit).Post("/me/pin", s.handleChangeMyPIN)
+		r.Post("/me/avatar", s.handleUploadMenuImage)
+
 		// ---- Writes & back-office — kitchen is denied; paid writes gated ----
 		r.Group(func(r chi.Router) {
 			r.Use(s.entitlementGate())

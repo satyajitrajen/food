@@ -19,7 +19,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('Switch profile'), findsOneWidget);
-    expect(find.textContaining('5 on this counter'), findsOneWidget);
+    expect(find.textContaining('5 at this outlet'), findsOneWidget);
   });
 
   testWidgets('sheet searches and switches the signing-in profile',

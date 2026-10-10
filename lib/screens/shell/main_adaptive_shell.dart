@@ -19,6 +19,7 @@ import '../reports/reports_screen.dart';
 import '../settings/settings_screen.dart';
 import '../shift/shift_dashboard_screen.dart';
 import '../auth/pin_login_screen.dart';
+import '../more/my_profile_screen.dart';
 
 /// Role-aware shell. Each role gets its own ordered destination list
 /// (PosProvider.navDestinations); the index drives both the mobile bottom bar
@@ -369,7 +370,11 @@ class _MainAdaptiveShellState extends State<MainAdaptiveShell> {
                         ),
                         child: Row(
                           children: [
-                            CircleAvatar(
+                            InkWell(
+                              customBorder: const CircleBorder(),
+                              onTap: () => Navigator.of(context)
+                                  .push(MaterialPageRoute(builder: (_) => const MyProfileScreen())),
+                              child: CircleAvatar(
                               radius: 18,
                               backgroundColor: AppColors.primaryGreenLight,
                               child: Text(
@@ -380,6 +385,7 @@ class _MainAdaptiveShellState extends State<MainAdaptiveShell> {
                                   fontSize: 13,
                                 ),
                               ),
+                            ),
                             ),
                             const SizedBox(width: 10),
                             Expanded(
