@@ -3,12 +3,12 @@ import 'package:provider/provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/pos_provider.dart';
 import '../../models/table_model.dart';
-import '../../widgets/custom_badge.dart';
 import '../../widgets/confirm_dialog.dart';
 import '../modals/guest_details_dialog.dart';
 import '../pos_menu/pos_menu_screen.dart';
 import '../running_orders/running_order_detail_screen.dart';
 import '../../widgets/empty_state.dart';
+import '../../widgets/table_status_style.dart';
 import '../../core/format.dart';
 
 class TableSelectionScreen extends StatelessWidget {
@@ -102,10 +102,22 @@ class TableSelectionScreen extends StatelessWidget {
                     child: Row(
                       children: PosProvider.tableStatusFilters.map((s) {
                         final isSelected = provider.selectedTableStatus == s;
+                        final status = TableStatusStyle.fromLabel(s);
+                        final style = status == null ? null : TableStatusStyle.of(status);
+                        final count = status == null
+                            ? provider.tables.length
+                            : provider.tables.where((t) => t.status == status).length;
                         return Padding(
                           padding: const EdgeInsets.only(right: 8),
-                          child: ChoiceChip(
-                            label: Text(s),
+                          child: Tooltip(
+                            message: s,
+                            child: ChoiceChip(
+                            showCheckmark: false,
+                            avatar: style == null
+                                ? null
+                                : Icon(style.icon, size: 18, color: isSelected ? Colors.white : style.color),
+                            label: Text(style == null ? 'All $count' : '$count',
+                                semanticsLabel: '$s $count'),
                             selected: isSelected,
                             selectedColor: AppColors.primaryGreen,
                             labelStyle: TextStyle(
@@ -116,6 +128,7 @@ class TableSelectionScreen extends StatelessWidget {
                               fontSize: 13,
                             ),
                             onSelected: (_) => provider.setTableStatus(s),
+                          ),
                           ),
                         );
                       }).toList(),
@@ -130,12 +143,11 @@ class TableSelectionScreen extends StatelessWidget {
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   // Determine column count based on available screen width
-                  int crossAxisCount = 2;
-                  if (constraints.maxWidth > 900) {
-                    crossAxisCount = 4;
-                  } else if (constraints.maxWidth > 600) {
-                    crossAxisCount = 3;
-                  }
+                  final crossAxisCount = constraints.maxWidth > 900
+                      ? 6
+                      : constraints.maxWidth > 600
+                          ? 4
+                          : 3;
 
                   final tables = provider.filteredTables;
                   if (tables.isEmpty) {
@@ -164,11 +176,9 @@ class TableSelectionScreen extends StatelessWidget {
                       padding: const EdgeInsets.all(16),
                       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: crossAxisCount,
-                        crossAxisSpacing: 14,
-                        mainAxisSpacing: 14,
-                        childAspectRatio: constraints.maxWidth > 600
-                            ? 1.3
-                            : 1.18,
+                        crossAxisSpacing: 10,
+                        mainAxisSpacing: 10,
+                        childAspectRatio: 0.95,
                       ),
                       itemCount: tables.length,
                       itemBuilder: (context, index) {
@@ -191,13 +201,6 @@ class TableSelectionScreen extends StatelessWidget {
     RestaurantTable table,
     PosProvider provider,
   ) {
-    Color borderColor = AppColors.borderLight;
-    if (table.status == TableStatus.occupied) {
-      borderColor = AppColors.nonVegRed.withValues(alpha: 0.5);
-    }
-    if (table.status == TableStatus.billing) {
-      borderColor = AppColors.saffronAmber;
-    }
     // Guest info lives on the table's running order — surface it on the card.
     final guestOrder = table.activeOrderId == null
         ? null
@@ -208,6 +211,9 @@ class TableSelectionScreen extends StatelessWidget {
       if ((guestOrder?.customerPhone ?? '').isNotEmpty)
         guestOrder!.customerPhone!,
     ].join(' · ');
+    final style = TableStatusStyle.of(table.status);
+    final busy = table.status == TableStatus.occupied || table.status == TableStatus.billing;
+    final elapsed = _elapsedSince(guestOrder?.createdAt);
 
     return InkWell(
       onTap: () async {
@@ -280,24 +286,17 @@ class TableSelectionScreen extends StatelessWidget {
       },
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: style.background.withValues(alpha: table.status == TableStatus.available ? 0.35 : 0.7),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: borderColor, width: 1.5),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.02),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          border: Border.all(color: style.color.withValues(alpha: 0.55), width: 1.5),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
                   child: Text(
@@ -311,101 +310,74 @@ class TableSelectionScreen extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                const SizedBox(width: 8),
-                StatusBadge.forTable(table.status),
+                TableStatusIcon(status: table.status, size: 16),
               ],
             ),
+            const Spacer(),
+            if (busy) ...[
+              Text(
+                formatInr(table.currentOrderAmount),
+                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: style.color),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 2),
+              Row(
+                children: [
+                  const Icon(Icons.schedule, size: 12, color: AppColors.textMuted),
+                  const SizedBox(width: 3),
+                  Expanded(
+                    child: Text(
+                      elapsed,
+                      style: const TextStyle(color: AppColors.textMuted, fontSize: 11, fontWeight: FontWeight.w600),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ],
             Row(
               children: [
-                const Icon(
-                  Icons.event_seat_outlined,
+                Icon(
+                  table.guestCount > 0 ? Icons.people_alt_outlined : Icons.event_seat_outlined,
                   size: 13,
                   color: AppColors.textMuted,
                 ),
-                const SizedBox(width: 4),
+                const SizedBox(width: 3),
                 Expanded(
                   child: Text(
-                    '${table.seats} Seats · ${table.guestCount > 0 ? "${table.guestCount} Guests · " : ""}${table.floor.split(" ").first}',
-                    style: const TextStyle(
-                      color: AppColors.textMuted,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                    ),
+                    table.guestCount > 0 ? '${table.guestCount}/${table.seats}' : '${table.seats}',
+                    semanticsLabel: table.guestCount > 0
+                        ? '${table.guestCount} guests of ${table.seats} seats'
+                        : '${table.seats} seats',
+                    style: const TextStyle(color: AppColors.textMuted, fontSize: 11, fontWeight: FontWeight.w600),
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
             ),
             if (customerLine.isNotEmpty)
-              Row(
-                children: [
-                  const Icon(
-                    Icons.person_outline,
-                    size: 12,
-                    color: AppColors.primaryGreen,
-                  ),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      customerLine,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.textDark,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ],
+              Text(
+                customerLine,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: AppColors.textDark, fontSize: 11, fontWeight: FontWeight.w700),
               ),
-            const Divider(height: 8, color: AppColors.borderLight),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: table.currentOrderAmount > 0
-                      ? Text(
-                          formatInr(table.currentOrderAmount),
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 15,
-                            color: AppColors.primaryGreen,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        )
-                      : const Text(
-                          'No Bill',
-                          style: TextStyle(
-                            color: AppColors.textLight,
-                            fontSize: 11,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                ),
-                const SizedBox(width: 4),
-                table.runningMinutes > 0
-                    ? Text(
-                        '${table.runningMinutes} min',
-                        style: const TextStyle(
-                          color: AppColors.textLight,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      )
-                    : const Text(
-                        'Order',
-                        style: TextStyle(
-                          color: AppColors.vegGreen,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-              ],
-            ),
           ],
         ),
       ),
     );
+  }
+
+  /// Time since the table's order was opened (ticks with every rebuild,
+  /// unlike the server's stored minutes).
+  static String _elapsedSince(DateTime? start) {
+    if (start == null) return '';
+    final m = DateTime.now().difference(start).inMinutes;
+    if (m < 1) return 'just now';
+    if (m < 60) return '$m min';
+    return '${m ~/ 60}h ${m % 60}m';
   }
 }

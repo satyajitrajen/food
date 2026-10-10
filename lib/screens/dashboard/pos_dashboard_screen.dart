@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/pos_provider.dart';
 import '../../models/app_nav.dart';
+import '../../widgets/table_status_style.dart';
 import '../../models/table_model.dart';
 import '../../models/kot_model.dart';
 import '../../widgets/stat_kpi_card.dart';
@@ -199,11 +200,11 @@ class PosDashboardScreen extends StatelessWidget {
                   const SizedBox(height: 10),
                   Row(
                     children: [
-                      _buildFloorBadge('Available', '$freeTables Free', AppColors.vegGreen, AppColors.vegGreenBg),
+                      _buildFloorBadge(TableStatus.available, freeTables),
                       const SizedBox(width: 8),
-                      _buildFloorBadge('Occupied', '$occupiedTables Running', AppColors.primaryGreen, AppColors.primaryGreenLight),
+                      _buildFloorBadge(TableStatus.occupied, occupiedTables),
                       const SizedBox(width: 8),
-                      _buildFloorBadge('Billing', '$billingTables Invoiced', AppColors.saffronAmber, AppColors.saffronAmberBg),
+                      _buildFloorBadge(TableStatus.billing, billingTables),
                     ],
                   ),
                 ],
@@ -219,7 +220,7 @@ class PosDashboardScreen extends StatelessWidget {
               child: Row(
                 children: [
                   _buildQuickActionBtn(
-                    title: '+ New Order',
+                    title: 'New order',
                     icon: Icons.add_circle,
                     color: AppColors.primaryGreen,
                     onTap: () {
@@ -362,20 +363,31 @@ class PosDashboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildFloorBadge(String label, String value, Color color, Color bg) {
+  /// Same icon + colour per status as the Tables screen; the word stays in
+  /// the tooltip / screen-reader label.
+  Widget _buildFloorBadge(TableStatus status, int count) {
+    final style = TableStatusStyle.of(status);
     return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          children: [
-            Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 11)),
-            const SizedBox(height: 2),
-            Text(value, style: TextStyle(color: color, fontWeight: FontWeight.w800, fontSize: 14)),
-          ],
+      child: Tooltip(
+        message: style.label,
+        child: Semantics(
+          label: '$count ${style.label}',
+          excludeSemantics: true,
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+            decoration: BoxDecoration(
+              color: style.background,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(style.icon, color: style.color, size: 20),
+                const SizedBox(width: 8),
+                Text('$count', style: TextStyle(color: style.color, fontWeight: FontWeight.w900, fontSize: 18)),
+              ],
+            ),
+          ),
         ),
       ),
     );
