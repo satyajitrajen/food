@@ -103,6 +103,7 @@ class PosProvider extends ChangeNotifier {
 
   @override
   void dispose() {
+    _dashboardRefresh?.cancel();
     _sync?.dispose();
     unawaited(_realtime?.disconnect());
     super.dispose();
@@ -224,7 +225,24 @@ class PosProvider extends ChangeNotifier {
       default:
         break;
     }
+    if (type == 'order.updated' || type == 'shift.updated') _scheduleDashboardRefresh();
     notifyListeners();
+  }
+
+  Timer? _dashboardRefresh;
+
+  /// Re-reads the admin dashboard a moment after sales activity (debounced,
+  /// so a burst of item adds costs one request), keeping KPIs current.
+  void _scheduleDashboardRefresh() {
+    if (!apiEnabled || _currentStaff?.role != StaffRole.admin) return;
+    _dashboardRefresh?.cancel();
+    _dashboardRefresh = Timer(const Duration(seconds: 3), () async {
+      final dash = await _tryRead('/api/v1/reports/dashboard', {'outlet_id': _currentOutlet.id});
+      if (dash is Map) {
+        _serverDashboard = dashboardReportFromApi(dash.cast<String, dynamic>());
+        notifyListeners();
+      }
+    });
   }
 
   MenuItem? _menuLookup(String id) =>

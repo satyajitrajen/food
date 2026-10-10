@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/pos_provider.dart';
 import '../../models/shift_model.dart';
-import '../../widgets/confirm_dialog.dart';
 import '../shell/main_adaptive_shell.dart';
 import '../../core/format.dart';
 import '../../widgets/staff_avatar.dart';
@@ -24,8 +23,11 @@ class _OpenShiftScreenState extends State<OpenShiftScreen> {
   int _c200 = 0;
   int _c100 = 0;
   int _c50 = 0;
+  int _c20 = 0;
+  int _c10 = 0;
 
-  double get _computedTotal => (_c500 * 500 + _c200 * 200 + _c100 * 100 + _c50 * 50).toDouble();
+  double get _computedTotal =>
+      (_c500 * 500 + _c200 * 200 + _c100 * 100 + _c50 * 50 + _c20 * 20 + _c10 * 10).toDouble();
 
   @override
   void initState() {
@@ -197,6 +199,14 @@ class _OpenShiftScreenState extends State<OpenShiftScreen> {
                         _applyDenomDelta((v - _c50) * 50.0);
                         _c50 = v;
                       }),
+                      _buildDenomRow(20, _c20, (v) {
+                        _applyDenomDelta((v - _c20) * 20.0);
+                        _c20 = v;
+                      }),
+                      _buildDenomRow(10, _c10, (v) {
+                        _applyDenomDelta((v - _c10) * 10.0);
+                        _c10 = v;
+                      }),
                     ],
                   ),
                 ),
@@ -215,15 +225,6 @@ class _OpenShiftScreenState extends State<OpenShiftScreen> {
                   child: ElevatedButton(
                     onPressed: () async {
                       final cash = double.tryParse(_cashController.text) ?? _computedTotal;
-                      final ok = await showConfirmDialog(
-                        context,
-                        title: 'Start shift?',
-                        message:
-                            'Start shift with opening float ${formatInr(cash)}? This starts cash accountability and cannot be undone.',
-                        confirmLabel: 'Start Shift',
-                        isDanger: false,
-                      );
-                      if (!ok || !context.mounted) return;
                       provider.openShift(
                         openingCash: cash,
                         notes: _notesController.text.trim().isNotEmpty ? _notesController.text.trim() : null,
@@ -232,6 +233,8 @@ class _OpenShiftScreenState extends State<OpenShiftScreen> {
                           count200: _c200,
                           count100: _c100,
                           count50: _c50,
+                          count20: _c20,
+                          count10: _c10,
                         ),
                       );
                       Navigator.of(context).pushReplacement(
@@ -239,8 +242,8 @@ class _OpenShiftScreenState extends State<OpenShiftScreen> {
                       );
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('✓ Shift Opened with ${formatInr(cash)} Opening Float!'),
-                          backgroundColor: AppColors.vegGreen,
+                          content: Text('Shift opened with ${formatInr(cash)} float'),
+                          backgroundColor: AppColors.success,
                         ),
                       );
                     },

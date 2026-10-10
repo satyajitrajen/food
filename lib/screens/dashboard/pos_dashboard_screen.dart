@@ -26,7 +26,9 @@ class PosDashboardScreen extends StatelessWidget {
     final orderCount = rep?.orderCount ?? provider.completedTransactions.length;
     final aov = rep?.aov ?? (orderCount > 0 ? (todaySales / orderCount) : 0.0);
     final todayExp = rep?.expenses ?? provider.todayExpenses;
-    final cashInDrawer = rep?.cashDrawer ?? shift?.expectedCash ?? 0.0;
+    // The open shift on this terminal is live; the server snapshot can be
+    // older than the latest float, sale or cash move.
+    final cashInDrawer = shift?.expectedCash ?? rep?.cashDrawer ?? 0.0;
     final pendingKOTs = rep?.pendingKots ??
         provider.kots
             .where((k) => k.status != KOTStatus.served && k.status != KOTStatus.cancelled)
@@ -114,31 +116,32 @@ class PosDashboardScreen extends StatelessWidget {
                   physics: const NeverScrollableScrollPhysics(),
                   crossAxisSpacing: 10,
                   mainAxisSpacing: 10,
-                  childAspectRatio: constraints.maxWidth > 900 ? 1.4 : (constraints.maxWidth > 600 ? 1.3 : 1.15),
+                  // Compact tiles so the floor status stays above the fold.
+                  childAspectRatio: constraints.maxWidth > 900 ? 1.9 : (constraints.maxWidth > 600 ? 1.9 : 1.75),
                   children: [
                     StatKpiCard(
-                      title: "Today's Sales",
+                      title: 'Sales today',
                       value: formatInr(todaySales),
                       icon: Icons.payments_outlined,
                       iconColor: AppColors.primaryGreen,
                       iconBgColor: AppColors.primaryGreenLight,
                     ),
                     StatKpiCard(
-                      title: 'Total Orders',
+                      title: 'Orders',
                       value: '$orderCount',
                       icon: Icons.receipt_long_outlined,
                       iconColor: AppColors.infoBlue,
                       iconBgColor: AppColors.infoBlueBg,
                     ),
                     StatKpiCard(
-                      title: 'Avg Order (AOV)',
+                      title: 'Avg order',
                       value: formatInr(aov),
                       icon: Icons.trending_up,
                       iconColor: AppColors.vegGreen,
                       iconBgColor: AppColors.vegGreenBg,
                     ),
                     StatKpiCard(
-                      title: 'Today Expenses',
+                      title: 'Expenses',
                       value: formatInr(todayExp),
                       icon: Icons.account_balance_wallet_outlined,
                       iconColor: AppColors.nonVegRed,
@@ -148,14 +151,14 @@ class PosDashboardScreen extends StatelessWidget {
                       },
                     ),
                     StatKpiCard(
-                      title: 'Cash in Drawer',
+                      title: 'Cash in drawer',
                       value: formatInr(cashInDrawer),
                       icon: Icons.point_of_sale,
                       iconColor: AppColors.saffronAmber,
                       iconBgColor: AppColors.saffronAmberBg,
                     ),
                     StatKpiCard(
-                      title: 'Pending KOTs',
+                      title: 'Open KOTs',
                       value: '$pendingKOTs',
                       icon: Icons.soup_kitchen_outlined,
                       iconColor: AppColors.primaryGreen,

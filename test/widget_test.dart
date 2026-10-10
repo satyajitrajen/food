@@ -111,7 +111,7 @@ void main() {
         ),
       );
 
-      expect(find.text("Today's Sales"), findsOneWidget);
+      expect(find.text('Sales today'), findsOneWidget);
       expect(find.text("Table Floor Status"), findsOneWidget);
       expect(find.text("Quick Operational Actions"), findsOneWidget);
     });

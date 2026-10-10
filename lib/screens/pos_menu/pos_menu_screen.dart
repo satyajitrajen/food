@@ -164,10 +164,20 @@ class _PosMenuScreenState extends State<PosMenuScreen> {
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
               child: SegmentedButton<OrderType>(
                 showSelectedIcon: false,
-                segments: const [
-                  ButtonSegment(value: OrderType.takeaway, icon: Icon(Icons.shopping_bag_outlined), label: Text('Takeaway')),
-                  ButtonSegment(value: OrderType.delivery, icon: Icon(Icons.delivery_dining_outlined), label: Text('Delivery')),
-                  ButtonSegment(value: OrderType.dineIn, icon: Icon(Icons.table_restaurant_outlined), label: Text('Table')),
+                // Labels only on phones: icon + label wrapped "Takeawa/y".
+                segments: [
+                  ButtonSegment(
+                      value: OrderType.takeaway,
+                      icon: wide ? const Icon(Icons.shopping_bag_outlined) : null,
+                      label: const Text('Takeaway', maxLines: 1)),
+                  ButtonSegment(
+                      value: OrderType.delivery,
+                      icon: wide ? const Icon(Icons.delivery_dining_outlined) : null,
+                      label: const Text('Delivery', maxLines: 1)),
+                  ButtonSegment(
+                      value: OrderType.dineIn,
+                      icon: wide ? const Icon(Icons.table_restaurant_outlined) : null,
+                      label: const Text('Table', maxLines: 1)),
                 ],
                 selected: {activeOrder?.orderType ?? provider.newOrderType},
                 onSelectionChanged: (sel) {
@@ -262,18 +272,22 @@ class _PosMenuScreenState extends State<PosMenuScreen> {
                   );
                 }
 
+                // Without any dish photos, a big placeholder icon on every card
+                // just pushes dishes off screen: use compact text cards.
+                final showPhotos = items.any((m) => m.imageUrl.isNotEmpty);
                 return GridView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
+                  // Leave room for the order bar that floats over the grid.
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 160),
                   gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: crossAxisCount,
                     crossAxisSpacing: 14,
                     mainAxisSpacing: 14,
-                    childAspectRatio: 0.82,
+                    childAspectRatio: showPhotos ? 0.82 : 1.3,
                   ),
                   itemCount: items.length,
                   itemBuilder: (context, index) {
                     final item = items[index];
-                    return _buildDishCard(context, item, provider);
+                    return _buildDishCard(context, item, provider, showPhoto: showPhotos);
                   },
                 );
               },
@@ -345,7 +359,7 @@ class _PosMenuScreenState extends State<PosMenuScreen> {
     );
   }
 
-  Widget _buildDishCard(BuildContext context, MenuItem item, PosProvider provider) {
+  Widget _buildDishCard(BuildContext context, MenuItem item, PosProvider provider, {bool showPhoto = true}) {
     // Count how many of this item are currently in cart
     final cartQty = provider.activeOrder?.items
             .where((i) => !i.isCancelled && i.menuItem.id == item.id)
@@ -378,7 +392,30 @@ class _PosMenuScreenState extends State<PosMenuScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-          // Image with Veg/Non-Veg Tag
+          // Image with Veg/Non-Veg Tag (compact tag row when no photos)
+          if (!showPhoto)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
+              child: Row(
+                children: [
+                  VegMark(isVeg: item.isVeg, size: 12),
+                  const Spacer(),
+                  if (item.isBestseller)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: AppColors.saffronAmber,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Text(
+                        'BESTSELLER',
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 9),
+                      ),
+                    ),
+                ],
+              ),
+            )
+          else
           Expanded(
             flex: 5,
             child: Stack(
@@ -447,7 +484,7 @@ class _PosMenuScreenState extends State<PosMenuScreen> {
           ),
           // Content
           Expanded(
-            flex: 4,
+            flex: showPhoto ? 4 : 1,
             child: Padding(
               padding: const EdgeInsets.all(10),
               child: Column(
