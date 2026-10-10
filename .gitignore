@@ -70,4 +70,7 @@ landing/dist/
 .claude/worktrees/
 .mimosa/
 backend/.mimosa/
-demo/recordings/*.mp4
+demo/recordings/**/*.mp4
+demo/voiceover/*.wav
+demo/voiceover/*.m4a
+demo/voiceover/*.mp3
