@@ -1387,6 +1387,21 @@ class PosProvider extends ChangeNotifier {
     return true;
   }
 
+  Future<void> _loadCurrentShift() async {
+    try {
+      final shift = await _api!
+          .request('GET', '/api/v1/shifts/current', query: {'outlet_id': _currentOutlet.id})
+          .timeout(const Duration(seconds: 4));
+      if (shift is Map && shift['shift'] is Map) {
+        _currentShift = shiftFromApi((shift['shift'] as Map).cast<String, dynamic>());
+      } else if (shift is Map) {
+        _currentShift = null;
+      }
+    } catch (_) {
+      // Offline/slow: the hydrate that follows fills it in.
+    }
+  }
+
   /// Server-first login. On success the PIN is cached as a salted hash
   /// (PinVault) so THIS terminal can authenticate that staff offline. When
   /// the server is unreachable, verification falls back to the vault —
@@ -1415,6 +1430,9 @@ class PosProvider extends ChangeNotifier {
         _lastSyncError = null;
         notifyListeners();
         unawaited(_saveLoginSnapshot());
+        // Know whether this outlet already has an open shift before the UI
+        // routes (otherwise it asks to open a second one and gets a 409).
+        await _loadCurrentShift();
         unawaited(_postLoginSync());
         return true;
       } on ApiException {

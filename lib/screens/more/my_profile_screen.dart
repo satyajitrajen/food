@@ -7,6 +7,7 @@ import '../../core/api/api_client.dart';
 import '../../core/format.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/pos_provider.dart';
+import '../../widgets/dialog_controller_scope.dart';
 import '../../widgets/staff_avatar.dart';
 import '../auth/pin_login_screen.dart';
 import '../modals/offline_sync_dialog.dart';
@@ -72,7 +73,10 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
     var saving = false;
     await showDialog<void>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
+      // The scope disposes the controllers once the dialog is really gone
+      // (not when showDialog returns, mid exit-animation).
+      builder: (ctx) => DialogControllerScope(
+        controllers: [nameC, mobileC],
         builder: (ctx, setLocal) => AlertDialog(
           title: const Text('Edit my details'),
           content: SizedBox(
@@ -127,8 +131,6 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
         ),
       ),
     );
-    nameC.dispose();
-    mobileC.dispose();
   }
 
   Future<void> _changePin(PosProvider provider) async {
@@ -141,7 +143,8 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
     final digits = [FilteringTextInputFormatter.digitsOnly];
     await showDialog<void>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
+      builder: (ctx) => DialogControllerScope(
+        controllers: [currentC, newC, confirmC],
         builder: (ctx, setLocal) => AlertDialog(
           title: const Text('Change my PIN'),
           content: SizedBox(
@@ -225,9 +228,6 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
         ),
       ),
     );
-    currentC.dispose();
-    newC.dispose();
-    confirmC.dispose();
   }
 
   @override
@@ -268,7 +268,7 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
                   child: Column(
                     children: [
                       Stack(
-                        alignment: Alignment.bottomRight,
+                        clipBehavior: Clip.none,
                         children: [
                           StaffAvatar(
                             name: me.name,
@@ -276,12 +276,17 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
                             apiBase: provider.apiBaseUrl,
                             radius: 44,
                           ),
-                          Material(
+                          Positioned(
+                            right: -6,
+                            bottom: -6,
+                            child: Material(
                             color: AppColors.primaryGreen,
-                            shape: const CircleBorder(),
+                            shape: const CircleBorder(side: BorderSide(color: Colors.white, width: 2)),
                             child: IconButton(
                               tooltip: 'Change photo',
-                              iconSize: 18,
+                              iconSize: 16,
+                              constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+                              padding: EdgeInsets.zero,
                               color: Colors.white,
                               onPressed: _uploading ? null : () => _changePhoto(provider),
                               icon: _uploading
@@ -292,6 +297,7 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
                                     )
                                   : const Icon(Icons.photo_camera_outlined),
                             ),
+                          ),
                           ),
                         ],
                       ),
