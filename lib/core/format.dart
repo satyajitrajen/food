@@ -7,7 +7,9 @@ final NumberFormat _inr0 = NumberFormat.currency(locale: 'en_IN', symbol: '₹',
 /// only when present, so whole amounts stay compact. [whole] forces rounding
 /// for big KPI tiles.
 String formatInr(num amount, {bool whole = false}) {
-  final v = amount.toDouble();
+  var v = amount.toDouble();
+  // -0.0 (e.g. "change to return" on exact cash) would render as "-₹0".
+  if ((v * 100).round() == 0) v = 0;
   if (whole) return _inr0.format(v.round());
   final hasPaise = ((v * 100).round() % 100) != 0;
   return hasPaise ? _inr2.format(v) : _inr0.format(v);
