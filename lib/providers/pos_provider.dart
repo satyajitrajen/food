@@ -1721,11 +1721,14 @@ class PosProvider extends ChangeNotifier {
       _markClockOut(leaving.id); // demo mode; the server clocks out on /auth/logout
     }
     _currentStaff = null;
-    // Forget pending "order ready" alerts and home position for the next
-    // staff member on this terminal.
+    // Forget pending "order ready" alerts, the open cart and the home
+    // position: the next staff member on this terminal starts clean (their
+    // running orders come back from the server).
     _readyAlerts.clear();
     _readyAlertTick = 0;
     _currentNavIndex = 0;
+    _activeOrder = null;
+    _selectedTable = null;
     notifyListeners();
   }
 

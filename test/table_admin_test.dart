@@ -46,4 +46,16 @@ void main() {
         'Only managers can edit tables');
     expect(p.deleteTable('t-04'), 'Only managers can delete tables');
   });
+
+  test('logout clears the open cart for the next staff member', () {
+    final p = fixtureProvider();
+    expect(p.loginStaff('1111'), isTrue); // waiter
+    p.selectTable(p.tables.first);
+    p.addToCart(p.menuItems.first);
+    expect(p.activeOrder, isNotNull);
+    p.logout();
+    expect(p.loginStaff('9999'), isTrue); // manager
+    expect(p.activeOrder, isNull);
+    expect(p.selectedTable, isNull);
+  });
 }
