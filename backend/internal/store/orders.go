@@ -575,7 +575,7 @@ func (s *Store) SetOrderStatus(ctx context.Context, id, status string) error {
 // ---- Tables: move / merge (transactional) ----
 
 func lockTable(ctx context.Context, tx *sql.Tx, id string) (*models.Table, error) {
-	t, err := scanTable(tx.QueryRowContext(ctx, `SELECT `+tableCols+` FROM tables WHERE id = ? FOR UPDATE`, id))
+	t, err := scanTable(tx.QueryRowContext(ctx, `SELECT `+tableCols+` FROM tables WHERE id = ? AND is_deleted = 0 FOR UPDATE`, id))
 	if err == sql.ErrNoRows {
 		return nil, httpx.ErrNotFound
 	}

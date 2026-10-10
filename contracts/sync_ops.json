@@ -93,8 +93,13 @@
     },
     "table.patch": {
       "method": "PATCH", "path": "/api/v1/tables/tbl-1", "model": "TablePatch", "idempotent": false,
-      "payload": {"outlet_id": "out-1", "table_id": "tbl-1", "floor": "Terrace", "waiter_id": "st-1", "guest_count": 4},
-      "body": {"floor": "Terrace", "waiter_id": "st-1", "guest_count": 4}
+      "payload": {"outlet_id": "out-1", "table_id": "tbl-1", "floor": "Terrace", "waiter_id": "st-1", "guest_count": 4, "table_number": "T14", "seats": 6},
+      "body": {"floor": "Terrace", "waiter_id": "st-1", "guest_count": 4, "table_number": "T14", "seats": 6}
+    },
+    "table.delete": {
+      "method": "DELETE", "path": "/api/v1/tables/tbl-1", "model": "None", "idempotent": false,
+      "payload": {"outlet_id": "out-1", "table_id": "tbl-1"},
+      "body": null
     },
     "table.move": {
       "method": "POST", "path": "/api/v1/tables/tbl-1/move", "model": "MoveTableReq", "idempotent": true,

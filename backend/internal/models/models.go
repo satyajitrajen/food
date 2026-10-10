@@ -113,6 +113,9 @@ type TablePatch struct {
 	GuestCount *int    `json:"guest_count,omitempty"`
 	WaiterID   *string `json:"waiter_id,omitempty"`
 	Floor      *string `json:"floor,omitempty"`
+	// Layout edits (manager+): rename / resize a table.
+	TableNumber *string `json:"table_number,omitempty"`
+	Seats       *int    `json:"seats,omitempty"`
 }
 
 type MoveTableReq struct {

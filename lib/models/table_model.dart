@@ -2,8 +2,8 @@ enum TableStatus { available, occupied, reserved, billing, cleaning }
 
 class RestaurantTable {
   final String id;
-  final String tableNumber;
-  final int seats;
+  String tableNumber;
+  int seats;
   String floor; // Dining section, e.g. 'Garden', 'AC Dining', 'Bar'
   TableStatus status;
   String? activeOrderId;

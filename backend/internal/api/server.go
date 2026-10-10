@@ -195,6 +195,7 @@ func (s *Server) Routes() http.Handler {
 			// Tables
 			r.With(manager).Post("/tables", s.handleCreateTable)
 			r.Patch("/tables/{id}", s.handlePatchTable)
+			r.With(manager).Delete("/tables/{id}", s.handleDeleteTable)
 			r.Post("/tables/{id}/move", s.handleMoveTable)
 			r.With(manager).Post("/tables/{id}/merge", s.handleMergeTable)
 			r.With(manager).Post("/tables/{id}/unmerge", s.handleUnmergeTable)

@@ -78,6 +78,25 @@ func (s *Server) handlePatchTable(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// Renaming/resizing a table is a layout change: managers only.
+	if p.TableNumber != nil || p.Seats != nil {
+		if c, ok := claimsFrom(r); !ok || (c.Role != "manager" && c.Role != "admin") {
+			httpx.ErrorJSON(w, r, httpx.NewError(403, "forbidden", "Only managers can edit table layout"))
+			return
+		}
+	}
+	if p.TableNumber != nil {
+		num := strings.TrimSpace(*p.TableNumber)
+		if num == "" || len(num) > 20 {
+			httpx.ErrorJSON(w, r, httpx.NewError(400, "invalid_table_number", "Table number must be 1-20 characters"))
+			return
+		}
+		p.TableNumber = &num
+	}
+	if p.Seats != nil && (*p.Seats < 1 || *p.Seats > 50) {
+		httpx.ErrorJSON(w, r, httpx.NewError(400, "invalid_seats", "Seats must be between 1 and 50"))
+		return
+	}
 	t, err := s.Store.PatchTable(r.Context(), table.ID, p)
 	if err != nil {
 		httpx.ErrorJSON(w, r, err)
@@ -383,4 +402,23 @@ func (s *Server) handlePatchOutlet(w http.ResponseWriter, r *http.Request) {
 	}
 	s.publish(r, "outlet.updated", o.ID, updated)
 	httpx.JSON(w, http.StatusOK, updated)
+}
+
+// handleDeleteTable removes a free table from the floor plan (manager+).
+func (s *Server) handleDeleteTable(w http.ResponseWriter, r *http.Request) {
+	table, err := s.Store.GetTable(r.Context(), pathID(r, "id"))
+	if err != nil {
+		httpx.ErrorJSON(w, r, err)
+		return
+	}
+	if !sameOutlet(r, table.OutletID) {
+		httpx.ErrorJSON(w, r, httpx.ErrNotFound)
+		return
+	}
+	if err := s.Store.DeleteTable(r.Context(), table.ID); err != nil {
+		httpx.ErrorJSON(w, r, err)
+		return
+	}
+	s.publish(r, "table.deleted", table.OutletID, map[string]string{"id": table.ID, "outlet_id": table.OutletID})
+	httpx.JSON(w, http.StatusOK, map[string]any{"deleted": true})
 }

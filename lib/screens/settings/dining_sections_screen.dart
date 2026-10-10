@@ -6,6 +6,7 @@ import '../../core/theme/app_theme.dart';
 import '../../models/table_model.dart';
 import '../../providers/pos_provider.dart';
 import '../../widgets/confirm_dialog.dart';
+import '../order_flow/table_actions_sheet.dart';
 import '../../widgets/dialog_controller_scope.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/table_status_style.dart';
@@ -209,36 +210,19 @@ class DiningSectionsScreen extends StatelessWidget {
           const Icon(Icons.event_seat_outlined, size: 14, color: AppColors.textMuted),
           const SizedBox(width: 2),
           Text('${t.seats}', style: const TextStyle(color: AppColors.textMuted, fontWeight: FontWeight.w600)),
-          if (canManage) ...[
-            const SizedBox(width: 4),
-            const Icon(Icons.more_vert, size: 16, color: AppColors.textMuted),
-          ],
+          const SizedBox(width: 4),
+          const Icon(Icons.more_vert, size: 16, color: AppColors.textMuted),
         ],
       ),
     );
-    if (!canManage) return chip;
-    final others = sections.where((s) => s != t.floor).toList();
-    return PopupMenuButton<String>(
-      tooltip: 'Move ${t.tableNumber}',
-      onSelected: (s) async {
-        final ok = await showConfirmDialog(
-          context,
-          title: 'Move table?',
-          message: 'Move table ${t.tableNumber} from "${t.floor}" to "$s"?',
-          confirmLabel: 'Move table',
-          isDanger: false,
-        );
-        if (!ok || !context.mounted) return;
-        provider.updateTableSection(t.id, s);
-      },
-      itemBuilder: (_) => [
-        PopupMenuItem<String>(
-          enabled: false,
-          child: Text(others.isEmpty ? 'No other section to move to' : 'Move ${t.tableNumber} to…'),
-        ),
-        for (final s in others) PopupMenuItem(value: s, child: Text(s)),
-      ],
-      child: chip,
+    // Tap a table for all its actions (status, edit, move, delete).
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => showTableActions(context, t),
+        child: chip,
+      ),
     );
   }
 

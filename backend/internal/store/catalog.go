@@ -246,7 +246,7 @@ func scanTable(sc interface{ Scan(...any) error }) (*models.Table, error) {
 }
 
 func (s *Store) ListTables(ctx context.Context, outletID, floor string) ([]models.Table, error) {
-	q := `SELECT ` + tableCols + ` FROM tables WHERE outlet_id = ?`
+	q := `SELECT ` + tableCols + ` FROM tables WHERE outlet_id = ? AND is_deleted = 0`
 	args := []any{outletID}
 	if floor != "" && floor != "All" {
 		q += ` AND floor = ?`
@@ -270,7 +270,7 @@ func (s *Store) ListTables(ctx context.Context, outletID, floor string) ([]model
 }
 
 func (s *Store) GetTable(ctx context.Context, id string) (*models.Table, error) {
-	row := s.DB.QueryRowContext(ctx, `SELECT `+tableCols+` FROM tables WHERE id = ?`, id)
+	row := s.DB.QueryRowContext(ctx, `SELECT `+tableCols+` FROM tables WHERE id = ? AND is_deleted = 0`, id)
 	t, err := scanTable(row)
 	if err == sql.ErrNoRows {
 		return nil, httpx.ErrNotFound
@@ -284,6 +284,9 @@ func (s *Store) CreateTable(ctx context.Context, t models.Table) (*models.Table,
 		`INSERT INTO tables (id, outlet_id, table_number, seats, floor, status) VALUES (?, ?, ?, ?, ?, 'available')`,
 		id, t.OutletID, t.TableNumber, t.Seats, t.Floor)
 	if err != nil {
+		if isUniqueViolation(err) {
+			return nil, httpx.NewError(409, "table_exists", "Another table already uses that number")
+		}
 		return nil, err
 	}
 	return s.GetTable(ctx, id)
@@ -316,6 +319,19 @@ func (s *Store) PatchTable(ctx context.Context, id string, p models.TablePatch) 
 	}
 	if p.Floor != nil && strings.TrimSpace(*p.Floor) != "" {
 		if _, err := s.DB.ExecContext(ctx, `UPDATE tables SET floor = ? WHERE id = ?`, *p.Floor, id); err != nil {
+			return nil, err
+		}
+	}
+	if p.Seats != nil {
+		if _, err := s.DB.ExecContext(ctx, `UPDATE tables SET seats = ? WHERE id = ?`, *p.Seats, id); err != nil {
+			return nil, err
+		}
+	}
+	if p.TableNumber != nil {
+		if _, err := s.DB.ExecContext(ctx, `UPDATE tables SET table_number = ? WHERE id = ?`, *p.TableNumber, id); err != nil {
+			if isUniqueViolation(err) {
+				return nil, httpx.NewError(409, "table_exists", "Another table already uses that number")
+			}
 			return nil, err
 		}
 	}
@@ -385,4 +401,34 @@ func b2i(b bool) int {
 		return 1
 	}
 	return 0
+}
+
+// DeleteTable removes a table from the floor (soft delete: past orders keep
+// their table_id). A table with a running order, a bill in progress or a
+// merge is refused with 409 table_in_use.
+func (s *Store) DeleteTable(ctx context.Context, id string) error {
+	res, err := s.DB.ExecContext(ctx, `UPDATE tables SET is_deleted = 1
+		WHERE id = ? AND is_deleted = 0
+		  AND (active_order_id IS NULL OR active_order_id = '')
+		  AND status NOT IN ('occupied', 'billing')
+		  AND (merged_with_table_id IS NULL OR merged_with_table_id = '')`, id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		if _, err := s.GetTable(ctx, id); err != nil {
+			return err
+		}
+		return httpx.NewError(409, "table_in_use", "Close or move the table's order before removing it")
+	}
+	return nil
+}
+
+// isUniqueViolation reports a Postgres unique-constraint failure (23505).
+func isUniqueViolation(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "duplicate key") || strings.Contains(msg, "23505")
 }

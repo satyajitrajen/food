@@ -219,6 +219,9 @@ class PosProvider extends ChangeNotifier {
       case 'table.updated':
         _upsertServerTable(payload);
         break;
+      case 'table.deleted':
+        _tables.removeWhere((t) => t.id == payload['id']?.toString());
+        break;
       case 'shift.updated':
         _applyServerShift(payload);
         break;
@@ -3333,6 +3336,73 @@ class PosProvider extends ChangeNotifier {
   }
 
   /// Moves an existing table to another dining section (its floor name).
+  /// True while the table has a running order or bill; such a table can't be
+  /// edited away, deleted, or have its status overridden by hand.
+  bool tableIsBusy(RestaurantTable t) =>
+      t.activeOrderId != null ||
+      t.status == TableStatus.occupied ||
+      t.status == TableStatus.billing ||
+      t.mergedWithTableId != null;
+
+  /// Renames / resizes / re-sections a table (managers). Returns an error
+  /// message, or null on success.
+  String? editTable(String tableId, {required String tableNumber, required int seats, required String section}) {
+    if (!canManage) return 'Only managers can edit tables';
+    final table = _tables.where((t) => t.id == tableId).firstOrNull;
+    if (table == null) return 'Table not found';
+    final number = tableNumber.trim();
+    final name = section.trim();
+    if (number.isEmpty || number.length > 20) return 'Enter a table number (up to 20 characters)';
+    if (seats < 1 || seats > 50) return 'Seats must be between 1 and 50';
+    if (name.isEmpty) return 'Choose a section';
+    if (_tables.any((t) => t.id != tableId && t.tableNumber.toLowerCase() == number.toLowerCase())) {
+      return 'Table $number already exists';
+    }
+    final changes = <String, dynamic>{
+      if (number != table.tableNumber) 'table_number': number,
+      if (seats != table.seats) 'seats': seats,
+      if (name != table.floor) 'floor': name,
+    };
+    if (changes.isEmpty) return null;
+    table
+      ..tableNumber = number
+      ..seats = seats
+      ..floor = name;
+    notifyListeners();
+    _push('table.patch', {'table_id': table.id, ...changes});
+    return null;
+  }
+
+  /// Removes a free table from the floor plan (managers). Returns an error
+  /// message, or null on success. Past bills keep their table reference.
+  String? deleteTable(String tableId) {
+    if (!canManage) return 'Only managers can delete tables';
+    final table = _tables.where((t) => t.id == tableId).firstOrNull;
+    if (table == null) return 'Table not found';
+    if (tableIsBusy(table)) return 'Table ${table.tableNumber} has a running order. Close or move it first.';
+    _tables.removeWhere((t) => t.id == tableId);
+    if (_selectedTable?.id == tableId) _selectedTable = null;
+    notifyListeners();
+    _push('table.delete', {'table_id': tableId});
+    return null;
+  }
+
+  /// Marks a free table reserved / cleaning / available. Running tables keep
+  /// their order-driven status.
+  String? changeTableStatus(String tableId, TableStatus status) {
+    final table = _tables.where((t) => t.id == tableId).firstOrNull;
+    if (table == null) return 'Table not found';
+    if (status == TableStatus.occupied || status == TableStatus.billing) {
+      return "Occupied and billing follow the table's order";
+    }
+    if (tableIsBusy(table)) return 'Table ${table.tableNumber} has a running order';
+    if (table.status == status) return null;
+    table.status = status;
+    notifyListeners();
+    _push('table.status', {'table_id': table.id, 'status': tableStatusToApi(status)});
+    return null;
+  }
+
   void updateTableSection(String tableId, String section) {
     final name = section.trim();
     final table = _tables.where((t) => t.id == tableId).firstOrNull;

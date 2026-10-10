@@ -9,6 +9,7 @@ import '../pos_menu/pos_menu_screen.dart';
 import '../running_orders/running_order_detail_screen.dart';
 import '../../widgets/empty_state.dart';
 import '../settings/dining_sections_screen.dart';
+import 'table_actions_sheet.dart';
 import '../../widgets/table_status_style.dart';
 import '../../core/format.dart';
 
@@ -238,6 +239,8 @@ class TableSelectionScreen extends StatelessWidget {
     final elapsed = _elapsedSince(guestOrder?.createdAt);
 
     return InkWell(
+      // Long-press: status, edit, move and delete for this table.
+      onLongPress: () => showTableActions(context, table),
       onTap: () async {
         provider.selectTable(table);
 
