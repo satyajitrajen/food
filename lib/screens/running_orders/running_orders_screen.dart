@@ -369,7 +369,7 @@ class _RunningOrdersScreenState extends State<RunningOrdersScreen>
                             );
                           },
                           icon: const Icon(Icons.add, size: 16),
-                          label: const Text('+ Add'),
+                          label: const Text('Add items'),
                         ),
                       ),
                       const SizedBox(width: 12),

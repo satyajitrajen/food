@@ -270,7 +270,7 @@ class RunningOrderDetailScreen extends StatelessWidget {
                               );
                             },
                             icon: const Icon(Icons.add, size: 18),
-                            label: const Text('+ Add'),
+                            label: const Text('Add items'),
                           ),
                         ),
                         const SizedBox(width: 12),
