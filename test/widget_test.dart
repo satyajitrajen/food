@@ -91,13 +91,15 @@ void main() {
   });
 
   group('Resto POS Unit & Widget Tests', () {
-    testWidgets('App renders splash screen and transitions to PIN login', (WidgetTester tester) async {
+    testWidgets('Without a server the app waits on the No connection screen', (WidgetTester tester) async {
       await tester.pumpWidget(const RestoPosApp());
-      expect(find.text('Syncing local catalog & offline state...'), findsOneWidget);
-      await tester.pump(const Duration(milliseconds: 500));
-      await tester.pumpAndSettle(const Duration(seconds: 2));
-      // No demo data ships: an unbound terminal leaves the splash for setup.
-      expect(find.text('Syncing local catalog & offline state...'), findsNothing);
+      expect(find.text('Connecting to the server...'), findsOneWidget);
+      // Boot gives up on the unreachable server; the app is online-only, so
+      // it does not continue to setup/login but shows why it is waiting.
+      for (var i = 0; i < 20; i++) {
+        await tester.pump(const Duration(seconds: 1));
+      }
+      expect(find.text('No connection'), findsOneWidget);
     });
 
     testWidgets('POS Dashboard displays operational KPIs and floor glance', (WidgetTester tester) async {

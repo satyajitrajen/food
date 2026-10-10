@@ -111,6 +111,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       }
       return true;
     }).toList();
+    // Newest bill first (the list comes from the server in creation order).
+    filtered.sort((a, b) => (b.paidAt ?? b.createdAt).compareTo(a.paidAt ?? a.createdAt));
 
     return Scaffold(
       backgroundColor: AppColors.creamBg,

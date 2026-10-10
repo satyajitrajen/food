@@ -350,7 +350,6 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorJSON(w, r, err)
 		return
 	}
-	before := *cur
 	st := *cur
 	p.Apply(&st)
 	st.OutletID = outletID
@@ -369,10 +368,10 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorJSON(w, r, err)
 		return
 	}
-	// A billing change re-rates bills that are still open.
-	if st.GSTPercent != before.GSTPercent || st.IsGSTInclusive != before.IsGSTInclusive ||
-		st.ServicePercent != before.ServicePercent || st.PackagingPaise != before.PackagingPaise ||
-		st.DeliveryPaise != before.DeliveryPaise {
+	// Saving the billing settings brings every still-open bill in line with
+	// them (also bills left at an old rate before this rule existed).
+	if p.GSTPercent != nil || p.IsGSTInclusive != nil || p.ServicePercent != nil ||
+		p.PackagingPaise != nil || p.DeliveryPaise != nil {
 		orders, err := s.Store.ReapplySettingsToOpenOrders(r.Context(), st, service.ApplyBilling)
 		if err != nil {
 			httpx.ErrorJSON(w, r, err)

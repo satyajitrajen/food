@@ -1302,7 +1302,7 @@ class PosProvider extends ChangeNotifier {
     _rejections.insert(0, SyncRejection(op.type, message, DateTime.now()));
     if (_rejections.length > 20) _rejections.removeLast();
     _lastSyncError = message;
-    if (!_saveErrors.isClosed) _saveErrors.add(message);
+    if (!_saveErrors.isClosed) _saveErrors.add('Not saved: $message');
     switch (op.type) {
       case 'order.create':
         final localId = op.payload['local_id']?.toString();
@@ -1332,7 +1332,14 @@ class PosProvider extends ChangeNotifier {
   /// The server is reachable again: re-read everything (other terminals may
   /// have changed things meanwhile, and nothing local survives offline).
   void _onReconnect() {
+    final waiters = List<Completer<void>>.from(_onlineWaiters);
+    _onlineWaiters.clear();
+    for (final w in waiters) {
+      if (!w.isCompleted) w.complete();
+    }
     if (_currentStaff == null) {
+      // Booted offline: the PIN screen needs this org's outlets and staff.
+      if (_tenant != null) unawaited(hydratePublic());
       if (_pendingRestore) unawaited(_runPendingRestore());
       return;
     }
@@ -1588,6 +1595,15 @@ class PosProvider extends ChangeNotifier {
   /// at boot; it is retried when the connection is back.
   bool _pendingRestore = false;
   bool get pendingRestore => _pendingRestore;
+  final List<Completer<void>> _onlineWaiters = [];
+
+  /// Completes once the server is reachable (right away when it is).
+  Future<void> whenOnline() {
+    if (!apiEnabled || (_sync?.online ?? false)) return Future.value();
+    final c = Completer<void>();
+    _onlineWaiters.add(c);
+    return c.future;
+  }
   Completer<void>? _restoreWait;
 
   /// Completes once a saved login that was waiting for the connection has

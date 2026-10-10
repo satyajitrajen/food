@@ -296,7 +296,7 @@ class SettingsScreen extends StatelessWidget {
                     Text(err!, style: const TextStyle(color: AppColors.danger)),
                   ],
                   const SizedBox(height: 8),
-                  const Text('Applies to new orders. Open orders keep their charges.',
+                  const Text('Applies to new orders and to bills that are still open (paid bills keep theirs).',
                       style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
                 ],
               ),

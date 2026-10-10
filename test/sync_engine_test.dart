@@ -83,7 +83,7 @@ void main() {
     final unrelated = engine.push('expense.create', {'title': 'Gas'});
 
     expect(await created, 'Table not found');
-    expect(await dependent, startsWith('Not saved'));
+    expect(await dependent, startsWith('An earlier change'));
     expect(await unrelated, isNull);
     expect(rejected, ['order.create:invalid_table']);
     expect(calls.where((c) => c.startsWith('order.add_item')), isEmpty);

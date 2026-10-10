@@ -69,17 +69,21 @@ class StatKpiCard extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: Text(
-                value,
-                style: const TextStyle(
-                  color: AppColors.textDark,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.5,
+            const SizedBox(height: 6),
+            // Flexible + scaleDown: the value shrinks instead of overflowing
+            // the fixed-height tile on phones with a large system font.
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.bottomLeft,
+                child: Text(
+                  value,
+                  style: const TextStyle(
+                    color: AppColors.textDark,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
+                  ),
                 ),
               ),
             ),

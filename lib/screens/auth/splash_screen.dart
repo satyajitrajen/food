@@ -46,8 +46,13 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
       Future.delayed(const Duration(milliseconds: 1500)),
     ]);
     if (!mounted) return;
-    // Booted without a connection while signed in: the "No connection"
-    // screen shows until the server can re-check the login.
+    // Booted without a connection: the "No connection" screen shows until
+    // the server is reachable; then the org, roster and saved login are
+    // checked with it before routing.
+    if (provider.isOfflineMode) {
+      await provider.whenOnline();
+      if (!provider.pendingRestore && !provider.needsOrgSetup) await provider.hydratePublic();
+    }
     if (provider.pendingRestore) await provider.pendingRestoreDone;
     if (!mounted) return;
     Widget next;
@@ -123,7 +128,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                   ),
                   const SizedBox(width: 8),
                   const Text(
-                    'Syncing local catalog & offline state...',
+                    'Connecting to the server...',
                     style: TextStyle(
                       color: AppColors.textLight,
                       fontSize: 12,

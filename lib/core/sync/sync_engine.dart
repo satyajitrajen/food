@@ -89,14 +89,24 @@ class SyncEngine {
     _emit();
   }
 
-  /// While offline, re-checks the server every few seconds so the app
-  /// unlocks itself as soon as the connection is back.
-  void startProbing({Duration every = const Duration(seconds: 5)}) {
+  /// Checks the server every few seconds while offline (so the app unlocks
+  /// itself as soon as the connection is back) and every [onlineEvery] while
+  /// online (so a dropped connection is noticed before someone tries to save).
+  void startProbing({
+    Duration every = const Duration(seconds: 5),
+    int onlineEvery = 3,
+  }) {
     _probeTimer?.cancel();
+    var tick = 0;
     _probeTimer = Timer.periodic(every, (_) {
-      if (!_online) probe();
+      tick++;
+      if (_probing || _draining) return;
+      if (!_online || tick % onlineEvery == 0) probe();
     });
   }
+
+  bool _probing = false;
+  int _misses = 0;
 
   void dispose() {
     _probeTimer?.cancel();
@@ -104,8 +114,17 @@ class SyncEngine {
   }
 
   Future<bool> probe() async {
-    final ok = await api.health();
-    _setOnline(ok);
+    _probing = true;
+    final bool ok;
+    try {
+      ok = await api.health();
+    } finally {
+      _probing = false;
+    }
+    // One slow answer on mobile data is not "offline": two misses in a row
+    // are. (A save that can't reach the server switches at once.)
+    _misses = ok ? 0 : _misses + 1;
+    if (ok || !_online || _misses >= 2) _setOnline(ok);
     if (ok && _queue.isNotEmpty) unawaited(_drain());
     return ok;
   }
@@ -159,7 +178,7 @@ class SyncEngine {
           onRejected?.call(op, e);
           _complete(op.id, message);
           for (final d in dependents) {
-            _complete(d.id, 'Not saved: an earlier change to this record failed ($message)');
+            _complete(d.id, 'An earlier change to this record failed ($message)');
           }
         }
       }
@@ -172,7 +191,7 @@ class SyncEngine {
     }
   }
 
-  static const offlineMessage = 'No internet connection. Not saved.';
+  static const offlineMessage = 'No internet connection.';
 
   /// A short, user-facing reason for a refused write.
   static String describeWriteError(ApiException e) {
@@ -183,9 +202,9 @@ class SyncEngine {
     if (e.status == 403 && e.code == 'forbidden') {
       return "You don't have permission to do this.";
     }
-    if (e.status >= 500) return 'Server error. Not saved, please try again.';
+    if (e.status >= 500) return 'Server error, please try again.';
     if (e.status == 429) return 'Too many requests. Wait a moment and try again.';
-    return e.message.isNotEmpty ? e.message : 'Not saved (${e.status}).';
+    return e.message.isNotEmpty ? e.message : 'Error ${e.status}.';
   }
 
   static const _refKeys = {
