@@ -312,7 +312,7 @@ class _RunningOrdersScreenState extends State<RunningOrdersScreen>
                         ),
                       ),
                       const SizedBox(width: 8),
-                      if (table != null)
+                      if (table != null && provider.canManage)
                         IconButton(
                           icon: const Icon(
                             Icons.call_merge,

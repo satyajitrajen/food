@@ -32,8 +32,9 @@ class OutboxOp {
       );
 }
 
-/// FIFO write-ahead queue persisted in SharedPreferences so pending writes
-/// survive an app restart (PRD FR-X1).
+/// Device storage for the API session tokens. It also reads (once) any
+/// writes an older offline build left queued on the device, so they can be
+/// sent before that queue is removed; the app keeps no write queue itself.
 class OutboxStore {
   static const _storageKey = 'foodpos.outbox.v1';
   static const _sessionKey = 'foodpos.session.v1';
@@ -82,6 +83,13 @@ class OutboxStore {
   Future<void> saveIdMap(Map<String, String> map) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_idMapKey, jsonEncode(map));
+  }
+
+  /// Removes the legacy on-device write queue and its id map.
+  Future<void> clear() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_storageKey);
+    await prefs.remove(_idMapKey);
   }
 
   Future<void> saveSession(String? accessToken, String? refreshToken) async {

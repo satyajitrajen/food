@@ -24,6 +24,7 @@ class RefundDialog extends StatefulWidget {
 
 class _RefundDialogState extends State<RefundDialog> {
   bool _isFullRefund = true;
+  bool _saving = false;
   late TextEditingController _amountController;
   String _selectedReason = 'Customer Dissatisfaction';
   /// Bill minus what was already refunded (partial refunds add up).
@@ -179,7 +180,7 @@ class _RefundDialogState extends State<RefundDialog> {
                 height: 48,
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(backgroundColor: AppColors.nonVegRed),
-                  onPressed: () async {
+                  onPressed: _saving ? null : () async {
                     final navigator = Navigator.of(context);
                     final messenger = ScaffoldMessenger.of(context);
                     // Refunds are manager-gated on the server too (FR-A3).
@@ -202,7 +203,8 @@ class _RefundDialogState extends State<RefundDialog> {
                       );
                       return;
                     }
-                    final recorded = provider.processRefund(
+                    setState(() => _saving = true);
+                    final error = await provider.processRefund(
                       orderId: widget.order.id,
                       amount: amount,
                       reason: _selectedReason,
@@ -210,24 +212,26 @@ class _RefundDialogState extends State<RefundDialog> {
                       refundMode: _refundMode,
                       managerPin: managerPin,
                     );
-                    navigator.pop();
-                    if (recorded) {
+                    if (!context.mounted) return;
+                    if (error != null) {
+                      setState(() => _saving = false);
                       messenger.showSnackBar(
                         SnackBar(
-                          content: Text('Refund of ${formatInr(amount)} recorded'),
-                          backgroundColor: AppColors.vegGreen,
-                        ),
-                      );
-                    } else {
-                      messenger.showSnackBar(
-                        const SnackBar(
-                          content: Text('Refund could not be recorded (order already refunded/cancelled)'),
+                          content: Text('Refund not recorded: $error'),
                           backgroundColor: AppColors.nonVegRed,
                         ),
                       );
+                      return;
                     }
+                    navigator.pop();
+                    messenger.showSnackBar(
+                      SnackBar(
+                        content: Text('Refund of ${formatInr(amount)} recorded'),
+                        backgroundColor: AppColors.vegGreen,
+                      ),
+                    );
                   },
-                  child: const Text('Confirm Refund', style: TextStyle(fontWeight: FontWeight.w700)),
+                  child: Text(_saving ? 'Saving…' : 'Confirm Refund', style: const TextStyle(fontWeight: FontWeight.w700)),
                 ),
               ),
             ],

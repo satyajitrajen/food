@@ -295,7 +295,7 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
       }
     } else {
       setState(() {
-        _errorMessage = 'Incorrect PIN for ${_selectedStaff?.name}. Try again.';
+        _errorMessage = provider.loginError ?? 'Incorrect PIN for ${_selectedStaff?.name}. Try again.';
         _pin = '';
         _verifying = false;
       });

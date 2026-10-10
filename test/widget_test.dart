@@ -247,7 +247,7 @@ void main() {
       expect(provider.activeOrder?.computedTax, 12.6);
     });
 
-    test('Full End-to-End Operational Lifecycle: Open Shift -> Order -> KOT -> Kitchen -> Payment -> Expense -> Close Shift', () {
+    test('Full End-to-End Operational Lifecycle: Open Shift -> Order -> KOT -> Kitchen -> Payment -> Expense -> Close Shift', () async {
       final provider = fixtureProvider();
 
       // 1. Open Shift with float of 5000
@@ -295,10 +295,10 @@ void main() {
       // 7. Complete Cash Payment
       final grandTotal = provider.activeOrder!.grandTotal;
       final initialCashSales = provider.currentShift!.cashSales;
-      final completedOrder = provider.completePayment(
+      final completedOrder = (await provider.completePayment(
         paymentMethod: 'Cash',
         amountPaid: 400.0,
-      );
+      )).order;
       expect(completedOrder, isNotNull);
       expect(completedOrder!.status, OrderStatus.completed);
       // Invoice numbers are server-assigned (GST-sequential), never local.

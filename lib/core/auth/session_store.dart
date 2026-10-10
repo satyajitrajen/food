@@ -7,9 +7,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// cleared only on explicit logout (or org rebind).
 ///
 /// No secrets live here: the API tokens stay in `OutboxStore` and PINs are
-/// never stored (only salted hashes in `PinVault`). The snapshot alone
-/// authorizes nothing; online restores re-validate via token refresh and
-/// offline restores rely on a previously server-verified vault entry.
+/// never stored on the device. The snapshot alone authorizes nothing: a
+/// restore re-validates with the server via token refresh.
 class StaffSessionSnapshot {
   final String staffId;
   final String outletId;

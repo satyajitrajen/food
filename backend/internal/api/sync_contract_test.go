@@ -57,6 +57,11 @@ var contractModels = map[string]func() any{
 	"SupplierPaymentCreate": func() any { return &models.SupplierPaymentCreate{} },
 	"PurchaseCreate":        func() any { return &models.PurchaseCreate{} },
 	"PurchasePatch":         func() any { return &models.PurchasePatch{} },
+	"OrderCancelReq":        func() any { return &models.OrderCancelReq{} },
+	"ExpensePatch":          func() any { return &models.ExpensePatch{} },
+	"CustomerPatch":         func() any { return &models.CustomerPatch{} },
+	"InventoryPatch":        func() any { return &models.InventoryPatch{} },
+	"SupplierPatch":         func() any { return &models.SupplierPatch{} },
 }
 
 func TestSyncOpContract(t *testing.T) {

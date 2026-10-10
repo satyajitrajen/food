@@ -7,6 +7,7 @@ import 'core/theme/app_theme.dart';
 import 'firebase_options.dart';
 import 'providers/pos_provider.dart';
 import 'screens/auth/splash_screen.dart';
+import 'widgets/connection_gate.dart';
 import 'widgets/license_banner.dart';
 import 'widgets/ready_kot_alerter.dart';
 
@@ -54,9 +55,13 @@ class RestoPosApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
         navigatorKey: appNavigatorKey,
-        // Draws the license banner + in-app "Order ready" alert above routes.
-        builder: (context, child) => LicenseBanner(
-          child: ReadyKotAlerter(child: child ?? const SizedBox.shrink()),
+        scaffoldMessengerKey: appMessengerKey,
+        // Draws the license banner + in-app "Order ready" alert above routes,
+        // and the "No connection" screen above everything.
+        builder: (context, child) => ConnectionGate(
+          child: LicenseBanner(
+            child: ReadyKotAlerter(child: child ?? const SizedBox.shrink()),
+          ),
         ),
         home: const SplashScreen(),
       ),

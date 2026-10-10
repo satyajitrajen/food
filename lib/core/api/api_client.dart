@@ -228,10 +228,8 @@ class ApiClient {
   }
 
   /// FR-A3: authorize a privileged action against the server's manager/admin
-  /// PINs (bcrypt-hashed server-side). Returns the matching staff (so callers
-  /// can cache the identity offline) or null when the PIN doesn't verify.
-  /// Throws NetworkException when offline — callers fall back to the
-  /// locally cached PinVault then.
+  /// PINs (bcrypt-hashed server-side). Returns the approving staff, or null
+  /// when the PIN doesn't verify. Throws NetworkException when offline.
   Future<Map<String, dynamic>?> verifyManagerPin(String pin) async {
     final data = await request('POST', '/api/v1/auth/verify-manager-pin', body: {'pin': pin});
     if (data is Map && data['valid'] == true && data['staff'] is Map) {

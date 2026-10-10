@@ -88,15 +88,15 @@ class PosDashboardScreen extends StatelessWidget {
               child: Icon(
                 provider.isOfflineMode
                     ? Icons.cloud_off
-                    : provider.syncBlockedReason != null
+                    : provider.syncRejections.isNotEmpty
                         ? Icons.sync_problem_outlined
                         : Icons.cloud_done_outlined,
-                color: provider.isOfflineMode || provider.syncBlockedReason != null
+                color: provider.isOfflineMode || provider.syncRejections.isNotEmpty
                     ? AppColors.warning
                     : AppColors.success,
               ),
             ),
-            tooltip: 'Sync status',
+            tooltip: 'Connection',
             onPressed: () => OfflineSyncDialog.show(context),
           ),
           const SizedBox(width: 8),

@@ -8,6 +8,7 @@ import '../../widgets/stat_kpi_card.dart';
 import '../../widgets/confirm_dialog.dart';
 import '../../widgets/dialog_controller_scope.dart';
 import '../../core/format.dart';
+import '../../widgets/record_form.dart';
 
 class ExpenseScreen extends StatefulWidget {
   const ExpenseScreen({super.key});
@@ -318,6 +319,13 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                             formatInr(exp.amount),
                             style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: AppColors.nonVegRed),
                           ),
+                          if (provider.canManage)
+                          IconButton(
+                            tooltip: 'Edit',
+                            icon: const Icon(Icons.edit_outlined, size: 18, color: AppColors.textLight),
+                            onPressed: () => _editExpense(context, provider, exp),
+                          ),
+                          if (provider.canManage)
                           IconButton(
                             tooltip: 'Delete',
                             icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.textLight),
@@ -345,4 +353,36 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
     ),
   );
 }
+}
+
+Future<void> _editExpense(BuildContext context, PosProvider provider, Expense exp) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final saved = await showRecordForm(
+    context,
+    title: 'Edit expense',
+    fields: [
+      FormFieldSpec('title', 'Title', initial: exp.title, required: true),
+      FormFieldSpec('amount', 'Amount (₹)', initial: rupeeInput(exp.amount), numeric: true, required: true),
+      FormFieldSpec('vendor', 'Vendor', initial: exp.vendor ?? ''),
+      FormFieldSpec('reference', 'Bill / reference no.', initial: exp.reference ?? ''),
+      FormFieldSpec('note', 'Note', initial: exp.description ?? ''),
+    ],
+    onSave: (v) {
+      final amount = double.parse(v['amount']!);
+      if (amount <= 0) return Future.value('Amount must be more than ₹0');
+      return provider.updateExpense(exp.id,
+          title: v['title']!,
+          category: exp.category,
+          amount: amount,
+          vendor: v['vendor']!,
+          reference: v['reference']!,
+          note: v['note']!);
+    },
+  );
+  if (saved) {
+    messenger.showSnackBar(const SnackBar(
+      content: Text('Expense saved. A cash expense also updates the drawer.'),
+      backgroundColor: AppColors.success,
+    ));
+  }
 }

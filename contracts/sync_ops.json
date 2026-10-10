@@ -8,8 +8,8 @@
     },
     "order.patch": {
       "method": "PATCH", "path": "/api/v1/orders/ord-1", "model": "OrderPatch", "idempotent": false,
-      "payload": {"outlet_id": "out-1", "order_id": "ord-1", "status": "billing", "waiter_id": "st-1", "guest_count": 3, "order_note": "n", "customer_name": "A", "customer_phone": "9", "discount_percent": 10, "discount_paise": 0, "discount_reason": "regular", "service_charge_paise": 0, "packaging_charge_paise": 1000, "delivery_charge_paise": 0, "manager_pin": "1234"},
-      "body": {"status": "billing", "waiter_id": "st-1", "guest_count": 3, "order_note": "n", "customer_name": "A", "customer_phone": "9", "discount_percent": 10, "discount_paise": 0, "discount_reason": "regular", "service_charge_paise": 0, "packaging_charge_paise": 1000, "delivery_charge_paise": 0, "manager_pin": "1234"}
+      "payload": {"outlet_id": "out-1", "order_id": "ord-1", "status": "billing", "waiter_id": "st-1", "guest_count": 3, "order_note": "n", "customer_name": "A", "customer_phone": "9", "discount_percent": 10, "discount_paise": 0, "discount_reason": "regular", "service_charge_paise": 0, "packaging_charge_paise": 1000, "delivery_charge_paise": 0, "service_percent": 0, "tax_percent": 0, "manager_pin": "1234"},
+      "body": {"status": "billing", "waiter_id": "st-1", "guest_count": 3, "order_note": "n", "customer_name": "A", "customer_phone": "9", "discount_percent": 10, "discount_paise": 0, "discount_reason": "regular", "service_charge_paise": 0, "packaging_charge_paise": 1000, "delivery_charge_paise": 0, "service_percent": 0, "tax_percent": 0, "manager_pin": "1234"}
     },
     "order.add_item": {
       "method": "POST", "path": "/api/v1/orders/ord-1/items", "model": "OrderItemAdd", "idempotent": true,
@@ -28,7 +28,7 @@
     },
     "kot.fire": {
       "method": "POST", "path": "/api/v1/orders/ord-1/kot", "model": "Empty", "idempotent": true,
-      "payload": {"outlet_id": "out-1", "order_id": "ord-1"},
+      "payload": {"outlet_id": "out-1", "order_id": "ord-1", "local_kot_id": "kot-local-1"},
       "body": {}
     },
     "kot.status": {
@@ -180,6 +180,46 @@
       "method": "PATCH", "path": "/api/v1/purchases/pur-1", "model": "PurchasePatch", "idempotent": false,
       "payload": {"outlet_id": "out-1", "purchase_id": "pur-1", "status": "paid"},
       "body": {"status": "paid"}
+    },
+    "order.cancel": {
+      "method": "POST", "path": "/api/v1/orders/ord-1/cancel", "model": "OrderCancelReq", "idempotent": false,
+      "payload": {"outlet_id": "out-1", "order_id": "ord-1", "reason": "Customer left", "manager_pin": "9999"},
+      "body": {"reason": "Customer left", "manager_pin": "9999"}
+    },
+    "expense.patch": {
+      "method": "PATCH", "path": "/api/v1/expenses/exp-1", "model": "ExpensePatch", "idempotent": false,
+      "payload": {"outlet_id": "out-1", "expense_id": "exp-1", "title": "Gas", "category": "utilities", "amount_paise": 90000, "vendor": "", "reference": "B12", "note": ""},
+      "body": {"title": "Gas", "category": "utilities", "amount_paise": 90000, "vendor": "", "reference": "B12", "note": ""}
+    },
+    "customer.patch": {
+      "method": "PATCH", "path": "/api/v1/customers/c-1", "model": "CustomerPatch", "idempotent": false,
+      "payload": {"outlet_id": "out-1", "customer_id": "c-1", "name": "Asha", "phone": "9876543210", "email": "", "address": "Pune"},
+      "body": {"name": "Asha", "phone": "9876543210", "email": "", "address": "Pune"}
+    },
+    "customer.delete": {
+      "method": "DELETE", "path": "/api/v1/customers/c-1", "model": "None", "idempotent": false,
+      "payload": {"outlet_id": "out-1", "customer_id": "c-1"},
+      "body": null
+    },
+    "inventory.patch": {
+      "method": "PATCH", "path": "/api/v1/inventory/inv-1", "model": "InventoryPatch", "idempotent": false,
+      "payload": {"outlet_id": "out-1", "inventory_item_id": "inv-1", "name": "Milk", "unit": "L", "min_stock": 2, "cost_paise": 6500, "batch_no": "", "rack_no": "R1"},
+      "body": {"name": "Milk", "unit": "L", "min_stock": 2, "cost_paise": 6500, "batch_no": "", "rack_no": "R1"}
+    },
+    "inventory.delete": {
+      "method": "DELETE", "path": "/api/v1/inventory/inv-1", "model": "None", "idempotent": false,
+      "payload": {"outlet_id": "out-1", "inventory_item_id": "inv-1"},
+      "body": null
+    },
+    "supplier.patch": {
+      "method": "PATCH", "path": "/api/v1/suppliers/sup-1", "model": "SupplierPatch", "idempotent": false,
+      "payload": {"outlet_id": "out-1", "supplier_id": "sup-1", "name": "Dairy Co", "mobile": "9000000000", "email": "", "category": "Dairy"},
+      "body": {"name": "Dairy Co", "mobile": "9000000000", "email": "", "category": "Dairy"}
+    },
+    "supplier.delete": {
+      "method": "DELETE", "path": "/api/v1/suppliers/sup-1", "model": "None", "idempotent": false,
+      "payload": {"outlet_id": "out-1", "supplier_id": "sup-1"},
+      "body": null
     }
   }
 }

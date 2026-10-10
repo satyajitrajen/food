@@ -22,6 +22,8 @@ void main() {
     tester,
   ) async {
     final provider = fixtureProvider();
+    // ignore: deprecated_member_use_from_same_package
+    provider.loginStaff('1234'); // cashier: may take payment
     provider.selectTable(provider.tables.first);
     provider.addToCart(provider.menuItems.first);
     provider.sendKOT();

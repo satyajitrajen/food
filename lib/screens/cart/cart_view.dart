@@ -413,7 +413,7 @@ class CartViewScreen extends StatelessWidget {
                   ),
                   // Explicit checkout: never automatic (waiter taps it when
                   // the table is ready to pay).
-                  if (!hasUnsentItems) ...[
+                  if (!hasUnsentItems && provider.canTakePayment) ...[
                     const SizedBox(height: 10),
                     SizedBox(
                       width: double.infinity,

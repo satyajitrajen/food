@@ -8,6 +8,7 @@ import '../../core/validation.dart';
 import '../../providers/pos_provider.dart';
 import '../../models/inventory_model.dart';
 import '../../widgets/confirm_dialog.dart';
+import '../../widgets/record_form.dart';
 import '../../core/format.dart';
 
 class InventoryScreen extends StatefulWidget {
@@ -260,11 +261,23 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
                   ],
                 ),
               ),
-              const SizedBox(width: 12),
-              OutlinedButton(
-                onPressed: () => _showAdjustStockDialog(context, item, provider),
-                child: const Text('Adjust'),
-              ),
+              if (provider.canManage) ...[
+                const SizedBox(width: 12),
+                OutlinedButton(
+                  onPressed: () => _showAdjustStockDialog(context, item, provider),
+                  child: const Text('Adjust'),
+                ),
+                _RecordMenu(
+                  onEdit: () => _editItem(context, provider, item),
+                  onDelete: () => confirmDelete(
+                    context,
+                    title: 'Delete ${item.name}?',
+                    message: 'It is removed from inventory. Past purchases and the stock log keep it.',
+                    action: () => provider.deleteInventoryItem(item.id),
+                    doneText: '${item.name} deleted',
+                  ),
+                ),
+              ],
             ],
           ),
         );
@@ -342,6 +355,18 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
                               ),
                             ),
                             const SizedBox(width: 12),
+                            if (provider.canManage)
+                              _RecordMenu(
+                                onEdit: () => _editSupplier(context, provider, sup),
+                                deleteBlockedReason: sup.outstanding > 0 ? 'Pay the balance first' : null,
+                                onDelete: () => confirmDelete(
+                                  context,
+                                  title: 'Delete ${sup.name}?',
+                                  message: 'They are removed from suppliers. Past purchases and payments keep their name.',
+                                  action: () => provider.deleteSupplier(sup.id),
+                                  doneText: '${sup.name} deleted',
+                                ),
+                              ),
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
@@ -1089,6 +1114,89 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
           ],
         ),
       ),
+    );
+  }
+}
+
+Future<void> _editItem(BuildContext context, PosProvider provider, InventoryItem item) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final saved = await showRecordForm(
+    context,
+    title: 'Edit ${item.name}',
+    fields: [
+      FormFieldSpec('name', 'Name', initial: item.name, required: true),
+      FormFieldSpec('unit', 'Unit (KG, Litre, Pcs)', initial: item.unit, required: true),
+      FormFieldSpec('min', 'Low-stock alert at', initial: rupeeInput(item.minStock), numeric: true, required: true),
+      FormFieldSpec('cost', 'Cost per unit (₹)', initial: rupeeInput(item.costPerUnit), numeric: true, required: true),
+      FormFieldSpec('batch', 'Batch no.', initial: item.batchNo ?? ''),
+      FormFieldSpec('rack', 'Rack no.', initial: item.rackNo ?? ''),
+    ],
+    onSave: (v) => provider.updateInventoryItem(
+      item.id,
+      name: v['name']!,
+      unit: v['unit']!,
+      minStock: double.parse(v['min']!),
+      costPerUnit: double.parse(v['cost']!),
+      batchNo: v['batch']!,
+      rackNo: v['rack']!,
+    ),
+  );
+  if (saved) {
+    messenger.showSnackBar(const SnackBar(content: Text('Item saved'), backgroundColor: AppColors.success));
+  }
+}
+
+Future<void> _editSupplier(BuildContext context, PosProvider provider, Supplier sup) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final saved = await showRecordForm(
+    context,
+    title: 'Edit supplier',
+    fields: [
+      FormFieldSpec('name', 'Name', initial: sup.name, required: true),
+      FormFieldSpec('mobile', 'Mobile number', initial: sup.mobile, keyboard: TextInputType.phone, required: true),
+      FormFieldSpec('email', 'Email', initial: sup.email ?? '', keyboard: TextInputType.emailAddress),
+      FormFieldSpec('category', 'Category', initial: sup.category),
+    ],
+    onSave: (v) async {
+      final err = validateMobile(v['mobile']!, required: true);
+      if (err != null) return err;
+      return provider.updateSupplier(sup.id,
+          name: v['name']!, mobile: v['mobile']!, email: v['email']!, category: v['category']!);
+    },
+  );
+  if (saved) {
+    messenger.showSnackBar(const SnackBar(content: Text('Supplier saved'), backgroundColor: AppColors.success));
+  }
+}
+
+/// Edit / delete menu for one record row.
+class _RecordMenu extends StatelessWidget {
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+  final String? deleteBlockedReason;
+  const _RecordMenu({required this.onEdit, required this.onDelete, this.deleteBlockedReason});
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String>(
+      tooltip: 'Edit or delete',
+      onSelected: (v) => v == 'edit' ? onEdit() : onDelete(),
+      itemBuilder: (_) => [
+        const PopupMenuItem(
+          value: 'edit',
+          child: ListTile(leading: Icon(Icons.edit_outlined), title: Text('Edit'), contentPadding: EdgeInsets.zero),
+        ),
+        PopupMenuItem(
+          value: 'delete',
+          enabled: deleteBlockedReason == null,
+          child: ListTile(
+            leading: const Icon(Icons.delete_outline, color: AppColors.danger),
+            title: const Text('Delete', style: TextStyle(color: AppColors.danger)),
+            subtitle: deleteBlockedReason == null ? null : Text(deleteBlockedReason!),
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
+      ],
     );
   }
 }

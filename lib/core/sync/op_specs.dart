@@ -1,8 +1,8 @@
-/// Wire mapping for every offline-sync op: queued payload → HTTP request.
+/// Wire mapping for every write: payload → HTTP request.
 ///
 /// The server decodes bodies with `DisallowUnknownFields`, so a stray key
 /// (a path id, `local_id`, the op's `outlet_id` scope) turns the whole write
-/// into a 400 that the outbox then drops. Bodies are therefore built from an
+/// into a 400. Bodies are therefore built from an
 /// explicit allowlist per op, never by copying the payload. The canonical
 /// shapes live in `contracts/sync_ops.json`, which both this file and the Go
 /// handlers are tested against.
@@ -54,8 +54,10 @@ final Map<String, _Spec> _specs = {
   'order.patch': _Spec('PATCH', (p) => '/api/v1/orders/${_id(p, 'order_id')}',
       keys: ['status', 'waiter_id', 'waiter_name', 'order_note', 'guest_count',
         'customer_name', 'customer_phone', 'discount_percent', 'discount_paise',
-        'discount_reason', 'service_charge_paise', 'packaging_charge_paise',
-        'delivery_charge_paise', 'manager_pin']),
+        'discount_reason', 'service_charge_paise', 'service_percent',
+        'packaging_charge_paise', 'delivery_charge_paise', 'tax_percent', 'manager_pin']),
+  'order.cancel': _Spec('POST', (p) => '/api/v1/orders/${_id(p, 'order_id')}/cancel',
+      keys: ['reason', 'manager_pin']),
   'order.add_item': _Spec('POST', (p) => '/api/v1/orders/${_id(p, 'order_id')}/items',
       keys: ['menu_item_id', 'client_id', 'variant_id', 'quantity', 'note', 'modifiers'],
       renames: {'local_item_id': 'client_id'},
@@ -86,8 +88,14 @@ final Map<String, _Spec> _specs = {
       idempotent: true),
   'expense.delete': _Spec('DELETE', (p) => '/api/v1/expenses/${_id(p, 'expense_id')}',
       keys: null),
+  'expense.patch': _Spec('PATCH', (p) => '/api/v1/expenses/${_id(p, 'expense_id')}',
+      keys: ['title', 'category', 'amount_paise', 'vendor', 'reference', 'note']),
   'customer.create': _Spec('POST', (_) => '/api/v1/customers',
       keys: ['name', 'phone', 'email', 'address'], idempotent: true),
+  'customer.patch': _Spec('PATCH', (p) => '/api/v1/customers/${_id(p, 'customer_id')}',
+      keys: ['name', 'phone', 'email', 'address']),
+  'customer.delete': _Spec('DELETE', (p) => '/api/v1/customers/${_id(p, 'customer_id')}',
+      keys: null),
   'credit.book': _Spec('POST', (p) => '/api/v1/customers/${_id(p, 'customer_id')}/credit',
       keys: ['kind', 'amount_paise', 'reason'], idempotent: true),
   'stock.adjust': _Spec('POST', (p) => '/api/v1/inventory/${_id(p, 'item_id')}/adjust',
@@ -133,8 +141,16 @@ final Map<String, _Spec> _specs = {
       keys: ['name', 'unit', 'stock', 'min_stock', 'cost_paise', 'batch_no', 'rack_no',
         'purchased_at'],
       idempotent: true),
+  'inventory.patch': _Spec('PATCH', (p) => '/api/v1/inventory/${_id(p, 'inventory_item_id')}',
+      keys: ['name', 'unit', 'min_stock', 'cost_paise', 'batch_no', 'rack_no']),
+  'inventory.delete': _Spec('DELETE', (p) => '/api/v1/inventory/${_id(p, 'inventory_item_id')}',
+      keys: null),
   'supplier.create': _Spec('POST', (_) => '/api/v1/suppliers',
       keys: ['name', 'mobile', 'email', 'category'], idempotent: true),
+  'supplier.patch': _Spec('PATCH', (p) => '/api/v1/suppliers/${_id(p, 'supplier_id')}',
+      keys: ['name', 'mobile', 'email', 'category']),
+  'supplier.delete': _Spec('DELETE', (p) => '/api/v1/suppliers/${_id(p, 'supplier_id')}',
+      keys: null),
   'supplier.payment': _Spec('POST', (p) => '/api/v1/suppliers/${_id(p, 'supplier_id')}/payments',
       keys: ['amount_paise', 'method', 'at', 'reference'], idempotent: true),
   'purchase.create': _Spec('POST', (_) => '/api/v1/purchases',
@@ -144,7 +160,7 @@ final Map<String, _Spec> _specs = {
       keys: ['status']),
 };
 
-/// Every op type the outbox knows how to send.
+/// Every write type the app knows how to send.
 Iterable<String> get knownOpTypes => _specs.keys;
 
 /// Builds the request for [type] from its queued [payload]. Null-valued keys

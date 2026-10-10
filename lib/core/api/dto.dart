@@ -621,20 +621,32 @@ List<String> _strList(dynamic v) =>
     (v is List) ? v.map((e) => e.toString()).toList() : const <String>[];
 
 /// Payload helpers for the menu admin editor (variants + modifier groups).
+// Ids are sent so the server updates existing variants/modifiers in place
+// (an order line keeps pointing at the same variant); new ones get an id
+// from the server.
 List<Map<String, dynamic>> menuVariantsToApi(List<ProductVariant> variants) =>
     variants
-        .map((v) => {'name': v.name, 'price_paise': toPaise(v.price)})
+        .map((v) => {
+              if (v.id.isNotEmpty) 'id': v.id,
+              'name': v.name,
+              'price_paise': toPaise(v.price),
+            })
         .toList();
 
 List<Map<String, dynamic>> menuModifierGroupsToApi(List<ModifierGroup> groups) =>
     groups
         .map((g) => {
+              if (g.id.isNotEmpty) 'id': g.id,
               'name': g.name,
               'is_multi_select': g.isMultiSelect,
               'is_required': g.isRequired,
               'sort': 0,
               'items': g.items
-                  .map((m) => {'name': m.name, 'price_paise': toPaise(m.price)})
+                  .map((m) => {
+                        if (m.id.isNotEmpty) 'id': m.id,
+                        'name': m.name,
+                        'price_paise': toPaise(m.price),
+                      })
                   .toList(),
             })
         .toList();

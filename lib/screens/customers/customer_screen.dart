@@ -8,6 +8,7 @@ import '../../models/staff_model.dart';
 import '../../widgets/confirm_dialog.dart';
 import '../../widgets/empty_state.dart';
 import '../../core/format.dart';
+import '../../widgets/record_form.dart';
 
 class CustomerScreen extends StatefulWidget {
   const CustomerScreen({super.key});
@@ -121,6 +122,31 @@ class _CustomerScreenState extends State<CustomerScreen> {
         ],
       ),
     );
+  }
+
+  void _editCustomer(BuildContext context, PosProvider provider, Customer cust) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final saved = await showRecordForm(
+      context,
+      title: 'Edit customer',
+      fields: [
+        FormFieldSpec('name', 'Name', initial: cust.name, required: true, icon: Icons.person_outline),
+        FormFieldSpec('phone', 'Mobile number', initial: cust.phone, required: true,
+            keyboard: TextInputType.phone, icon: Icons.phone_outlined),
+        FormFieldSpec('email', 'Email', initial: cust.email ?? '',
+            keyboard: TextInputType.emailAddress, icon: Icons.email_outlined),
+        FormFieldSpec('address', 'Address', initial: cust.address ?? '', icon: Icons.home_outlined),
+      ],
+      onSave: (v) async {
+        final phoneErr = validateMobile(v['phone']!, required: true);
+        if (phoneErr != null) return phoneErr;
+        return provider.updateCustomer(cust.id,
+            name: v['name']!, phone: v['phone']!, email: v['email']!, address: v['address']!);
+      },
+    );
+    if (saved) {
+      messenger.showSnackBar(const SnackBar(content: Text('Customer saved'), backgroundColor: AppColors.success));
+    }
   }
 
   void _showCreditDialog(
@@ -528,6 +554,36 @@ class _CustomerScreenState extends State<CustomerScreen> {
                                           );
                                         },
                                       ),
+                                      if (canManageCredit)
+                                        ListTile(
+                                          leading: const Icon(Icons.edit_outlined),
+                                          title: const Text('Edit customer'),
+                                          onTap: () {
+                                            Navigator.of(bctx).pop();
+                                            _editCustomer(context, provider, cust);
+                                          },
+                                        ),
+                                      if (provider.canManage)
+                                        ListTile(
+                                          leading: const Icon(Icons.delete_outline, color: AppColors.danger),
+                                          title: const Text('Delete customer',
+                                              style: TextStyle(color: AppColors.danger)),
+                                          subtitle: cust.outstandingCredit > 0
+                                              ? const Text('Settle the credit first')
+                                              : null,
+                                          enabled: cust.outstandingCredit <= 0,
+                                          onTap: () {
+                                            Navigator.of(bctx).pop();
+                                            confirmDelete(
+                                              context,
+                                              title: 'Delete ${cust.name}?',
+                                              message:
+                                                  'They are removed from the customer list. Past bills keep their name and phone.',
+                                              action: () => provider.deleteCustomer(cust.id),
+                                              doneText: '${cust.name} deleted',
+                                            );
+                                          },
+                                        ),
                                     ],
                                   ),
                                 ),

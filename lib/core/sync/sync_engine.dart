@@ -3,211 +3,222 @@ import 'dart:async';
 import '../api/api_client.dart';
 import 'outbox.dart';
 
-enum SyncStatus { offline, online }
-
 typedef OpHandler = Future<Map<String, dynamic>?> Function(
     Map<String, dynamic> payload);
 
-/// Single FIFO write path for every server mutation.
+/// Online-only write path for every server mutation.
 ///
-/// Every push is appended to the persisted outbox and drained in order, online
-/// or offline. Ordering matters: `order.add_item` must not reach the server
-/// before the `order.create` it depends on has been acknowledged and its
-/// local id remapped to the server id.
+/// Writes are sent to the server straight away, one at a time in the order
+/// they were made, and each caller gets the outcome: `null` when the server
+/// saved it, otherwise a message to show. Nothing is queued on the device:
+/// a write that can't reach the server fails right away instead of waiting
+/// in a local queue, so the server is always the only copy of the data.
+///
+/// Order still matters within a session: `order.add_item` must not reach the
+/// server before the `order.create` it depends on, and its local id is
+/// rewritten to the server id the create returned.
 class SyncEngine {
   final ApiClient api;
   final OutboxStore store;
 
-  /// Fires on online/offline transitions and pending-count changes.
+  /// Fires on online/offline transitions and in-flight count changes.
   final void Function(bool online, int pending)? onChanged;
 
-  /// Fires when a queued op is confirmed by the server.
+  /// Fires when the server saved a write.
   final void Function(String type, Map<String, dynamic> payload,
       Map<String, dynamic>? data)? onAck;
 
-  /// Fires when the server permanently rejects an op (4xx). Server truth
-  /// wins; the op is dropped, never silently.
-  final void Function(String message)? onError;
-
-  /// Like [onError] but with the rejected op, so the owner can roll back the
-  /// optimistic local state it applied for that op.
+  /// Fires when a write was not saved (refused or no connection), so the
+  /// owner can undo what it showed and re-read server truth.
   final void Function(OutboxOp op, ApiException error)? onRejected;
+
+  /// Fires when the server is reachable again after being offline.
+  final void Function()? onReconnect;
 
   final Map<String, OpHandler> _handlers = {};
   final List<OutboxOp> _queue = [];
   final Map<String, String> _idMap = {};
-  final Map<String, Completer<void>> _waiters = {};
+  final Map<String, Completer<String?>> _waiters = {};
   bool _online = false;
-  bool _replaying = false;
-  bool _forceOffline = false;
+  bool _draining = false;
   bool _initialized = false;
-  bool _blocked = false;
-  Timer? _retryTimer;
+  bool _legacy = false;
+  Timer? _probeTimer;
   DateTime? _lastSyncAt;
-  String? _blockedReason;
 
   SyncEngine({
     required this.api,
     required this.store,
     this.onChanged,
     this.onAck,
-    this.onError,
     this.onRejected,
+    this.onReconnect,
   });
 
   bool get online => _online;
+
+  /// Writes sent but not answered yet.
   int get pending => _queue.length;
-  List<OutboxOp> get queuedOps => List.unmodifiable(_queue);
   Map<String, String> get idMap => _idMap;
 
-  /// When the outbox last drained an op successfully.
+  /// When the server last saved a write.
   DateTime? get lastSyncAt => _lastSyncAt;
-
-  /// Set while the queue is parked on an auth/subscription problem that a
-  /// retry cannot fix by itself (re-login or renewal needed).
-  String? get blockedReason => _blockedReason;
 
   void register(String type, OpHandler handler) => _handlers[type] = handler;
 
-  /// Resolves a local id to the server id once its create op was acked.
+  /// Resolves a local id to the server id the create returned.
   String resolveId(String id) => _idMap[id] ?? id;
 
   Future<void> initialize() async {
     if (_initialized) return;
     _initialized = true;
-    _queue.addAll(await store.load());
-    _idMap.addAll(await store.loadIdMap());
     final saved = await store.loadSession();
     if (saved != null) {
-      api.session = AuthSession(
-        accessToken: saved.$1,
-        refreshToken: saved.$2,
-      );
+      api.session = AuthSession(accessToken: saved.$1, refreshToken: saved.$2);
+    }
+    // Writes left queued on this device by the old offline build are sent
+    // once, then the on-device queue is gone for good.
+    final leftovers = await store.load();
+    if (leftovers.isNotEmpty) {
+      _legacy = true;
+      _queue.addAll(leftovers);
+      _idMap.addAll(await store.loadIdMap());
+    } else {
+      await store.clear();
     }
     _emit();
   }
 
-  /// Periodically re-probes the server while writes are pending or the
-  /// device is offline, so a terminal that booted offline drains its outbox
-  /// on its own once connectivity returns.
-  void startAutoRetry({Duration every = const Duration(seconds: 30)}) {
-    _retryTimer?.cancel();
-    _retryTimer = Timer.periodic(every, (_) {
-      if (_forceOffline || _replaying) return;
-      if (!_online || _queue.isNotEmpty) {
-        _blocked = false;
-        probe();
-      }
+  /// While offline, re-checks the server every few seconds so the app
+  /// unlocks itself as soon as the connection is back.
+  void startProbing({Duration every = const Duration(seconds: 5)}) {
+    _probeTimer?.cancel();
+    _probeTimer = Timer.periodic(every, (_) {
+      if (!_online) probe();
     });
   }
 
   void dispose() {
-    _retryTimer?.cancel();
-    _retryTimer = null;
+    _probeTimer?.cancel();
+    _probeTimer = null;
   }
 
   Future<bool> probe() async {
-    if (_forceOffline) {
-      _setOnline(false);
-      return false;
-    }
     final ok = await api.health();
     _setOnline(ok);
-    if (ok && _queue.isNotEmpty) {
-      _blocked = false;
-      await replay();
-    }
+    if (ok && _queue.isNotEmpty) unawaited(_drain());
     return ok;
   }
 
-  void setForceOffline(bool value) {
-    _forceOffline = value;
-    if (value) _setOnline(false);
-  }
-
-  /// Fire-and-forget write path: the caller has already applied the change
-  /// locally. The op is persisted, then the queue drains in FIFO order. The
-  /// returned future completes once this op is acked or rejected, or right
-  /// away when the device is offline (the op stays queued).
-  Future<void> push(String type, Map<String, dynamic> payload) async {
-    final op = _enqueue(type, payload);
-    if (!_online || _blocked) {
-      return;
-    }
-    final done = Completer<void>();
+  /// Sends one write and completes with `null` once the server saved it, or
+  /// with a message saying why it was not saved.
+  Future<String?> push(String type, Map<String, dynamic> payload) {
+    final op = OutboxOp(id: newOpId(), type: type, payload: payload);
+    final done = Completer<String?>();
     _waiters[op.id] = done;
-    unawaited(replay());
-    await done.future;
+    _queue.add(op);
+    _emit();
+    unawaited(_drain());
+    return done.future;
   }
 
-  Future<void> replay() async {
-    if (_replaying || !_online || _queue.isEmpty) {
-      if (!_online || _blocked) _releaseWaiters();
-      return;
-    }
-    _replaying = true;
+  Future<void> _drain() async {
+    if (_draining) return;
+    _draining = true;
     try {
-      while (_queue.isNotEmpty && _online && !_blocked) {
+      while (_queue.isNotEmpty) {
         final op = _queue.first;
         try {
           final data = await _execute(op.type, op.payload, op.id);
           _captureIdMap(op.payload, data);
           _queue.removeAt(0);
           _lastSyncAt = DateTime.now();
-          _blockedReason = null;
-          await store.save(_queue);
+          _setOnline(true);
           _emit();
           onAck?.call(op.type, op.payload, data);
-          _complete(op.id);
+          _complete(op.id, null);
         } on NetworkException {
+          // No connection: nothing in flight can be saved. Fail all of it so
+          // the screens undo what they showed.
           _setOnline(false);
-          break;
-        } on ApiException catch (e) {
-          if (_isTransient(e)) {
-            // Server-side trouble or an expired session/subscription: keep the
-            // op (and everything behind it) for a later retry instead of
-            // dropping a sale.
-            _blocked = true;
-            _blockedReason = e.message;
-            _emit();
-            onError?.call(e.message);
-            break;
-          }
-          _queue.removeAt(0);
-          await store.save(_queue);
+          final failed = List<OutboxOp>.from(_queue);
+          _queue.clear();
           _emit();
-          onError?.call(e.message);
+          for (final f in failed) {
+            onRejected?.call(f, ApiException(0, 'offline', offlineMessage));
+            _complete(f.id, offlineMessage);
+          }
+        } on ApiException catch (e) {
+          _queue.removeAt(0);
+          final message = describeWriteError(e);
+          // Writes made on top of this one (same order / record) can't be
+          // right either.
+          final dependents = _queue.where((o) => _dependsOn(o, op)).toList();
+          _queue.removeWhere(dependents.contains);
+          _emit();
           onRejected?.call(op, e);
-          _complete(op.id);
+          _complete(op.id, message);
+          for (final d in dependents) {
+            _complete(d.id, 'Not saved: an earlier change to this record failed ($message)');
+          }
         }
       }
     } finally {
-      _replaying = false;
-      _releaseWaiters();
+      _draining = false;
+      if (_legacy && _queue.isEmpty) {
+        _legacy = false;
+        unawaited(store.clear());
+      }
     }
   }
 
-  /// 401/402/403 need a human (re-login, renewal) and 408/409-in-progress,
-  /// 429 and 5xx clear up on their own; none of them mean "this op is wrong".
-  bool _isTransient(ApiException e) =>
-      e.status == 401 ||
-      e.status == 402 ||
-      e.status == 403 && e.code == 'subscription_expired' ||
-      e.status == 408 ||
-      e.status == 429 ||
-      (e.status == 409 && e.code == 'in_progress') ||
-      e.status >= 500;
+  static const offlineMessage = 'No internet connection. Not saved.';
 
-  /// Records local→server id mappings so later queued ops referencing local
-  /// ids are rewritten to server ids before executing.
+  /// A short, user-facing reason for a refused write.
+  static String describeWriteError(ApiException e) {
+    if (e.status == 401) return 'Your session expired. Sign in again.';
+    if (e.status == 402 || e.code == 'subscription_expired') {
+      return 'Subscription expired. Renew to keep saving.';
+    }
+    if (e.status == 403 && e.code == 'forbidden') {
+      return "You don't have permission to do this.";
+    }
+    if (e.status >= 500) return 'Server error. Not saved, please try again.';
+    if (e.status == 429) return 'Too many requests. Wait a moment and try again.';
+    return e.message.isNotEmpty ? e.message : 'Not saved (${e.status}).';
+  }
+
+  static const _refKeys = {
+    'order_id', 'item_id', 'kot_id', 'customer_id', 'expense_id',
+    'supplier_id', 'table_id', 'inventory_item_id', 'menu_item_id',
+    'purchase_id', 'staff_id',
+  };
+
+  /// Whether [later] refers to the record [failed] created or changed.
+  bool _dependsOn(OutboxOp later, OutboxOp failed) {
+    final ids = <String>{
+      for (final k in [..._refKeys, 'local_id', 'local_item_id', 'local_kot_id'])
+        if (failed.payload[k] is String) failed.payload[k] as String,
+    };
+    if (ids.isEmpty) return false;
+    for (final k in _refKeys) {
+      final v = later.payload[k];
+      if (v is String && ids.contains(v)) return true;
+    }
+    return false;
+  }
+
+  /// Records local→server id mappings so later writes referencing a local
+  /// id are rewritten to the server id before they are sent.
   void _captureIdMap(Map<String, dynamic> payload, Map<String, dynamic>? data) {
     if (data == null) return;
-    var changed = false;
-    final local = payload['local_id'];
     final server = data['id'];
-    if (local is String && local.isNotEmpty && server is String && server.isNotEmpty) {
-      _idMap[local] = server;
-      changed = true;
+    // local_kot_id: the KOT the screen showed before the server numbered it.
+    for (final key in const ['local_id', 'local_kot_id']) {
+      final local = payload[key];
+      if (local is String && local.isNotEmpty && server is String && server.isNotEmpty) {
+        _idMap[local] = server;
+      }
     }
     final localItem = payload['local_item_id'];
     if (localItem is String && localItem.isNotEmpty) {
@@ -220,23 +231,7 @@ class SyncEngine {
           }
         }
       }
-      if (serverItem != null && serverItem.isNotEmpty) {
-        _idMap[localItem] = serverItem;
-        changed = true;
-      }
-    }
-    if (changed) {
-      _trimIdMap();
-      store.saveIdMap(_idMap);
-    }
-  }
-
-  void _trimIdMap() {
-    const maxEntries = 2000;
-    if (_idMap.length <= maxEntries) return;
-    final drop = _idMap.keys.take(_idMap.length - maxEntries).toList();
-    for (final k in drop) {
-      _idMap.remove(k);
+      if (serverItem != null && serverItem.isNotEmpty) _idMap[localItem] = serverItem;
     }
   }
 
@@ -246,62 +241,40 @@ class SyncEngine {
     if (handler == null) {
       throw ApiException(400, 'no_handler', 'No handler registered for $type');
     }
-    final wire = _remapPayload(Map<String, dynamic>.from(payload));
+    final wire = _remap(payload);
     wire['__key'] = key;
     return await handler(wire);
   }
 
-  Map<String, dynamic> _remapPayload(Map<String, dynamic> payload) {
-    const remapKeys = {
-      'order_id', 'item_id', 'kot_id', 'customer_id', 'expense_id',
-      'supplier_id', 'table_id', 'from_table_id', 'to_table_id',
-      'primary_table_id', 'secondary_table_id', 'inventory_item_id',
-      'menu_item_id', 'purchase_id', 'staff_id',
-    };
-    final out = <String, dynamic>{};
-    payload.forEach((k, v) {
-      if (remapKeys.contains(k) && v is String) {
-        out[k] = _idMap[v] ?? v;
-      } else {
-        out[k] = v;
-      }
-    });
-    return out;
+  /// Rewrites local ids (top level and inside list items, e.g. purchase
+  /// lines) to the server ids.
+  dynamic _remapValue(String? key, dynamic v) {
+    if (v is String && key != null && _refKeys.contains(key)) return _idMap[v] ?? v;
+    if (v is Map) return _remap(v.cast<String, dynamic>());
+    if (v is List) return [for (final e in v) _remapValue(null, e)];
+    return v;
   }
 
-  OutboxOp _enqueue(String type, Map<String, dynamic> payload) {
-    final op = OutboxOp(id: newOpId(), type: type, payload: payload);
-    _queue.add(op);
-    store.save(_queue);
-    _emit();
-    return op;
-  }
+  Map<String, dynamic> _remap(Map<String, dynamic> payload) => {
+        for (final e in payload.entries) e.key: _remapValue(e.key, e.value),
+      };
 
-  void _complete(String opId) {
+  void _complete(String opId, String? error) {
     final c = _waiters.remove(opId);
-    if (c != null && !c.isCompleted) c.complete();
-  }
-
-  /// Unblocks callers awaiting ops that stay queued (offline/blocked).
-  void _releaseWaiters() {
-    if (_waiters.isEmpty) return;
-    final pendingIds = _queue.map((o) => o.id).toSet();
-    final stuck = !_online || _blocked;
-    for (final id in _waiters.keys.toList()) {
-      if (stuck || !pendingIds.contains(id)) _complete(id);
-    }
+    if (c != null && !c.isCompleted) c.complete(error);
   }
 
   void _setOnline(bool value) {
     if (_online == value) return;
     _online = value;
     _emit();
+    if (value) onReconnect?.call();
   }
 
   void _emit() => onChanged?.call(_online, _queue.length);
 }
 
-/// A write the server refused for good (shown in the sync panel).
+/// A write the server did not save (shown in the connection panel).
 class SyncRejection {
   final String opType;
   final String message;

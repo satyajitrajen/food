@@ -1,9 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../core/api/api_client.dart';
 import '../core/api/dto.dart';
-import '../core/auth/pin_vault.dart';
 import '../core/auth/session_store.dart';
 import '../core/auth/tenant.dart';
 import '../core/notifications/push_notification_service.dart';
@@ -34,14 +34,14 @@ const String kDefaultApiBaseUrl =
     String.fromEnvironment('FOODPOS_API_URL', defaultValue: 'https://food.nexorytechnologies.com');
 
 class PosProvider extends ChangeNotifier {
-  /// When true the provider talks to the Go backend (API writes with an
-  /// offline outbox, SSE realtime, cache-first reads). False = demo mode.
+  /// When true the provider talks to the Go backend: every write is sent to
+  /// the server and awaited (no on-device queue), reads come from the server,
+  /// SSE keeps terminals in sync. False = demo/test mode.
   final bool apiEnabled;
   ApiClient? _api;
   SyncEngine? _sync;
   RealtimeChannel? _realtime;
   PrinterAdapter? _printer;
-  PinVault? _pinVault;
   TenantStore? _tenantStore;
   SessionStore? _sessionStore;
   TenantInfo? _tenant;
@@ -61,11 +61,8 @@ class PosProvider extends ChangeNotifier {
   String? get lastSyncError => _lastSyncError;
   DateTime? get lastSyncAt => _sync?.lastSyncAt ?? _lastSyncAt;
 
-  /// Why the outbox is parked (expired session/subscription, server error).
-  String? get syncBlockedReason => _sync?.blockedReason;
-
-  /// Writes the server refused for good, newest first — shown in the sync
-  /// panel so a rejected payment or refund is never invisible.
+  /// Writes that were not saved, newest first — shown in the connection
+  /// panel so a refused payment or refund is never invisible.
   final List<SyncRejection> _rejections = [];
   List<SyncRejection> get syncRejections => List.unmodifiable(_rejections);
   void clearSyncRejections() {
@@ -75,36 +72,52 @@ class PosProvider extends ChangeNotifier {
   }
   String? get printerError => _printerError;
 
-  PosProvider({this.apiEnabled = false, PrinterAdapter? printer}) {
+  /// One message per write that was not saved; the app shell shows each as
+  /// a snackbar.
+  final StreamController<String> _saveErrors = StreamController<String>.broadcast();
+  Stream<String> get saveErrors => _saveErrors.stream;
+
+  /// Why the last login failed when it was not a wrong PIN (no internet,
+  /// server error). Null after a wrong PIN or a successful login.
+  String? _loginError;
+  String? get loginError => _loginError;
+
+  PosProvider({this.apiEnabled = false, PrinterAdapter? printer, @visibleForTesting ApiClient? api}) {
     _printer = printer;
     // No secrets: only the staff/outlet snapshot (tokens stay in OutboxStore,
     // PINs only as salted vault hashes), so this is kept in every mode.
     _sessionStore = SessionStore();
     if (apiEnabled) {
-      _api = ApiClient(baseUrl: kDefaultApiBaseUrl, onSessionChanged: _persistSession);
-      _pinVault = PinVault();
+      _api = api ?? ApiClient(baseUrl: kDefaultApiBaseUrl, onSessionChanged: _persistSession);
       _tenantStore = TenantStore();
       _sync = SyncEngine(
         api: _api!,
         store: OutboxStore(),
         onChanged: (_, _) => notifyListeners(),
         onAck: applyServerTruth,
-        onError: (message) {
-          _lastSyncError = message;
-          notifyListeners();
-        },
         onRejected: _onOpRejected,
+        onReconnect: _onReconnect,
       );
       _registerOps();
-      _sync!.startAutoRetry();
+      _sync!.startProbing();
       _readyFuture = _bootstrap();
     }
   }
 
+  bool _disposed = false;
+
+  /// Background re-reads can finish after the provider is gone.
+  @override
+  void notifyListeners() {
+    if (!_disposed) super.notifyListeners();
+  }
+
   @override
   void dispose() {
+    _disposed = true;
     _dashboardRefresh?.cancel();
     _sync?.dispose();
+    unawaited(_saveErrors.close());
     unawaited(_realtime?.disconnect());
     super.dispose();
   }
@@ -125,6 +138,11 @@ class PosProvider extends ChangeNotifier {
   }
 
   Future<void> _bootstrap() async {
+    // Older builds cached PIN hashes for offline sign-in; sign-in is
+    // server-only now, so drop them.
+    unawaited(SharedPreferences.getInstance()
+        .then((p) => p.remove('foodpos.pinvault'))
+        .then((_) {}, onError: (_) {}));
     // Restore the bound tenant + last entitlement before any network calls so
     // hydrations are org-scoped and offline grace survives restarts.
     if (_tenantStore != null) {
@@ -224,6 +242,37 @@ class PosProvider extends ChangeNotifier {
         break;
       case 'shift.updated':
         _applyServerShift(payload);
+        break;
+      case 'settings.updated':
+        _settings = _withOutletProfile(settingsFromApi(payload));
+        break;
+      case 'outlet.updated':
+        if (payload['id'] == _currentOutlet.id) {
+          _currentOutlet = outletFromApi(payload);
+          _settings = _withOutletProfile(_settings);
+        }
+        break;
+      // Another terminal changed a back-office record: re-read that list.
+      case 'menu.changed':
+        unawaited(_refresh(['menu']));
+        break;
+      case 'staff.changed':
+        unawaited(_refresh(['staff']));
+        break;
+      case 'customer.changed':
+        unawaited(_refresh(['customers']));
+        break;
+      case 'expense.changed':
+        unawaited(_refresh(['expenses', 'shift']));
+        break;
+      case 'inventory.changed':
+        unawaited(_refresh(['inventory']));
+        break;
+      case 'supplier.changed':
+        unawaited(_refresh(['suppliers']));
+        break;
+      case 'purchase.changed':
+        unawaited(_refresh(['purchases', 'inventory', 'suppliers']));
         break;
       default:
         break;
@@ -373,8 +422,9 @@ class PosProvider extends ChangeNotifier {
     return sig(a) == sig(b) && sig(a).isNotEmpty;
   }
 
-  void _upsertServerTable(Map<String, dynamic> j) {
+  void _upsertServerTable(Map<String, dynamic> j, {String? replaceLocalId}) {
     final incoming = tableFromApi(j);
+    if (replaceLocalId != null) _tables.removeWhere((t) => t.id == replaceLocalId);
     if (incoming.assignedWaiter != null) {
       final waiter = _staffList.where((s) => s.id == incoming.assignedWaiter).firstOrNull;
       if (waiter != null) {
@@ -430,8 +480,9 @@ class PosProvider extends ChangeNotifier {
     }
   }
 
-  void _upsertServerInventoryItem(Map<String, dynamic> j) {
+  void _upsertServerInventoryItem(Map<String, dynamic> j, {String? replaceLocalId}) {
     final incoming = inventoryItemFromApi(j);
+    if (replaceLocalId != null) _inventory.removeWhere((i) => i.id == replaceLocalId);
     final idx = _inventory.indexWhere((i) => i.id == incoming.id);
     if (idx >= 0) {
       _inventory[idx] = incoming;
@@ -524,6 +575,7 @@ class PosProvider extends ChangeNotifier {
         if (data != null) {
           _upsertServerExpense(data, replaceLocalId: payload['local_id']?.toString());
         }
+        unawaited(_refresh(['shift']));
         break;
       case 'customer.create':
         if (data != null) {
@@ -548,12 +600,69 @@ class PosProvider extends ChangeNotifier {
         if (data != null) _upsertServerStaff(data, replaceLocalId: payload['local_id']?.toString());
         break;
       case 'inventory.create':
+        if (data != null) {
+          _upsertServerInventoryItem(data, replaceLocalId: payload['local_id']?.toString());
+        }
+        break;
+      case 'inventory.patch':
         if (data != null) _upsertServerInventoryItem(data);
+        break;
+      case 'inventory.delete':
+        _inventory.removeWhere((i) => i.id == payload['inventory_item_id']);
+        break;
+      case 'customer.patch':
+        if (data != null) _upsertServerCustomer(data);
+        break;
+      case 'customer.delete':
+        _customers.removeWhere((c) => c.id == payload['customer_id']);
+        break;
+      case 'supplier.patch':
+        if (data != null) _upsertServerSupplier(data);
+        break;
+      case 'supplier.delete':
+        _suppliers.removeWhere((x) => x.id == payload['supplier_id']);
+        break;
+      case 'expense.patch':
+        if (data != null) _upsertServerExpense(data);
+        unawaited(_refresh(['shift']));
+        break;
+      case 'order.cancel':
+        if (data != null) _upsertServerOrder(data);
+        unawaited(_refresh(['tables', 'kots']));
+        break;
+      case 'settings.update':
+        if (data != null) {
+          _settings = _withOutletProfile(settingsFromApi(data));
+        }
+        // Open bills were re-rated by the server.
+        unawaited(_refresh(['orders', 'tables']));
+        break;
+      case 'outlet.patch':
+        if (data != null && data['id'] == _currentOutlet.id) {
+          _currentOutlet = outletFromApi(data);
+          final i = _outlets.indexWhere((o) => o.id == _currentOutlet.id);
+          if (i >= 0) _outlets[i] = _currentOutlet;
+          _settings = _withOutletProfile(_settings);
+        }
+        break;
+      case 'expense.delete':
+      case 'cash.move':
+        // The drawer totals are the server's.
+        unawaited(_refresh(['shift']));
+        if (type == 'cash.move') unawaited(fetchCashMoves());
+        break;
+      case 'table.status':
+      case 'table.move':
+      case 'table.merge':
+      case 'table.unmerge':
+      case 'table.delete':
+        unawaited(_refresh(['tables', 'orders']));
         break;
       case 'supplier.create':
         if (data != null) _upsertServerSupplier(data, replaceLocalId: payload['local_id']?.toString());
         break;
       case 'supplier.payment':
+        unawaited(_refresh(['shift']));
         if (data != null) {
           final supplier = data['supplier'];
           if (supplier is Map) {
@@ -577,9 +686,11 @@ class PosProvider extends ChangeNotifier {
       case 'purchase.create':
       case 'purchase.patch':
         if (data != null) _upsertServerPurchase(data, replaceLocalId: payload['local_id']?.toString());
+        // Stock and supplier balances are the server's.
+        unawaited(_refresh(['inventory', 'suppliers']));
         break;
       case 'table.create':
-        if (data != null) _upsertServerTable(data);
+        if (data != null) _upsertServerTable(data, replaceLocalId: payload['local_id']?.toString());
         break;
       case 'table.patch':
         if (data != null) _upsertServerTable(data);
@@ -899,129 +1010,197 @@ class PosProvider extends ChangeNotifier {
     }
   }
 
+  /// Re-reads everything for the current outlet from the server.
   Future<void> hydrateOutlet() async {
     if (!apiEnabled || _api == null || _hydrating) return;
     _hydrating = true;
-    final outletId = _currentOutlet.id;
-    Map<String, String> q = {'outlet_id': outletId};
     try {
-      final menu = await _tryRead('/api/v1/menu', q);
-      if (menu is Map && menu['menu_items'] is List) {
-        _menuItems
-          ..clear()
-          ..addAll((menu['menu_items'] as List)
-              .whereType<Map>()
-              .map((m) => menuItemFromApi(m.cast<String, dynamic>())));
-        _rebuildCategories();
-      }
-      final tables = await _tryRead('/api/v1/tables', q);
-      if (tables is Map && tables['tables'] is List) {
-        _tables
-          ..clear()
-          ..addAll((tables['tables'] as List)
-              .whereType<Map>()
-              .map((t) => tableFromApi(t.cast<String, dynamic>())));
-      }
-      final orders = await _tryRead(
-          '/api/v1/orders', {'outlet_id': outletId, 'limit': '100'});
-      if (orders is Map && orders['orders'] is List) {
-        _orders
-          ..clear()
-          ..addAll((orders['orders'] as List)
-              .whereType<Map>()
-              .map((o) => orderFromApi(o.cast<String, dynamic>(), _menuLookup)));
-      }
-      final kots = await _tryRead('/api/v1/kots', q);
-      if (kots is Map && kots['kots'] is List) {
-        _kots
-          ..clear()
-          ..addAll((kots['kots'] as List)
-              .whereType<Map>()
-              .map((k) => kotFromApi(k.cast<String, dynamic>())));
-      }
-      final outlet = await _tryRead('/api/v1/outlets/$outletId', q);
-      if (outlet is Map && outlet['id'] == outletId) {
-        _currentOutlet = outletFromApi(outlet.cast<String, dynamic>());
-        final i = _outlets.indexWhere((o) => o.id == outletId);
-        if (i >= 0) _outlets[i] = _currentOutlet;
-      }
-      final settings = await _tryRead('/api/v1/settings', q);
-      if (settings is Map) {
-        _settings = settingsFromApi(settings.cast<String, dynamic>());
-      }
-      _settings = _withOutletProfile(_settings);
-      final shift = await _tryRead('/api/v1/shifts/current', q);
-      if (shift is Map && shift['shift'] is Map) {
-        _currentShift = shiftFromApi((shift['shift'] as Map).cast<String, dynamic>());
-      } else if (shift is Map) {
-        _currentShift = null;
-      }
-      final expenses = await _tryRead('/api/v1/expenses', q);
-      if (expenses is Map && expenses['expenses'] is List) {
-        _expenses
-          ..clear()
-          ..addAll((expenses['expenses'] as List)
-              .whereType<Map>()
-              .map((e) => expenseFromApi(e.cast<String, dynamic>())));
-      }
-      final customers = await _tryRead('/api/v1/customers', q);
-      if (customers is Map && customers['customers'] is List) {
-        _customers
-          ..clear()
-          ..addAll((customers['customers'] as List)
-              .whereType<Map>()
-              .map((c) => customerFromApi(c.cast<String, dynamic>())));
-      }
-      final inventory = await _tryRead('/api/v1/inventory', q);
-      if (inventory is Map && inventory['inventory'] is List) {
-        _inventory
-          ..clear()
-          ..addAll((inventory['inventory'] as List)
-              .whereType<Map>()
-              .map((i) => inventoryItemFromApi(i.cast<String, dynamic>())));
-      }
-      final suppliers = await _tryRead('/api/v1/suppliers', q);
-      if (suppliers is Map && suppliers['suppliers'] is List) {
-        _suppliers
-          ..clear()
-          ..addAll((suppliers['suppliers'] as List)
-              .whereType<Map>()
-              .map((s) => supplierFromApi(s.cast<String, dynamic>())));
-      }
-      final purchases = await _tryRead('/api/v1/purchases', q);
-      if (purchases is Map && purchases['purchases'] is List) {
-        _purchases
-          ..clear()
-          ..addAll((purchases['purchases'] as List)
-              .whereType<Map>()
-              .map((p) => purchaseFromApi(p.cast<String, dynamic>())));
-      }
-      final shifts = await _tryRead('/api/v1/shifts', q);
-      if (shifts is Map && shifts['shifts'] is List) {
-        _shiftHistory
-          ..clear()
-          ..addAll((shifts['shifts'] as List)
-              .whereType<Map>()
-              .map((s) => shiftFromApi(s.cast<String, dynamic>()))
-              .where((s) => s.isClosed));
-      }
-      // Overall revenue dashboard is admin-only — skip for every other role
-      // so hydrate never trips a 403 (which would surface as a sync error).
-      if (_currentStaff?.role == StaffRole.admin) {
-        final dash = await _tryRead('/api/v1/reports/dashboard', q);
-        if (dash is Map) {
-          _serverDashboard = dashboardReportFromApi(dash.cast<String, dynamic>());
-        }
-      }
+      await _reload(_allResources);
       _lastSyncAt = DateTime.now();
       _lastSyncError = null;
-      _pendingSyncCount = _sync?.pending ?? 0;
     } on NetworkException {
-      _lastSyncError = 'Server unreachable — running on cached data';
+      _lastSyncError = 'Server unreachable';
     } finally {
       _hydrating = false;
       notifyListeners();
     }
+  }
+
+  static const _allResources = [
+    'menu', 'tables', 'orders', 'kots', 'outlet', 'settings', 'shift', 'expenses',
+    'customers', 'inventory', 'suppliers', 'purchases', 'shifts', 'dashboard', 'staff',
+  ];
+
+  /// Re-reads only the given resources (after a save, or when another
+  /// terminal announces a change). Network errors propagate.
+  Future<void> _reload(Iterable<String> resources) async {
+    final outletId = _currentOutlet.id;
+    Map<String, String> q = {'outlet_id': outletId};
+    for (final r in resources) {
+      switch (r) {
+        case 'menu':
+          final menu = await _tryRead('/api/v1/menu', q);
+          if (menu is Map && menu['menu_items'] is List) {
+            _menuItems
+              ..clear()
+              ..addAll((menu['menu_items'] as List)
+                  .whereType<Map>()
+                  .map((m) => menuItemFromApi(m.cast<String, dynamic>())));
+            _rebuildCategories();
+          }
+          break;
+        case 'tables':
+          final tables = await _tryRead('/api/v1/tables', q);
+          if (tables is Map && tables['tables'] is List) {
+            _tables
+              ..clear()
+              ..addAll((tables['tables'] as List)
+                  .whereType<Map>()
+                  .map((t) => tableFromApi(t.cast<String, dynamic>())));
+          }
+          break;
+        case 'orders':
+          final orders = await _tryRead(
+              '/api/v1/orders', {'outlet_id': outletId, 'limit': '100'});
+          if (orders is Map && orders['orders'] is List) {
+            _orders
+              ..clear()
+              ..addAll((orders['orders'] as List)
+                  .whereType<Map>()
+                  .map((o) => orderFromApi(o.cast<String, dynamic>(), _menuLookup)));
+          }
+          break;
+        case 'kots':
+          final kots = await _tryRead('/api/v1/kots', q);
+          if (kots is Map && kots['kots'] is List) {
+            _kots
+              ..clear()
+              ..addAll((kots['kots'] as List)
+                  .whereType<Map>()
+                  .map((k) => kotFromApi(k.cast<String, dynamic>())));
+          }
+          break;
+        case 'outlet':
+          final outlet = await _tryRead('/api/v1/outlets/$outletId', q);
+          if (outlet is Map && outlet['id'] == outletId) {
+            _currentOutlet = outletFromApi(outlet.cast<String, dynamic>());
+            final i = _outlets.indexWhere((o) => o.id == outletId);
+            if (i >= 0) _outlets[i] = _currentOutlet;
+          }
+          break;
+        case 'settings':
+          final settings = await _tryRead('/api/v1/settings', q);
+          if (settings is Map) {
+            _settings = settingsFromApi(settings.cast<String, dynamic>());
+          }
+          _settings = _withOutletProfile(_settings);
+          break;
+        case 'shift':
+          final shift = await _tryRead('/api/v1/shifts/current', q);
+          if (shift is Map && shift['shift'] is Map) {
+            _currentShift = shiftFromApi((shift['shift'] as Map).cast<String, dynamic>());
+          } else if (shift is Map) {
+            _currentShift = null;
+          }
+          break;
+        case 'expenses':
+          final expenses = await _tryRead('/api/v1/expenses', q);
+          if (expenses is Map && expenses['expenses'] is List) {
+            _expenses
+              ..clear()
+              ..addAll((expenses['expenses'] as List)
+                  .whereType<Map>()
+                  .map((e) => expenseFromApi(e.cast<String, dynamic>())));
+          }
+          break;
+        case 'customers':
+          final customers = await _tryRead('/api/v1/customers', q);
+          if (customers is Map && customers['customers'] is List) {
+            _customers
+              ..clear()
+              ..addAll((customers['customers'] as List)
+                  .whereType<Map>()
+                  .map((c) => customerFromApi(c.cast<String, dynamic>())));
+          }
+          break;
+        case 'inventory':
+          final inventory = await _tryRead('/api/v1/inventory', q);
+          if (inventory is Map && inventory['inventory'] is List) {
+            _inventory
+              ..clear()
+              ..addAll((inventory['inventory'] as List)
+                  .whereType<Map>()
+                  .map((i) => inventoryItemFromApi(i.cast<String, dynamic>())));
+          }
+          break;
+        case 'suppliers':
+          final suppliers = await _tryRead('/api/v1/suppliers', q);
+          if (suppliers is Map && suppliers['suppliers'] is List) {
+            _suppliers
+              ..clear()
+              ..addAll((suppliers['suppliers'] as List)
+                  .whereType<Map>()
+                  .map((s) => supplierFromApi(s.cast<String, dynamic>())));
+          }
+          break;
+        case 'purchases':
+          final purchases = await _tryRead('/api/v1/purchases', q);
+          if (purchases is Map && purchases['purchases'] is List) {
+            _purchases
+              ..clear()
+              ..addAll((purchases['purchases'] as List)
+                  .whereType<Map>()
+                  .map((p) => purchaseFromApi(p.cast<String, dynamic>())));
+          }
+          break;
+        case 'shifts':
+          final shifts = await _tryRead('/api/v1/shifts', q);
+          if (shifts is Map && shifts['shifts'] is List) {
+            _shiftHistory
+              ..clear()
+              ..addAll((shifts['shifts'] as List)
+                  .whereType<Map>()
+                  .map((s) => shiftFromApi(s.cast<String, dynamic>()))
+                  .where((s) => s.isClosed));
+          }
+          break;
+        case 'staff':
+          // Managers see everyone, including deactivated staff (reactivate).
+          if (canManage) {
+            final staff = await _tryRead('/api/v1/staff/all', q);
+            if (staff is Map && staff['staff'] is List) {
+              _staffList
+                ..clear()
+                ..addAll((staff['staff'] as List)
+                    .whereType<Map>()
+                    .map((s) => staffFromApi(s.cast<String, dynamic>())));
+            }
+          }
+          break;
+        case 'dashboard':
+          // Overall revenue dashboard is admin-only — skip for every other role
+          // so hydrate never trips a 403 (which would surface as a sync error).
+          if (_currentStaff?.role == StaffRole.admin) {
+            final dash = await _tryRead('/api/v1/reports/dashboard', q);
+            if (dash is Map) {
+              _serverDashboard = dashboardReportFromApi(dash.cast<String, dynamic>());
+            }
+          }
+          break;
+      }
+    }
+  }
+
+  /// Best-effort refresh of a few resources; failures are left for the next
+  /// full re-read.
+  Future<void> _refresh(Iterable<String> resources) async {
+    if (!apiEnabled || _api == null || _currentStaff == null) return;
+    try {
+      await _reload(resources);
+    } catch (_) {
+      // offline / transient — the reconnect re-read covers it
+    }
+    notifyListeners();
   }
 
   /// Test-only: loads a fixed catalog the way a hydrate would. Production
@@ -1079,12 +1258,12 @@ class PosProvider extends ChangeNotifier {
 
   // ---- Op registry: payload → API call ----
 
-  /// Queues a server write for the current outlet. The outlet is captured
-  /// now, not at replay time, so ops queued before an outlet switch still
-  /// land on the outlet they were made on.
-  Future<void> _push(String type, Map<String, dynamic> payload) {
+  /// Sends a write for the current outlet and completes with `null` once
+  /// the server saved it, or with the reason it was not saved (the change is
+  /// then undone on screen by re-reading the server). Demo mode: no-op.
+  Future<String?> _push(String type, Map<String, dynamic> payload) {
     final sync = _sync;
-    if (sync == null) return Future.value();
+    if (sync == null) return Future.value(null);
     final orderId = payload['order_id'];
     if (type != 'order.create' && orderId is String) _flushDraft(orderId);
     return sync.push(type, {'outlet_id': _currentOutlet.id, ...payload});
@@ -1115,11 +1294,15 @@ class PosProvider extends ChangeNotifier {
     }
   }
 
-  /// Rolls back the optimistic local state of a write the server refused,
-  /// then re-reads the outlet so the screen shows server truth again.
+  /// Undoes what the screen showed for a write that was not saved, then
+  /// re-reads the outlet (now, or as soon as the connection is back) so the
+  /// screen shows exactly what the server has.
   void _onOpRejected(OutboxOp op, ApiException e) {
-    _rejections.insert(0, SyncRejection(op.type, e.message, DateTime.now()));
+    final message = e.code == 'offline' ? SyncEngine.offlineMessage : SyncEngine.describeWriteError(e);
+    _rejections.insert(0, SyncRejection(op.type, message, DateTime.now()));
     if (_rejections.length > 20) _rejections.removeLast();
+    _lastSyncError = message;
+    if (!_saveErrors.isClosed) _saveErrors.add(message);
     switch (op.type) {
       case 'order.create':
         final localId = op.payload['local_id']?.toString();
@@ -1136,10 +1319,25 @@ class PosProvider extends ChangeNotifier {
         break;
     }
     notifyListeners();
-    if (_sync?.online ?? false) {
-      _hydrating = false;
-      unawaited(hydrateOutlet());
+    // Offline: the re-read happens on reconnect (_onReconnect).
+    if (_sync?.online ?? false) _resync();
+  }
+
+  void _resync() {
+    if (_currentStaff == null) return;
+    _hydrating = false;
+    unawaited(hydrateOutlet());
+  }
+
+  /// The server is reachable again: re-read everything (other terminals may
+  /// have changed things meanwhile, and nothing local survives offline).
+  void _onReconnect() {
+    if (_currentStaff == null) {
+      if (_pendingRestore) unawaited(_runPendingRestore());
+      return;
     }
+    _resync();
+    _connectRealtime();
   }
 
   // Navigation — role-driven. The index points into [navDestinations], the
@@ -1300,8 +1498,8 @@ class PosProvider extends ChangeNotifier {
   /// Returns staff eligible for the currently selected outlet.
   /// Waiters can only belong to their single assigned outlet;
   /// other staff roles may be org-wide floaters.
-  List<Staff> get currentOutletStaff =>
-      List.unmodifiable(_staffList.where((s) => s.canAccessOutlet(_currentOutlet.id)));
+  List<Staff> get currentOutletStaff => List.unmodifiable(
+      _staffList.where((s) => s.isActive && s.canAccessOutlet(_currentOutlet.id)));
 
   /// Active waiters/cashiers eligible to be assigned to tables in the current outlet.
   List<Staff> get currentOutletWaiters =>
@@ -1324,11 +1522,10 @@ class PosProvider extends ChangeNotifier {
     ));
   }
 
-  /// Silent re-login after an app restart. Online: rotates the saved refresh
-  /// token and restores the authoritative staff + entitlement from the
-  /// server. Offline: restores the previously server-verified identity from
-  /// the vault. Returns true when a session was restored; false (no snapshot
-  /// or rejected session) means the PIN screen stays.
+  /// Silent re-login after an app restart: rotates the saved refresh token
+  /// and restores the staff + entitlement from the server. Returns true when
+  /// a session was restored; false means the PIN screen (or, while the
+  /// server is unreachable, the "No connection" screen) stays.
   Future<bool> restoreSavedLogin() async {
     if (!apiEnabled || _api == null) return false;
     final snap = await _sessionStore?.load();
@@ -1348,46 +1545,69 @@ class PosProvider extends ChangeNotifier {
         phone: '',
       );
     }
-    var restoreOffline = !(_sync?.online ?? false);
-    if (!restoreOffline) {
-      try {
-        final data = await _api!.refreshSessionWithPayload();
-        final staffMap = data?['staff'] is Map
-            ? (data!['staff'] as Map).cast<String, dynamic>()
-            : null;
-        if (data == null || staffMap == null) {
-          await _sessionStore?.clear();
-          return false;
-        }
-        final serverStaff = staffFromApi(staffMap);
-        _currentStaff =
-            _staffList.where((s) => s.id == serverStaff.id).firstOrNull ??
-                serverStaff;
-        _applyLoginEntitlement(data);
-        _isOfflineMode = false;
-        _lastSyncError = null;
-      } on NetworkException {
-        // Server dropped mid-restore: continue offline with the cached login.
-        restoreOffline = true;
-      } catch (_) {
+    // Online only: the server re-checks the session. Without a connection
+    // the snapshot stays and the app waits on the "No connection" screen.
+    if (!(_sync?.online ?? false)) {
+      _markRestorePending();
+      return false;
+    }
+    try {
+      final data = await _api!.refreshSessionWithPayload();
+      final staffMap = data?['staff'] is Map
+          ? (data!['staff'] as Map).cast<String, dynamic>()
+          : null;
+      if (data == null || staffMap == null) {
         await _sessionStore?.clear();
         return false;
       }
+      final serverStaff = staffFromApi(staffMap);
+      _currentStaff =
+          _staffList.where((s) => s.id == serverStaff.id).firstOrNull ??
+              serverStaff;
+      _applyLoginEntitlement(data);
+      _lastSyncError = null;
+    } on NetworkException {
+      _markRestorePending();
+      return false;
+    } catch (_) {
+      await _sessionStore?.clear();
+      return false;
     }
-    if (restoreOffline) {
-      Staff? match =
-          _staffList.where((s) => s.id == snap.staffId).firstOrNull;
-      match ??= await _pinVault?.lookup(snap.staffId);
-      if (match == null || !match.isActive) {
-        await _sessionStore?.clear();
-        return false;
-      }
-      _currentStaff = match;
-      _isOfflineMode = true;
-    }
+    // A restored session is a new working session: clock in on the server
+    // (no-op when already clocked in).
+    unawaited(_api!
+        .request('POST', '/api/v1/attendance/clock-in', query: {'outlet_id': _currentOutlet.id}, body: const {})
+        .then((_) {}, onError: (_) {}));
+    await _loadCurrentShift();
     notifyListeners();
     unawaited(_postLoginSync());
     return true;
+  }
+
+  /// A saved login could not be checked because the server was unreachable
+  /// at boot; it is retried when the connection is back.
+  bool _pendingRestore = false;
+  bool get pendingRestore => _pendingRestore;
+  Completer<void>? _restoreWait;
+
+  /// Completes once a saved login that was waiting for the connection has
+  /// been checked with the server (signed in again, or rejected).
+  Future<void> get pendingRestoreDone => _restoreWait?.future ?? Future.value();
+
+  void _markRestorePending() {
+    _pendingRestore = true;
+    _restoreWait ??= Completer<void>();
+  }
+
+  Future<void> _runPendingRestore() async {
+    _pendingRestore = false;
+    await restoreSavedLogin();
+    if (!_pendingRestore) {
+      final wait = _restoreWait;
+      _restoreWait = null;
+      if (wait != null && !wait.isCompleted) wait.complete();
+    }
+    notifyListeners();
   }
 
   Future<void> _loadCurrentShift() async {
@@ -1405,32 +1625,20 @@ class PosProvider extends ChangeNotifier {
     }
   }
 
-  /// Server-first login. On success the PIN is cached as a salted hash
-  /// (PinVault) so THIS terminal can authenticate that staff offline. When
-  /// the server is unreachable, verification falls back to the vault —
-  /// plaintext demo PINs are only used in demo mode (apiEnabled = false).
+  /// Server login. Returns false for a wrong PIN, or when the server can't
+  /// be reached ([loginError] then says why). Demo mode checks the local
+  /// roster.
   Future<bool> loginStaffById(String staffId, String pin) async {
+    _loginError = null;
     if (apiEnabled && _api != null) {
       try {
         final resp = await _api!.login(staffId, pin, _currentOutlet.id);
         final serverStaff = resp['staff'] is Map ? (resp['staff'] as Map).cast<String, dynamic>() : null;
-        // Cache the server-verified PIN hash for offline use (caveat fix).
-        unawaited(_pinVault!.remember(
-          staffId: staffId,
-          name: (serverStaff != null && serverStaff['name'] is String)
-              ? serverStaff['name'] as String
-              : (_staffList.where((s) => s.id == staffId).firstOrNull?.name ?? 'Staff'),
-          role: (serverStaff != null && serverStaff['role'] is String)
-              ? serverStaff['role'] as String
-              : (_staffList.where((s) => s.id == staffId).firstOrNull?.role.name ?? 'waiter'),
-          pin: pin,
-        ));
         final matched = _staffList.where((s) => s.id == staffId).firstOrNull;
         _currentStaff = matched ?? staffFromApi(serverStaff ?? {});
-        _markClockIn(staffId, _currentStaff!.name);
         _applyLoginEntitlement(resp);
-        _isOfflineMode = false;
         _lastSyncError = null;
+        _pendingRestore = false;
         notifyListeners();
         unawaited(_saveLoginSnapshot());
         // Know whether this outlet already has an open shift before the UI
@@ -1438,25 +1646,18 @@ class PosProvider extends ChangeNotifier {
         await _loadCurrentShift();
         unawaited(_postLoginSync());
         return true;
-      } on ApiException {
-        return false;
       } on NetworkException {
-        _isOfflineMode = true;
-      }
-    }
-    if (apiEnabled) {
-      // Offline + API mode: only PINs previously verified by the server on
-      // THIS terminal can pass.
-      final cached = await _pinVault!.verifyStaff(staffId, pin);
-      if (cached != null) {
-        _currentStaff = cached;
-        _markClockIn(staffId, cached.name);
+        _loginError = 'No internet connection. Connect to sign in.';
         notifyListeners();
-        unawaited(_saveLoginSnapshot());
-        unawaited(_postLoginSync());
-        return true;
+        return false;
+      } on ApiException catch (e) {
+        if (e.status == 401 || e.status == 403 && e.code != 'forbidden') return false;
+        if (e.status >= 500 || e.status == 429) {
+          _loginError = SyncEngine.describeWriteError(e);
+          notifyListeners();
+        }
+        return false;
       }
-      return false;
     }
     try {
       final staff = _staffList.firstWhere(
@@ -1500,8 +1701,8 @@ class PosProvider extends ChangeNotifier {
       _persistSession(null);
     }
     unawaited(_sessionStore?.clear());
-    if (leaving != null) {
-      _markClockOut(leaving.id);
+    if (leaving != null && !apiEnabled) {
+      _markClockOut(leaving.id); // demo mode; the server clocks out on /auth/logout
     }
     _currentStaff = null;
     // Forget pending "order ready" alerts and home position for the next
@@ -1512,37 +1713,18 @@ class PosProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// FR-A3 manager gate. Online: verifies against the server's bcrypt PIN
-  /// store (POST /auth/verify-manager-pin) and caches the verified PIN hash
-  /// (PinVault). Offline — or when the session can no longer authenticate —
-  /// falls back to vault entries cached on this terminal (demo mode: seed
-  /// list). Returns the authorized manager identity, or null.
+  /// FR-A3 manager gate, checked by the server (POST
+  /// /auth/verify-manager-pin). Returns the approving manager, or null.
   Future<Staff?> verifyManagerPin(String pin) async {
     if (apiEnabled && _api != null) {
       try {
         final staffMap = await _api!.verifyManagerPin(pin);
-        if (staffMap != null) {
-          final manager = staffFromApi(staffMap);
-          // Cache the server-verified manager PIN hash for offline gates.
-          unawaited(_pinVault!.remember(
-            staffId: manager.id,
-            name: manager.name,
-            role: manager.role.name,
-            pin: pin,
-          ));
-          return manager;
-        }
-        return null;
+        return staffMap == null ? null : staffFromApi(staffMap);
       } on NetworkException {
-        // offline: fall through to the vault
-      } on ApiException catch (e) {
-        if (e.status != 401) {
-          return null; // definitive server rejection — never authorize
-        }
-        // 401 (dead session) ≈ offline: fall through to the vault
+        return null;
+      } on ApiException {
+        return null;
       }
-      final cached = await _pinVault!.verifyAnyManager(pin);
-      return cached;
     }
     try {
       return _staffList.firstWhere(
@@ -1561,102 +1743,96 @@ class PosProvider extends ChangeNotifier {
   final List<Shift> _shiftHistory = [];
   List<Shift> get shiftHistory => _shiftHistory;
 
-  void openShift({
+  /// Opens the drawer for this outlet. Saved on the server first; returns
+  /// null when the shift is open, otherwise why not.
+  Future<String?> openShift({
     required double openingCash,
     String? notes,
     CashDenomination? denominations,
-  }) {
-    final shift = Shift(
-      id: 'SH-${DateTime.now().millisecondsSinceEpoch}',
-      staffId: _currentStaff?.id ?? 'st-01',
-      staffName: _currentStaff?.name ?? 'Staff',
-      startedAt: DateTime.now(),
-      openingCash: openingCash,
-      openingNotes: notes,
-      closingDenominations: denominations,
-    );
-    _currentShift = shift;
-    notifyListeners();
-    _push('shift.open', {
-      'local_id': shift.id,
+  }) async {
+    if (_sync == null) {
+      // Demo mode: no server.
+      _currentShift = Shift(
+        id: 'SH-${DateTime.now().millisecondsSinceEpoch}',
+        staffId: _currentStaff?.id ?? 'st-01',
+        staffName: _currentStaff?.name ?? 'Staff',
+        startedAt: DateTime.now(),
+        openingCash: openingCash,
+        openingNotes: notes,
+        closingDenominations: denominations,
+      );
+      notifyListeners();
+      return null;
+    }
+    final error = await _push('shift.open', {
       'opening_paise': toPaise(openingCash),
       if (notes != null && notes.isNotEmpty) 'notes': notes,
       if (denominations != null) 'denominations': denominationsToApi(denominations),
     });
+    if (error != null && _currentShift == null) {
+      // Someone else may have opened it meanwhile (409): show theirs.
+      await _refresh(['shift']);
+      if (_currentShift != null) return null;
+    }
+    return error;
   }
 
-  /// Closes the shift locally and sends it; completes once the server has
-  /// acknowledged (or right away when offline), so a Z-report fetched
-  /// afterwards reflects the closed shift.
-  Future<void> closeShift({
+  /// Closes the drawer. Saved on the server first, so a Z-report fetched
+  /// afterwards reflects the closed shift. Returns null when closed,
+  /// otherwise why not (the shift then stays open).
+  Future<String?> closeShift({
     required double actualCash,
     String? notes,
     CashDenomination? denominations,
   }) async {
-    if (_currentShift != null) {
-      _currentShift!.closedAt = DateTime.now();
-      _currentShift!.actualCashClosed = actualCash;
-      _currentShift!.closingNotes = notes;
-      _currentShift!.closingDenominations = denominations;
-      _currentShift!.isClosed = true;
-      _shiftHistory.insert(0, _currentShift!);
+    final open = _currentShift;
+    if (open == null) return 'No open shift';
+    if (_sync == null) {
+      open
+        ..closedAt = DateTime.now()
+        ..actualCashClosed = actualCash
+        ..closingNotes = notes
+        ..closingDenominations = denominations
+        ..isClosed = true;
+      _shiftHistory.insert(0, open);
       _currentShift = null;
       notifyListeners();
-      await _push('shift.close', {
-        'counted_paise': toPaise(actualCash),
-        if (notes != null && notes.isNotEmpty) 'notes': notes,
-        if (denominations != null) 'denominations': denominationsToApi(denominations),
-      });
+      return null;
     }
+    final error = await _push('shift.close', {
+      'counted_paise': toPaise(actualCash),
+      if (notes != null && notes.isNotEmpty) 'notes': notes,
+      if (denominations != null) 'denominations': denominationsToApi(denominations),
+    });
+    if (error == null) {
+      _currentShift = null; // applyServerTruth already moved it to history
+      notifyListeners();
+    }
+    return error;
   }
 
   // Cash In / Out
   final List<CashTransaction> _cashTransactions = [];
   List<CashTransaction> get cashTransactions => _cashTransactions;
 
-  /// Hydrates the cash-move ledger from the server (all shifts of the outlet),
-  /// keeping only pending local entries that have not reached the server yet.
-  /// A local row is "acked" when a server row matches on type/amount/reason
-  /// within a 2-minute window of its timestamp.
+  /// Reads the cash-move ledger from the server (all shifts of the outlet).
   Future<void> fetchCashMoves() async {
     if (!apiEnabled || _api == null || !_sync!.online) return;
     try {
       final data = await _api!.request('GET', '/api/v1/cash-moves',
           query: {'outlet_id': _currentOutlet.id});
       if (data is! Map || data['cash_moves'] is! List) return;
-      final server = (data['cash_moves'] as List)
-          .whereType<Map>()
-          .map((j) => cashMoveFromApi(j.cast<String, dynamic>()))
-          .toList();
-      final pendingLocal =
-          _cashTransactions.where((t) => !_ackedOnServer(server, t)).toList();
       _cashTransactions
         ..clear()
-        ..addAll(server)
-        ..addAll(pendingLocal);
+        ..addAll((data['cash_moves'] as List)
+            .whereType<Map>()
+            .map((j) => cashMoveFromApi(j.cast<String, dynamic>())));
       notifyListeners();
     } on NetworkException {
-      // offline — keep the local ledger
+      // offline: the "No connection" screen covers it
     } on ApiException {
       // non-fatal read failure
     }
-  }
-
-  /// True when a server row matches the local row (type/amount/reason) within
-  /// a 2-minute timestamp window — i.e. the local entry already reached the
-  /// server and must not be double-counted.
-  bool _ackedOnServer(List<CashTransaction> server, CashTransaction local) {
-    final key =
-        '${local.type.name}|${local.amount.toStringAsFixed(0)}|${local.reason}';
-    for (final s in server) {
-      final sKey = '${s.type.name}|${s.amount.toStringAsFixed(0)}|${s.reason}';
-      if (sKey == key &&
-          s.timestamp.difference(local.timestamp).abs() <=
-              const Duration(minutes: 2)) {
-        return true;
-      }
-    }
-    return false;
   }
 
   void addCashIn({required double amount, required String reason, String? reference, DateTime? at}) {
@@ -1947,11 +2123,16 @@ class PosProvider extends ChangeNotifier {
   void assignWaiterToTable(String tableId, String waiterName) {
     final table = _tables.where((t) => t.id == tableId).firstOrNull;
     if (table == null) return;
+    final waiter = _staffList.where((s) => s.name == waiterName).firstOrNull;
     table.assignedWaiter = waiterName;
     if (_activeOrder != null && _activeOrder!.tableId == tableId) {
       _activeOrder!.waiterName = waiterName;
+      if (waiter != null && !_draftOrders.contains(_activeOrder!.id)) {
+        _push('order.patch', {'order_id': _activeOrder!.id, 'waiter_id': waiter.id});
+      }
     }
     notifyListeners();
+    if (waiter != null) _push('table.patch', {'table_id': tableId, 'waiter_id': waiter.id});
   }
 
   // Menu & Catalog
@@ -2031,7 +2212,9 @@ class PosProvider extends ChangeNotifier {
       return;
     }
     if (o != null && o.tableId == null && o.items.isEmpty && !o.isClosed) {
+      // Already on the server: cancel it there instead of leaving it open.
       _orders.removeWhere((x) => x.id == o.id);
+      _push('order.cancel', {'order_id': o.id, 'reason': 'Order type changed'});
       startNewOrder(type, customerPhone: customerPhone, address: address);
       return;
     }
@@ -2210,10 +2393,16 @@ class PosProvider extends ChangeNotifier {
   }
 
   void _syncTableGuests(int count, String? waiter) {
-    if (_selectedTable != null) {
-      _selectedTable!.guestCount = count;
-      if (waiter != null) _selectedTable!.assignedWaiter = waiter;
-    }
+    final table = _selectedTable;
+    if (table == null) return;
+    table.guestCount = count;
+    if (waiter != null) table.assignedWaiter = waiter;
+    final waiterId = waiter == null ? null : _staffList.where((s) => s.name == waiter).firstOrNull?.id;
+    _push('table.patch', {
+      'table_id': table.id,
+      'guest_count': count,
+      if (waiterId != null) 'waiter_id': waiterId,
+    });
   }
 
   // KOT System
@@ -2270,7 +2459,7 @@ class PosProvider extends ChangeNotifier {
     }
 
     notifyListeners();
-    _push('kot.fire', {'order_id': kot.orderId});
+    _push('kot.fire', {'order_id': kot.orderId, 'local_kot_id': kot.id});
     if (_settings.autoPrintKOT) {
       _printKot(kot);
     }
@@ -2442,8 +2631,11 @@ class PosProvider extends ChangeNotifier {
     notifyListeners();
     _push('order.patch', {
       'order_id': _activeOrder!.id,
-      if (percent != null) 'discount_percent': percent.clamp(0.0, 100.0),
-      if (amount != null) 'discount_paise': toPaise(_activeOrder!.discountAmount),
+      // One or the other: the server refuses both in one request.
+      if (percent != null)
+        'discount_percent': percent.clamp(0.0, 100.0)
+      else if (amount != null)
+        'discount_paise': toPaise(_activeOrder!.discountAmount),
       'discount_reason': reason ?? '',
       // FR-A3: server re-verifies the manager gate above its thresholds.
       if (managerPin != null && managerPin.isNotEmpty) 'manager_pin': managerPin,
@@ -2475,124 +2667,47 @@ class PosProvider extends ChangeNotifier {
 
   // Payment Execution & Receipt
 
-  /// Settles the active order. [splits] carries one leg per tender for split
-  /// payments; [reference] is the card/UPI slip number; Credit (pay later)
-  /// needs [creditCustomerId] and books the bill to that customer's ledger
-  /// instead of the drawer. Returns null when the payment does not cover the
-  /// bill. The invoice number is assigned by the server; the receipt prints
-  /// once the payment is confirmed (or immediately when offline, marked
-  /// pending).
-  RestaurantOrder? completePayment({
+  /// Settles the active order. The payment is sent to the server first and
+  /// nothing changes on screen until the server confirmed it; the result
+  /// then carries the paid order (with the server's invoice number) and the
+  /// receipt prints. On failure [PaymentResult.error] says why and the order
+  /// stays open. Split tender: every leg must be non-negative and cover the
+  /// bill; the cash leg may receive more (change). Credit needs
+  /// [creditCustomerId].
+  Future<PaymentResult> completePayment({
     required String paymentMethod,
     required double amountPaid,
     List<({String method, double amount})>? splits,
     double? cashTendered,
     String? reference,
     String? creditCustomerId,
-  }) {
-    if (_activeOrder == null) return null;
-    final due = _activeOrder!.grandTotal;
-    if (amountPaid + 0.005 < due) return null; // reject short payment
+  }) async {
+    const invalid = PaymentResult.failed('Payment does not cover the bill');
+    final active = _activeOrder;
+    if (active == null) return const PaymentResult.failed('No open order');
+    final due = active.grandTotal;
+    if (amountPaid + 0.005 < due) return invalid;
 
-    // Split tender: every leg must be non-negative and the allocation must
-    // cover the bill. The cash leg may receive more (change), validated by
-    // cashTendered.
     final legs = splits ??
         <({String method, double amount})>[(method: paymentMethod, amount: due)];
     double allocated = 0;
     double cashLeg = 0;
     for (final leg in legs) {
-      if (leg.amount < -0.005) return null;
+      if (leg.amount < -0.005) return invalid;
       allocated += leg.amount;
       if (PaymentMethodX.fromLabel(leg.method) == PaymentMethod.cash) cashLeg += leg.amount;
     }
-    if (allocated + 0.005 < due || allocated > amountPaid + 0.005) return null;
+    if (allocated + 0.005 < due || allocated > amountPaid + 0.005) return invalid;
     if (splits != null && cashTendered != null && cashTendered + 0.005 < cashLeg) {
-      return null; // cash received short of the cash leg
+      return const PaymentResult.failed('Cash received is less than the cash part');
     }
     final isCredit = PaymentMethodX.fromLabel(paymentMethod) == PaymentMethod.credit;
-    if (isCredit && (creditCustomerId == null || creditCustomerId.isEmpty)) return null;
-
-    final completed = _activeOrder!;
-    completed.status = OrderStatus.completed;
-    completed.paidAt = DateTime.now();
-    completed.invoiceNumber = null; // server-assigned on ack
-    completed.paymentMethod = PaymentMethodX.fromLabel(paymentMethod).label;
-    // Record what the customer actually handed over (includes cash change);
-    // shift tender splits book only the bill allocation.
-    completed.totalPaid = splits == null ? amountPaid : allocated;
-    completed.paymentSplits = legs
-        .map((l) => PaymentLeg(
-              method: PaymentMethodX.fromLabel(l.method).label,
-              amount: roundMoney(l.amount),
-            ))
-        .toList();
-    completed.paymentReference =
-        (reference != null && reference.trim().isNotEmpty) ? reference.trim() : null;
-
-    // Update Shift Sales by tender per leg (enum-safe). Credit is not money
-    // in the drawer: it lands on the customer's outstanding instead.
-    if (_currentShift != null) {
-      for (final leg in legs) {
-        switch (PaymentMethodX.fromLabel(leg.method)) {
-          case PaymentMethod.cash:
-            _currentShift!.cashSales += leg.amount;
-            break;
-          case PaymentMethod.upi:
-            _currentShift!.upiSales += leg.amount;
-            break;
-          case PaymentMethod.card:
-            _currentShift!.cardSales += leg.amount;
-            break;
-          case PaymentMethod.credit:
-            break;
-        }
-      }
-    }
-    if (isCredit) {
-      final cust = _customers.where((c) => c.id == creditCustomerId).firstOrNull;
-      cust?.outstandingCredit += due;
+    if (isCredit && (creditCustomerId == null || creditCustomerId.isEmpty)) {
+      return const PaymentResult.failed('Choose the customer for a credit bill');
     }
 
-    // Free up Table
-    if (completed.tableId != null) {
-      final table = _tables.where((t) => t.id == completed.tableId).firstOrNull;
-      if (table != null) {
-        table.status = TableStatus.available;
-        table.activeOrderId = null;
-        table.currentOrderAmount = 0.0;
-        table.runningMinutes = 0;
-        table.guestCount = 0;
-        table.assignedWaiter = null;
-      }
-    }
-
-    // Record spend on a known customer; the server creates/updates the
-    // customer record itself from the order's phone, so no temp local id
-    // is minted here (it would never map to a server id).
-    if (completed.customerPhone != null && completed.customerPhone!.isNotEmpty) {
-      final normalizedPhone = _normalizePhone(completed.customerPhone!);
-      final cust = _customers
-          .where((c) => _normalizePhone(c.phone) == normalizedPhone)
-          .firstOrNull;
-      if (cust != null) {
-        cust.visits += 1;
-        cust.lifetimeSpend += completed.grandTotal;
-        cust.lastVisit = DateTime.now();
-      }
-    }
-
-    // Keep completed order visible to transactions/refunds even if no KOT was fired
-    if (!_orders.any((o) => o.id == completed.id)) {
-      _orders.insert(0, completed);
-    }
-
-    _activeOrder = null;
-    _selectedTable = null;
-    notifyListeners();
-    final orderId = completed.id;
-    unawaited(_push('order.pay', {
-      'order_id': orderId,
+    final error = await _push('order.pay', {
+      'order_id': active.id,
       'method': paymentMethodToApi(splits != null && splits.length > 1
           ? legs.first.method
           : paymentMethod),
@@ -2607,49 +2722,90 @@ class PosProvider extends ChangeNotifier {
         ],
       if (reference != null && reference.trim().isNotEmpty) 'reference': reference.trim(),
       if (isCredit) 'customer_id': creditCustomerId,
-    }).then((_) {
-      // Print from server truth (real invoice number) when the ack landed.
-      final latest = _orders.where((o) => o.id == orderId || o.id == _sync?.resolveId(orderId)).firstOrNull;
-      _printReceipt(latest ?? completed);
-    }));
-    return completed;
+    });
+    if (error != null) return PaymentResult.failed(error);
+    if (_sync == null) _settleLocally(active, paymentMethod, legs, reference);
+
+    // Saved. applyServerTruth already replaced the order with the server's
+    // copy (status, invoice number, tender legs).
+    final serverId = _sync?.resolveId(active.id) ?? active.id;
+    final paid = _orders.where((o) => o.id == serverId || o.id == active.id).firstOrNull ?? active;
+    // What the customer handed over (incl. change) is only known here.
+    paid.totalPaid = splits == null ? amountPaid : allocated;
+    if (paid.tableId != null) {
+      final table = _tables.where((t) => t.id == paid.tableId).firstOrNull;
+      if (table != null && (table.activeOrderId == paid.id || table.activeOrderId == active.id)) {
+        table
+          ..status = TableStatus.available
+          ..activeOrderId = null
+          ..currentOrderAmount = 0.0
+          ..runningMinutes = 0
+          ..guestCount = 0
+          ..assignedWaiter = null;
+      }
+    }
+    _activeOrder = null;
+    _selectedTable = null;
+    notifyListeners();
+    // Drawer totals and customer balances come from the server.
+    unawaited(_refresh(['shift', 'customers', 'tables']));
+    _printReceipt(paid);
+    return PaymentResult.ok(paid);
   }
 
-  String _normalizePhone(String phone) =>
-      phone.replaceAll(RegExp(r'\D'), '');
+  /// Demo/test mode only (no server): books the payment the way the server
+  /// would, so the screens and shift math can be exercised offline.
+  void _settleLocally(RestaurantOrder o, String method,
+      List<({String method, double amount})> legs, String? reference) {
+    o
+      ..status = OrderStatus.completed
+      ..paidAt = DateTime.now()
+      ..paymentMethod = PaymentMethodX.fromLabel(method).label
+      ..paymentSplits = [
+        for (final l in legs)
+          PaymentLeg(method: PaymentMethodX.fromLabel(l.method).label, amount: roundMoney(l.amount)),
+      ]
+      ..paymentReference = (reference ?? '').trim().isEmpty ? null : reference!.trim();
+    final shift = _currentShift;
+    if (shift != null) {
+      for (final leg in legs) {
+        switch (PaymentMethodX.fromLabel(leg.method)) {
+          case PaymentMethod.cash:
+            shift.cashSales += leg.amount;
+          case PaymentMethod.upi:
+            shift.upiSales += leg.amount;
+          case PaymentMethod.card:
+            shift.cardSales += leg.amount;
+          case PaymentMethod.credit:
+            break;
+        }
+      }
+    }
+    if (!_orders.any((x) => x.id == o.id)) _orders.insert(0, o);
+  }
 
   // Refunds
-  /// Returns true when the refund was recorded.
-  bool processRefund({
+  /// Refunds a paid bill. Sent to the server first; returns null once the
+  /// server recorded it (the order and drawer then show the server's
+  /// numbers), otherwise why it was not recorded.
+  Future<String?> processRefund({
     required String orderId,
     required double amount,
     required String reason,
     required bool isFullRefund,
     String refundMode = 'Cash',
     String? managerPin,
-  }) {
+  }) async {
     final order = _orders.where((o) => o.id == orderId).firstOrNull;
-    if (order == null) return false;
-    if (order.status != OrderStatus.completed) return false;
+    if (order == null) return 'Order not found';
+    if (order.status != OrderStatus.completed) return 'Only paid bills can be refunded';
     // Cap by the bill (not cash tendered, which includes change) minus what
     // was already refunded.
     final refundable = order.grandTotal - order.refundedAmount;
-    if (amount <= 0 || amount > refundable + 0.005) return false;
-
-    final tender = PaymentMethodX.fromLabel(order.paymentMethod);
-    final mode = refundModeToApi(refundMode);
-    final isCashRefund = mode == 'cash' || (mode == 'original' && tender == PaymentMethod.cash);
-    order.refundedAmount += amount;
-    if (isFullRefund || order.refundedAmount >= order.grandTotal - 0.005) {
-      order.status = OrderStatus.refunded;
+    if (amount <= 0 || amount > refundable + 0.005) {
+      return 'Refund must be between ₹1 and ${refundable.toStringAsFixed(2)}';
     }
-    if (isCashRefund) {
-      _currentShift?.refundsCash += amount;
-    } else {
-      _currentShift?.refundsDigital += amount;
-    }
-    notifyListeners();
-    _push('order.refund', {
+    final error = await _push('order.refund', {
       'order_id': orderId,
       'amount_paise': toPaise(amount),
       'reason': reason,
@@ -2658,7 +2814,8 @@ class PosProvider extends ChangeNotifier {
       // FR-A3: refunds are manager-gated server-side.
       if (managerPin != null && managerPin.isNotEmpty) 'manager_pin': managerPin,
     });
-    return true;
+    if (error == null) unawaited(_refresh(['shift', 'customers']));
+    return error;
   }
 
   // Expenses
@@ -2891,19 +3048,106 @@ class PosProvider extends ChangeNotifier {
     _push('settings.update', settingsToApi(_settings));
   }
 
+  /// Saves outlet settings (managers only; the server refuses others, so a
+  /// cashier's change is not even shown locally).
   void updateSettings(RestaurantSettings s) {
+    if (apiEnabled && !canManage) return;
     _settings = s;
     notifyListeners();
-    // PUT /settings is manager-gated server-side; pushing from a cashier/
-    // waiter terminal would only produce a guaranteed 403.
-    final role = _currentStaff?.role;
-    if (apiEnabled && (role == StaffRole.manager || role == StaffRole.admin)) {
-      _push('settings.update', settingsToApi(s));
-    }
+    _push('settings.update', settingsToApi(s));
   }
 
   bool get canManage =>
       _currentStaff?.role == StaffRole.manager || _currentStaff?.role == StaffRole.admin;
+
+  /// Waiters take orders; collecting money is cashier+ on the server.
+  bool get canTakePayment =>
+      _currentStaff != null && _currentStaff!.role != StaffRole.waiter && _currentStaff!.role != StaffRole.kitchen;
+
+  // ---- Edit / delete (saved on the server first) ----
+  // Each returns null once the server saved the change (the lists then show
+  // the server's copy), otherwise why it was not saved.
+
+  /// Voids an order nobody has paid for (wrong table, customer left). After
+  /// a KOT reached the kitchen a manager PIN is needed unless the signed-in
+  /// staff is a manager.
+  Future<String?> cancelOrder(String orderId, {String reason = '', String? managerPin}) async {
+    final error = await _push('order.cancel', {
+      'order_id': orderId,
+      if (reason.trim().isNotEmpty) 'reason': reason.trim(),
+      if (managerPin != null && managerPin.isNotEmpty) 'manager_pin': managerPin,
+    });
+    if (error == null && (_activeOrder?.id == orderId || _activeOrder?.id == _sync?.resolveId(orderId))) {
+      _activeOrder = null;
+      _selectedTable = null;
+      notifyListeners();
+    }
+    return error;
+  }
+
+  Future<String?> updateCustomer(String id,
+          {required String name, required String phone, String email = '', String address = ''}) =>
+      _push('customer.patch', {
+        'customer_id': id,
+        'name': name.trim(),
+        'phone': phone.trim(),
+        'email': email.trim(),
+        'address': address.trim(),
+      });
+
+  Future<String?> deleteCustomer(String id) => _push('customer.delete', {'customer_id': id});
+
+  Future<String?> updateSupplier(String id,
+          {required String name, required String mobile, String email = '', String category = ''}) =>
+      _push('supplier.patch', {
+        'supplier_id': id,
+        'name': name.trim(),
+        'mobile': mobile.trim(),
+        'email': email.trim(),
+        'category': category.trim(),
+      });
+
+  Future<String?> deleteSupplier(String id) => _push('supplier.delete', {'supplier_id': id});
+
+  /// Edits an item's details; stock only moves through [adjustStock] so
+  /// every change is in the stock log.
+  Future<String?> updateInventoryItem(String id,
+          {required String name,
+          required String unit,
+          required double minStock,
+          required double costPerUnit,
+          String batchNo = '',
+          String rackNo = ''}) =>
+      _push('inventory.patch', {
+        'inventory_item_id': id,
+        'name': name.trim(),
+        'unit': unit.trim(),
+        'min_stock': minStock,
+        'cost_paise': toPaise(costPerUnit),
+        'batch_no': batchNo.trim(),
+        'rack_no': rackNo.trim(),
+      });
+
+  Future<String?> deleteInventoryItem(String id) =>
+      _push('inventory.delete', {'inventory_item_id': id});
+
+  /// Edits an expense. The payment method can't change (delete and re-add).
+  Future<String?> updateExpense(String id,
+          {required String title,
+          required ExpenseCategory category,
+          required double amount,
+          String vendor = '',
+          String reference = '',
+          String note = ''}) =>
+      _push('expense.patch', {
+        'expense_id': id,
+        'title': title.trim(),
+        'category': expenseCategoryToApi(category),
+        'amount_paise': toPaise(amount),
+        'vendor': vendor.trim(),
+        'reference': reference.trim(),
+        'note': note.trim(),
+      });
 
   // ---- Back-office actions (W2/W3/W4/W5/W11) ----
 
@@ -2947,7 +3191,7 @@ class PosProvider extends ChangeNotifier {
       'menu_item_id': item.id,
       'category_id': item.category,
       'name': item.name,
-      if (item.description.isNotEmpty) 'description': item.description,
+      'description': item.description, // '' clears it
       'price_paise': toPaise(item.price),
       'is_veg': item.isVeg,
       'image_url': item.imageUrl,
@@ -3023,7 +3267,6 @@ class PosProvider extends ChangeNotifier {
     try {
       await _api!.request('POST', '/api/v1/me/pin',
           body: {'current_pin': currentPin, 'new_pin': newPin});
-      await _pinVault?.remember(staffId: me.id, name: me.name, role: me.role.name, pin: newPin);
       return null;
     } on ApiException catch (e) {
       return e.code == 'pin_locked' ? 'Too many wrong attempts. Try again in 15 minutes.' : e.message;
@@ -3531,27 +3774,30 @@ class PosProvider extends ChangeNotifier {
     }
   }
 
-  // Offline / Sync State
-  bool _isOfflineMode = false;
-  bool get isOfflineMode =>
-      apiEnabled ? !(_sync?.online ?? false) : _isOfflineMode;
-  int _pendingSyncCount = 0;
-  int get pendingSyncCount => apiEnabled ? (_sync?.pending ?? 0) : _pendingSyncCount;
+  // Connection state. The app is online-only: while the server can't be
+  // reached nothing can be saved, and the shell shows a "No connection"
+  // screen instead of letting staff work on data that would be lost.
+  bool get isOfflineMode => apiEnabled && !(_sync?.online ?? false);
+
+  /// Writes sent and not answered yet.
+  int get pendingSyncCount => _sync?.pending ?? 0;
   bool get realtimeConnected => _realtime?.connected ?? false;
 
-
-
-  /// Probes the server, drains the outbox and re-reads the outlet. Returns
-  /// true only when the server answered and nothing is left queued.
+  /// Checks the server and re-reads the outlet. Returns true when the server
+  /// answered.
   Future<bool> triggerSync() async {
     if (!apiEnabled || _sync == null) return false;
     final ok = await _sync!.probe();
     if (ok) {
-      _hydrating = false;
-      await hydrateOutlet();
+      if (_currentStaff == null && _pendingRestore) {
+        await _runPendingRestore();
+      } else {
+        _hydrating = false;
+        await hydrateOutlet();
+      }
     }
     notifyListeners();
-    return ok && (_sync?.pending ?? 0) == 0;
+    return ok;
   }
 
   // ---- Printing (P5.1: ESC/POS hooks) ----
@@ -3628,4 +3874,14 @@ class PosProvider extends ChangeNotifier {
       notifyListeners();
     }());
   }
+}
+
+/// Outcome of [PosProvider.completePayment]: the paid order, or why the
+/// payment was not saved.
+class PaymentResult {
+  final RestaurantOrder? order;
+  final String? error;
+  const PaymentResult.ok(RestaurantOrder this.order) : error = null;
+  const PaymentResult.failed(String this.error) : order = null;
+  bool get ok => order != null;
 }

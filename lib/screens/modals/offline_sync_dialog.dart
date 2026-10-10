@@ -4,8 +4,9 @@ import '../../core/format.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/pos_provider.dart';
 
-/// Real sync status for this terminal: connectivity, queued writes, the last
-/// successful sync, why the queue is parked, and writes the server refused.
+/// Connection status for this terminal: is the server reachable, when it
+/// last saved a change, and recent changes that were not saved. Every change
+/// is saved on the server straight away; nothing is kept on the device.
 class OfflineSyncDialog extends StatefulWidget {
   const OfflineSyncDialog({super.key});
 
@@ -30,11 +31,7 @@ class _OfflineSyncDialogState extends State<OfflineSyncDialog> {
     if (!mounted) return;
     setState(() => _syncing = false);
     messenger.showSnackBar(SnackBar(
-      content: Text(ok
-          ? 'All changes are synced'
-          : provider.isOfflineMode
-              ? 'Server not reachable. Changes stay saved on this device.'
-              : '${provider.pendingSyncCount} change(s) still waiting to sync'),
+      content: Text(ok ? 'Connected. Data refreshed from the server.' : 'Server not reachable. Nothing can be saved until it is.'),
       backgroundColor: ok ? AppColors.success : AppColors.warning,
     ));
   }
@@ -44,7 +41,6 @@ class _OfflineSyncDialogState extends State<OfflineSyncDialog> {
     final provider = context.watch<PosProvider>();
     final offline = provider.isOfflineMode;
     final pending = provider.pendingSyncCount;
-    final blocked = provider.syncBlockedReason;
     final rejections = provider.syncRejections;
     final lastSync = provider.lastSyncAt;
 
@@ -52,19 +48,15 @@ class _OfflineSyncDialogState extends State<OfflineSyncDialog> {
     final Color tone;
     final IconData icon;
     if (offline) {
-      headline = 'Offline';
+      headline = 'No connection';
       tone = AppColors.warning;
       icon = Icons.cloud_off_outlined;
-    } else if (blocked != null) {
-      headline = 'Sync paused';
-      tone = AppColors.danger;
-      icon = Icons.sync_problem_outlined;
     } else if (pending > 0) {
-      headline = 'Syncing…';
+      headline = 'Saving…';
       tone = AppColors.warning;
       icon = Icons.cloud_sync_outlined;
     } else {
-      headline = 'All changes synced';
+      headline = 'Connected';
       tone = AppColors.success;
       icon = Icons.cloud_done_outlined;
     }
@@ -92,21 +84,13 @@ class _OfflineSyncDialogState extends State<OfflineSyncDialog> {
             children: [
               _row('Server', offline ? 'Not reachable' : 'Connected'),
               _row('Live updates', provider.realtimeConnected ? 'On' : 'Off'),
-              _row('Changes waiting to sync', '$pending'),
-              _row('Last synced', lastSync == null ? 'Not yet' : formatDateTime(lastSync)),
-              if (blocked != null) ...[
+              _row('Last saved', lastSync == null ? 'Not yet' : formatDateTime(lastSync)),
+              if (offline) ...[
                 const SizedBox(height: 12),
                 _notice(
-                  'Sync is paused: $blocked\nNothing is lost. If your session or '
-                  'subscription expired, sign in again or renew, then tap Sync now.',
-                  AppColors.dangerBg,
-                ),
-              ],
-              if (offline && pending > 0) ...[
-                const SizedBox(height: 12),
-                _notice(
-                  'Your sales are saved on this device and will upload '
-                  'automatically when the connection returns.',
+                  'Nothing can be saved until the server is reachable. Changes '
+                  'made just before the connection dropped were not saved; the '
+                  'screen shows the server data again once you are back online.',
                   AppColors.warningBg,
                 ),
               ],
@@ -115,7 +99,7 @@ class _OfflineSyncDialogState extends State<OfflineSyncDialog> {
                 Row(
                   children: [
                     const Expanded(
-                      child: Text('Refused by the server',
+                      child: Text('Not saved',
                           style: TextStyle(fontWeight: FontWeight.w800)),
                     ),
                     TextButton(
@@ -144,7 +128,7 @@ class _OfflineSyncDialogState extends State<OfflineSyncDialog> {
               ? const SizedBox(
                   width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
               : const Icon(Icons.sync, size: 18),
-          label: Text(_syncing ? 'Syncing…' : 'Sync now'),
+          label: Text(_syncing ? 'Checking…' : 'Refresh'),
         ),
       ],
     );

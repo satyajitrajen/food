@@ -17,6 +17,7 @@ class OpenShiftScreen extends StatefulWidget {
 class _OpenShiftScreenState extends State<OpenShiftScreen> {
   final TextEditingController _cashController = TextEditingController(text: '0');
   final TextEditingController _notesController = TextEditingController();
+  bool _opening = false;
 
   // Denominations counters
   int _c500 = 0;
@@ -223,9 +224,12 @@ class _OpenShiftScreenState extends State<OpenShiftScreen> {
                   width: double.infinity,
                   height: 52,
                   child: ElevatedButton(
-                    onPressed: () async {
+                    onPressed: _opening ? null : () async {
                       final cash = double.tryParse(_cashController.text) ?? _computedTotal;
-                      provider.openShift(
+                      final navigator = Navigator.of(context);
+                      final messenger = ScaffoldMessenger.of(context);
+                      setState(() => _opening = true);
+                      final error = await provider.openShift(
                         openingCash: cash,
                         notes: _notesController.text.trim().isNotEmpty ? _notesController.text.trim() : null,
                         denominations: CashDenomination(
@@ -237,17 +241,27 @@ class _OpenShiftScreenState extends State<OpenShiftScreen> {
                           count10: _c10,
                         ),
                       );
-                      Navigator.of(context).pushReplacement(
+                      if (!mounted) return;
+                      if (error != null) {
+                        setState(() => _opening = false);
+                        messenger.showSnackBar(SnackBar(
+                          content: Text('Shift not opened: $error'),
+                          backgroundColor: AppColors.danger,
+                        ));
+                        return;
+                      }
+                      navigator.pushReplacement(
                         MaterialPageRoute(builder: (_) => const MainAdaptiveShell()),
                       );
-                      ScaffoldMessenger.of(context).showSnackBar(
+                      messenger.showSnackBar(
                         SnackBar(
                           content: Text('Shift opened with ${formatInr(cash)} float'),
                           backgroundColor: AppColors.success,
                         ),
                       );
                     },
-                    child: const Text('Start Shift & Open Register →', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                    child: Text(_opening ? 'Opening…' : 'Start Shift & Open Register →',
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
                   ),
                 ),
               ],

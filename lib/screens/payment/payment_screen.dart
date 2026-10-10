@@ -43,6 +43,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
   Customer? _creditCustomer;
   String? _error;
 
+  /// The payment is being saved on the server.
+  bool _saving = false;
+
   @override
   void initState() {
     super.initState();
@@ -79,7 +82,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
       setState(() => _error = 'Open a shift first (Shift & Cash → Open shift), then collect payment.');
       return;
     }
-    RestaurantOrder? done;
+    Future<PaymentResult>? pending;
     switch (_mode) {
       case _Mode.cash:
         final received = _parse(_cashReceivedController.text);
@@ -87,11 +90,11 @@ class _PaymentScreenState extends State<PaymentScreen> {
           setState(() => _error = 'Cash received is short by ${formatInr(total - received)}');
           return;
         }
-        done = provider.completePayment(paymentMethod: 'Cash', amountPaid: received);
+        pending = provider.completePayment(paymentMethod: 'Cash', amountPaid: received);
         break;
       case _Mode.upi:
       case _Mode.card:
-        done = provider.completePayment(
+        pending = provider.completePayment(
           paymentMethod: _mode == _Mode.upi ? 'UPI' : 'Card',
           amountPaid: total,
           reference: _refController.text,
@@ -109,7 +112,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
           description: "Bill ${formatInr(total)} to ${customer.name}'s account.",
         );
         if (pin == null || !mounted) return;
-        done = provider.completePayment(
+        pending = provider.completePayment(
           paymentMethod: 'Credit',
           amountPaid: total,
           creditCustomerId: customer.id,
@@ -128,7 +131,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
               : 'The parts exceed the bill by ${formatInr(allocated - total)}');
           return;
         }
-        done = provider.completePayment(
+        pending = provider.completePayment(
           paymentMethod: legs.first.method,
           amountPaid: total,
           splits: legs,
@@ -137,9 +140,15 @@ class _PaymentScreenState extends State<PaymentScreen> {
         break;
     }
     if (!mounted) return;
-    final completed = done;
+    setState(() => _saving = true);
+    final result = await pending;
+    if (!mounted) return;
+    final completed = result.order;
     if (completed == null) {
-      setState(() => _error = 'Payment could not be recorded. Check the amounts and try again.');
+      setState(() {
+        _saving = false;
+        _error = 'Payment not saved: ${result.error}';
+      });
       return;
     }
     Navigator.of(context).pushReplacement(
@@ -152,6 +161,10 @@ class _PaymentScreenState extends State<PaymentScreen> {
     final provider = context.watch<PosProvider>();
     final order = provider.activeOrder;
 
+    if (order == null && _saving) {
+      // Paid: the success screen is about to replace this one.
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
     if (order == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Bill & Payment')),
@@ -296,13 +309,26 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 SizedBox(
                   height: 54,
                   child: ElevatedButton(
-                    onPressed: () => _collect(provider, order),
-                    child: Text(
-                      _mode == _Mode.credit
-                          ? 'Bill ${formatInr(total)} to customer'
-                          : 'Collect ${formatInr(total)}',
-                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
-                    ),
+                    onPressed: _saving ? null : () => _collect(provider, order),
+                    child: _saving
+                        ? const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              ),
+                              SizedBox(width: 10),
+                              Text('Saving payment…', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                            ],
+                          )
+                        : Text(
+                            _mode == _Mode.credit
+                                ? 'Bill ${formatInr(total)} to customer'
+                                : 'Collect ${formatInr(total)}',
+                            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                          ),
                   ),
                 ),
               ],

@@ -89,11 +89,20 @@ class _CloseShiftScreenState extends State<CloseShiftScreen> {
     if (go != true || !mounted) return;
 
     setState(() => _closing = true);
-    await provider.closeShift(
+    final error = await provider.closeShift(
       actualCash: counted,
       notes: _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
       denominations: _denominations,
     );
+    if (!mounted) return;
+    if (error != null) {
+      setState(() => _closing = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Shift not closed: $error'),
+        backgroundColor: AppColors.danger,
+      ));
+      return;
+    }
     final server = await provider.fetchZReport(shift.id);
     if (!mounted) return;
     setState(() => _closing = false);

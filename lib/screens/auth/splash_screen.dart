@@ -46,6 +46,10 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
       Future.delayed(const Duration(milliseconds: 1500)),
     ]);
     if (!mounted) return;
+    // Booted without a connection while signed in: the "No connection"
+    // screen shows until the server can re-check the login.
+    if (provider.pendingRestore) await provider.pendingRestoreDone;
+    if (!mounted) return;
     Widget next;
     if (provider.needsOrgSetup) {
       next = const OrgSetupScreen();
