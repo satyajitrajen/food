@@ -54,7 +54,9 @@ class BillShare {
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
                   pw.Expanded(
-                    child: pw.Text('${item.quantity} × ${item.displayName}',
+                    child: pw.Text(
+                        '${item.quantity} × ${item.displayName}'
+                        '${item.addOnsLabel.isEmpty ? '' : '\n   ${item.addOnsLabel}'}',
                         style: const pw.TextStyle(fontSize: 9)),
                   ),
                   pw.Text(money(item.totalPrice), style: const pw.TextStyle(fontSize: 9)),

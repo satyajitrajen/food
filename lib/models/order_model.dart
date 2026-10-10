@@ -95,6 +95,13 @@ class OrderItem {
     return menuItem.name;
   }
 
+  /// Chosen add-ons for receipts and bills ("+ Laccha Onions, + Extra Butter"),
+  /// empty when none were picked.
+  String get addOnsLabel => selectedModifiers
+      .where((m) => m.isSelected)
+      .map((m) => '+ ${m.name}')
+      .join(', ');
+
   OrderItem copy({String? newId}) => OrderItem(
         id: newId ?? id,
         menuItem: menuItem.copy(),

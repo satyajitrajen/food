@@ -226,9 +226,19 @@ class PaymentSuccessScreen extends StatelessWidget {
                             child: Row(
                               children: [
                                 Expanded(
-                                  child: Text(
-                                    '${item.quantity} × ${item.displayName}',
-                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        '${item.quantity} × ${item.displayName}',
+                                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                                      ),
+                                      if (item.addOnsLabel.isNotEmpty)
+                                        Text(
+                                          item.addOnsLabel,
+                                          style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                                        ),
+                                    ],
                                   ),
                                 ),
                                 Text(formatInr(item.totalPrice),

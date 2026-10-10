@@ -1,4 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:food_pos/models/menu_model.dart';
+import 'package:food_pos/models/order_model.dart';
 import 'package:food_pos/models/table_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -57,5 +59,20 @@ void main() {
     expect(p.loginStaff('9999'), isTrue); // manager
     expect(p.activeOrder, isNull);
     expect(p.selectedTable, isNull);
+  });
+
+  test('receipts list the chosen add-ons', () {
+    final p = fixtureProvider();
+    final item = p.menuItems.first;
+    final line = OrderItem(
+      id: 'li-1',
+      menuItem: item,
+      quantity: 1,
+      selectedModifiers: [
+        ModifierItem(id: 'm1', name: 'Laccha Onions', price: 15, isSelected: true),
+        ModifierItem(id: 'm2', name: 'Extra Butter', price: 30),
+      ],
+    );
+    expect(line.addOnsLabel, '+ Laccha Onions');
   });
 }
