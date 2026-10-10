@@ -40,3 +40,12 @@ Notes:
   pluralize edits dropped the count at all 17 call sites — plural() returned
   only the word ("items · ₹520 + tax"). plural() now returns the full counted
   string ("2 items · ₹520 + tax"); pluralize_test updated.
+- UX-05 follow-up (found during batch-10 verification): the approval reference
+  rendered on the printed/shared bill but not the on-screen payment-success
+  BillBreakdown. Added there too (b0edc82); verified live — split payment
+  ₹126+₹126 with ref 424242 shows "Paid (Cash) / Paid (Card) / Approval:
+  424242" on the success screen.
+- Batch-10 extra (found during verification, filed as UX-21): purchase dialog
+  Save with an empty invoice silently no-op'd. Now shows the red snackbar
+  "Enter an invoice number and at least one item" (a36738b); verified live on
+  the fresh build.

@@ -65,3 +65,9 @@ landing/dist/
 .commandcode/
 .finalrun/
 *.zip
+
+# Local agent/tool state and large demo videos (not source)
+.claude/worktrees/
+.mimosa/
+backend/.mimosa/
+demo/recordings/*.mp4

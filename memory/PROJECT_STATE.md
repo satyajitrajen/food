@@ -1,18 +1,18 @@
 # Project State (updated: 2026-10-10)
 
 ## Now
-Emulator UX audit 2026-10-10 (23 clips, Pixel 6 API 36): all 19 findings
-(15 bugs + 5 polish, 2 of them wontfix-as-designed) fixed in 9 committed
-batches on `fix/product-review-2026-10` — ledger:
-findings/2026-10-10-emulator-ux-audit.md. Payment splits + card approval
-reference are end-to-end (brief: design/DB-order-payments-echo.md); missing
-staff names stay null instead of coerced 'Staff'; purchase intake mirrors
-stock locally; orders attribute to their creator regardless of role; waiters
-get 3 safe More tiles (Transactions, Customers, Menu QR) with refund/credit
-actions gated to ops roles. Gates green: `flutter analyze` 0 issues,
-`flutter test` 120/120. Remaining: batch 10 — Go backend gates + demo APK
-rebuild + emulator spot-checks (split receipt, waiter tiles, attribution,
-purchase stock, delivery KOT modal, KDS tabs).
+Emulator UX audit 2026-10-10 (23 clips, Pixel 6 API 36): COMPLETE. All
+findings fixed and verified on `fix/product-review-2026-10` in 10 committed
+batches (93e0d4b..a36738b) — ledger: findings/2026-10-10-emulator-ux-audit.md.
+Three extras found and fixed during batch-10 verification: UX-20 delivery
+dialog crash (742e830), UX-01 plural dropped the count (e6ff183), UX-05
+approval ref missing on the on-screen bill (b0edc82), plus purchase-dialog
+silent no-op snackbar (a36738b). Live-verified on the rebuilt demo APK:
+split payment ₹126+₹126 shows Paid (Cash)/Paid (Card)/Approval: 424242 on
+the success bill; "Waiter: Demo admin" attribution; purchase intake raises
+stock; KDS tabs unclipped; delivery KOT modal label; snackbar validations.
+Gates green: `flutter analyze` 0 issues, `flutter test` 125/125, backend
+`go vet`/`go test`/`go build` clean. Branch not pushed (needs explicit ask).
 
 Demo capture 2026-10-09: `demo/SCENARIOS.md` contains 31 shooting scripts;
 `demo/RECORDED.md` lists two captured sales/operations takes and quick copies.
