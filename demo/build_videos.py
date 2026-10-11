@@ -41,11 +41,11 @@ DARK = (27, 36, 44)
 MUTED = (107, 101, 93)
 GREEN_DARK = (4, 74, 34)
 
-FONT_DIR = Path("C:/Windows/Fonts")
-F_BOLD = str(FONT_DIR / "segoeuib.ttf")
-F_SEMI = str(FONT_DIR / "seguisb.ttf")
-F_REG = str(FONT_DIR / "segoeui.ttf")
-F_BLACK = str(FONT_DIR / "seguibl.ttf")
+FONT_DIR = ROOT / "fonts"
+F_BOLD = str(FONT_DIR / "Poppins-Bold.ttf")
+F_SEMI = str(FONT_DIR / "Poppins-SemiBold.ttf")
+F_REG = str(FONT_DIR / "Roboto.ttf")  # variable font, defaults to Regular
+F_BLACK = str(FONT_DIR / "Poppins-Black.ttf")
 
 # Phone placement (recordings are 1080x2400)
 PH_H = 940
@@ -262,7 +262,6 @@ def base_frame(clip: Clip, index: int, total: int) -> Image.Image:
     tw = d.textlength(chip, font=chip_f)
     d.rounded_rectangle([110, 190, 110 + tw + 48, 240], 25, fill=GREEN)
     d.text((134, 196), chip, font=chip_f, fill="white")
-    d.text((110 + tw + 70, 198), f"Video {index} of {total}", font=font(F_REG, 26), fill=MUTED)
 
     # phone shadow + bezel
     sh = Image.new("RGBA", (W, H), (0, 0, 0, 0))
@@ -275,7 +274,6 @@ def base_frame(clip: Clip, index: int, total: int) -> Image.Image:
     d.rounded_rectangle([PH_X - BEZEL, PH_Y - BEZEL, PH_X + PH_W + BEZEL, PH_Y + PH_H + BEZEL],
                         RADIUS + BEZEL, fill=DARK)
 
-    d.text((110, H - 92), "Demo data · Green Candle – Baner Outlet", font=font(F_REG, 24), fill=MUTED)
     return im
 
 
@@ -330,7 +328,6 @@ def title_card(clip: Clip | None, index: int, total: int) -> Image.Image:
         centered(f"HISHOBKR POS DEMO  ·  {index} OF {total}", font(F_BOLD, 34), 440, (182, 240, 204))
         centered(clip.heading, font(F_BLACK, 120), 490, "white")
         centered(clip.tagline, font(F_SEMI, 48), 670, (226, 244, 232))
-    centered("Recorded on the live app · sample restaurant data", font(F_REG, 30), H - 120, (160, 210, 180))
     return im
 
 

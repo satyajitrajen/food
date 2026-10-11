@@ -1,0 +1,316 @@
+{
+  "brand": {
+    "name": "Hishobkr",
+    "logo": "../assets/logo.png",
+    "primary": "#067A37",
+    "accent": "#08A84C",
+    "dark": "#1B242C",
+    "background": "#FBF9F4",
+    "muted": "#6B655D",
+    "title_background": "#044A22"
+  },
+  "fonts": {},
+  "layout": "phone",
+  "clips_dir": "recordings",
+  "out_dir": "recordings/final",
+  "voice_dir": "voiceover",
+  "footer": "Demo data · Green Candle – Baner Outlet",
+  "title_kicker": "Hishobkr POS demo",
+  "title_footer": "Recorded on the live app · sample restaurant data",
+  "timing": {
+    "title": 4.0,
+    "end": 3.5,
+    "intro": 5.0,
+    "tail_hold": 3.0,
+    "words_per_second": 2.6
+  },
+  "intro": {
+    "kicker": "Restaurant POS · full demo",
+    "title": "From order to owner's report",
+    "subtitle": "Waiter  ·  Kitchen  ·  Manager  ·  Cashier  ·  Owner",
+    "say": "Hishobkr is a restaurant POS for the whole team. Let's follow one day, from the waiter's order to the owner's report."
+  },
+  "end": {
+    "title": "Restaurant POS for every role",
+    "subtitle": "Orders · Kitchen · Billing · UPI · Cash drawer · Reports",
+    "say": "Hishobkr. One POS for every role."
+  },
+  "clips": [
+    {
+      "file": "01-waiter.mp4",
+      "heading": "Waiter",
+      "tagline": "Take orders at the table and send them to the kitchen",
+      "say": "This is Hishobkr for the waiter.",
+      "steps": [
+        {
+          "at": 0.0,
+          "title": "Sign in with a PIN",
+          "body": "Each staff member picks their profile and signs in with a 4-digit PIN.",
+          "say": "Every staff member has their own profile. Amit picks his name and signs in with his four-digit PIN."
+        },
+        {
+          "at": 11.9,
+          "title": "Seat the table",
+          "body": "Tap a free table and set the number of guests. The waiter is assigned automatically.",
+          "say": "He seats the guests at table five."
+        },
+        {
+          "at": 14.4,
+          "title": "Take the order",
+          "body": "Add dishes from the menu. Bestsellers and veg / non-veg are marked on every card.",
+          "say": "Then he adds dishes from the menu: one Dal Makhani and two Butter Naan."
+        },
+        {
+          "at": 21.1,
+          "title": "Send it to the kitchen",
+          "body": "Check the KOT and send it. The kitchen screen gets it straight away.",
+          "say": "He checks the kitchen ticket and sends it. The kitchen screen gets it right away."
+        },
+        {
+          "at": 29.4,
+          "title": "Track the order",
+          "body": "Order details show every item. Waiters take orders; billing stays with the cashier.",
+          "say": "The order is saved. Waiters take orders; billing stays with the cashier."
+        },
+        {
+          "at": 35.1,
+          "title": "Live floor plan",
+          "body": "Table T05 now shows as occupied: ₹340, 3 of 4 seats, just now.",
+          "say": "Back on the floor plan, table five now shows as occupied."
+        }
+      ]
+    },
+    {
+      "file": "02-kitchen.mp4",
+      "heading": "Kitchen",
+      "tagline": "Cook from a live ticket screen",
+      "say": "Now the kitchen.",
+      "steps": [
+        {
+          "at": 0.0,
+          "title": "Kitchen sign-in",
+          "body": "The chef signs in on the kitchen screen with their own PIN.",
+          "say": "The chef signs in on the kitchen screen with his own PIN."
+        },
+        {
+          "at": 8.7,
+          "title": "New tickets arrive",
+          "body": "Every KOT shows the table, waiter, time and items, newest first.",
+          "say": "New tickets appear instantly."
+        },
+        {
+          "at": 11.7,
+          "title": "Start preparing",
+          "body": "One tap moves a ticket to Preparing so everyone knows it's being cooked.",
+          "say": "Table five's order is here. One tap, and it moves to Preparing."
+        },
+        {
+          "at": 19.1,
+          "title": "Mark it ready",
+          "body": "Marking a ticket ready notifies the waiter on the floor.",
+          "say": "When it's cooked, the chef marks it ready, and the waiter is notified on the floor."
+        },
+        {
+          "at": 35.6,
+          "title": "Lock the screen",
+          "body": "The kitchen sees tickets only — no bills, payments or reports.",
+          "say": "The kitchen sees tickets only. No bills, no payments."
+        }
+      ]
+    },
+    {
+      "file": "03-manager.mp4",
+      "heading": "Manager",
+      "tagline": "Bills, discounts, cash drawer and staff",
+      "say": "Next, the manager.",
+      "steps": [
+        {
+          "at": 0.0,
+          "title": "Manager sign-in",
+          "body": "Managers sign in with their PIN and land on the POS.",
+          "say": "Neha, the manager, signs in with her PIN."
+        },
+        {
+          "at": 7.1,
+          "title": "Every running order",
+          "body": "See the open orders of every table and waiter at a glance.",
+          "say": "She sees every running order."
+        },
+        {
+          "at": 9.6,
+          "title": "Open the bill",
+          "body": "Table T03: five items, ₹740.",
+          "say": "She opens table three's bill: five items, seven hundred and forty rupees."
+        },
+        {
+          "at": 15.7,
+          "title": "Apply a discount",
+          "body": "A 10% loyalty discount. Large discounts need a manager's approval.",
+          "say": "She gives a ten percent loyalty discount. Bigger discounts need a manager's approval."
+        },
+        {
+          "at": 23.0,
+          "title": "Collect payment",
+          "body": "₹1,000 in cash — the ₹334 change is worked out for you.",
+          "say": "The customer pays a thousand in cash, and the change is worked out for her."
+        },
+        {
+          "at": 29.0,
+          "title": "Receipt",
+          "body": "Invoice INV-1050 from the server, ready to print, WhatsApp or share as PDF.",
+          "say": "The receipt has its invoice number from the server, and can be printed, sent on WhatsApp, or shared as a PDF."
+        },
+        {
+          "at": 40.1,
+          "title": "Shift and cash drawer",
+          "body": "Expected cash in the drawer updates with every sale: ₹3,532.",
+          "say": "The shift dashboard shows how much cash should be in the drawer, updated with every sale."
+        },
+        {
+          "at": 50.0,
+          "title": "Staff management",
+          "body": "Change roles, reset PINs or deactivate staff from one list.",
+          "say": "In staff management she can change roles, reset PINs, or deactivate staff."
+        },
+        {
+          "at": 59.2,
+          "title": "Sections and tables",
+          "body": "Set up floors, tables and seats for the outlet.",
+          "say": "And set up the outlet's sections and tables."
+        }
+      ]
+    },
+    {
+      "file": "04-cashier-takeaway-upi.mp4",
+      "heading": "Cashier: takeaway & UPI",
+      "tagline": "Takeaway orders with add-ons, paid by UPI",
+      "say": "Now the cashier, with a takeaway order.",
+      "steps": [
+        {
+          "at": 0.0,
+          "title": "Cashier sign-in",
+          "body": "The cashier signs in and starts a takeaway order.",
+          "say": "Rahul, the cashier, starts a takeaway order."
+        },
+        {
+          "at": 6.9,
+          "title": "Customise the dish",
+          "body": "Pick the spice level and paid add-ons like Laccha Onions (+₹15).",
+          "say": "Paneer Tikka can be customised. He picks medium spicy and adds Laccha Onions for fifteen rupees, then adds Butter Chicken."
+        },
+        {
+          "at": 17.9,
+          "title": "Send the KOT",
+          "body": "Two items go to the kitchen in one ticket.",
+          "say": "Both dishes go to the kitchen in a single ticket."
+        },
+        {
+          "at": 28.3,
+          "title": "Bill with packaging",
+          "body": "The ₹25 takeaway packaging charge is added automatically: ₹670.",
+          "say": "For takeaway, the packaging charge is added automatically."
+        },
+        {
+          "at": 34.0,
+          "title": "Pay by UPI",
+          "body": "The QR already carries the exact amount and the restaurant's UPI ID.",
+          "say": "The customer pays by UPI. The QR already has the exact amount."
+        },
+        {
+          "at": 40.0,
+          "title": "Receipt with add-ons",
+          "body": "The bill lists every add-on, so the customer sees why it costs more.",
+          "say": "The receipt lists every add-on, so the bill is clear."
+        }
+      ]
+    },
+    {
+      "file": "05-cashier-cash-in.mp4",
+      "heading": "Cashier: cash drawer",
+      "tagline": "Cash in, cash out and every transaction",
+      "say": "The cashier also looks after the cash drawer.",
+      "steps": [
+        {
+          "at": 0.0,
+          "title": "Next order, or check the drawer",
+          "body": "After a sale the cashier can start the next order straight away.",
+          "say": "After a sale, the cashier can start the next order, or check the cash drawer."
+        },
+        {
+          "at": 8.4,
+          "title": "Shift dashboard",
+          "body": "Cash, UPI and card sales for the shift, and the cash expected in the drawer.",
+          "say": "The shift dashboard shows every sale."
+        },
+        {
+          "at": 11.3,
+          "title": "Cash in",
+          "body": "Record cash added to the drawer, with a reason, for example change top-up.",
+          "say": "When cash is added to the drawer, he records it with a reason. Here, five hundred rupees for change."
+        },
+        {
+          "at": 21.6,
+          "title": "Drawer updated",
+          "body": "Expected cash goes from ₹2,366 to ₹2,866 straight away.",
+          "say": "The expected cash in the drawer updates straight away."
+        },
+        {
+          "at": 26.6,
+          "title": "Find any bill",
+          "body": "Search transactions and filter by cash, UPI or card.",
+          "say": "And any bill can be found in transactions, filtered by cash, UPI or card."
+        }
+      ]
+    },
+    {
+      "file": "06-admin.mp4",
+      "heading": "Owner",
+      "tagline": "Dashboard, reports and settings",
+      "say": "Finally, the owner's view.",
+      "steps": [
+        {
+          "at": 0.0,
+          "title": "Owner sign-in",
+          "body": "The owner signs in as admin.",
+          "say": "Vikram, the owner, signs in as admin."
+        },
+        {
+          "at": 6.5,
+          "title": "Today at a glance",
+          "body": "Sales, orders, average bill, cash in drawer and open KOTs.",
+          "say": "His home screen shows today's sales, orders, cash in the drawer and open tickets."
+        },
+        {
+          "at": 13.1,
+          "title": "Everything in one place",
+          "body": "Shifts, kitchen, transactions, expenses, customers and stock.",
+          "say": "Every part of the restaurant is one tap away."
+        },
+        {
+          "at": 18.5,
+          "title": "Reports",
+          "body": "Today: 6 orders, ₹2,872. Profit, order types and payment modes.",
+          "say": "Reports show today's six orders, the profit, order types and payment modes."
+        },
+        {
+          "at": 25.4,
+          "title": "Best sellers and staff",
+          "body": "Top dishes, categories and sales by each staff member.",
+          "say": "He sees the best-selling dishes and what each staff member sold, for today, the last seven days, or any dates."
+        },
+        {
+          "at": 41.5,
+          "title": "Settings",
+          "body": "Restaurant profile, subscription, GST and charges.",
+          "say": "In settings he manages the restaurant profile, subscription and taxes."
+        },
+        {
+          "at": 47.3,
+          "title": "UPI payments",
+          "body": "Set the UPI ID once and every bill gets its own payment QR.",
+          "say": "And sets the UPI ID once, for every bill."
+        }
+      ]
+    }
+  ]
+}
