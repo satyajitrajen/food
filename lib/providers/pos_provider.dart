@@ -3872,14 +3872,39 @@ class PosProvider extends ChangeNotifier {
     }
   }
 
+  PrinterAdapter get _kitchenPrinter => printerFromSetting(
+      _settings.kitchenPrinter.trim().isNotEmpty
+          ? _settings.kitchenPrinter
+          : _settings.billingPrinter);
+
+  /// Why the most recent KOT did not print (null when it printed or is still
+  /// sending). Unlike bills, auto-print KOT is on by default, so a missing
+  /// printer is a misconfiguration the kitchen would otherwise never notice.
+  String? _kotPrintError;
+  String? get kotPrintError => _kotPrintError;
+
   void _printKot(KitchenOrderTicket kot) {
+    _kotPrintError = null;
     if (!apiEnabled || !_settings.autoPrintKOT) return;
-    final setting = _settings.kitchenPrinter.trim().isNotEmpty
-        ? _settings.kitchenPrinter
-        : _settings.billingPrinter;
-    final printer = printerFromSetting(setting);
-    if (printer is NullPrinter) return;
-    _sendPrint(buildKotBytes(kot, _settings), printer);
+    unawaited(reprintKot(kot));
+  }
+
+  /// Sends a KOT to the kitchen printer (billing printer as fallback).
+  /// Returns false with [kotPrintError] set when it did not print.
+  Future<bool> reprintKot(KitchenOrderTicket kot) async {
+    final printer = _kitchenPrinter;
+    try {
+      await printer.send(buildKotBytes(kot, _settings));
+      _kotPrintError = null;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _kotPrintError = e is PrinterNotConfigured
+          ? 'KOT not printed: no kitchen printer set. Add one in Settings → Printers.'
+          : friendlyPrintError(printer.name, e);
+      notifyListeners();
+      return false;
+    }
   }
 
   void _sendPrint(List<int> bytes, PrinterAdapter adapter) {

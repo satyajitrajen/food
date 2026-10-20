@@ -44,7 +44,9 @@ class KOTSentDialog extends StatelessWidget {
     // Live-lookup the ticket: the optimistic local copy is adopted by the
     // server's authoritative ticket (real KOT number) moments after the fire;
     // without the watch this dialog keeps showing the terminal-local guess.
-    final live = context.watch<PosProvider>().kots.firstWhere(
+    final provider = context.watch<PosProvider>();
+    final printError = provider.kotPrintError;
+    final live = provider.kots.firstWhere(
           (k) => identical(k, kot) || k.id == kot.id,
           orElse: () => kot,
         );
@@ -82,7 +84,35 @@ class KOTSentDialog extends StatelessWidget {
                 '${plural(live.totalQuantity, 'item')} dispatched to kitchen station.',
                 style: const TextStyle(color: AppColors.textMuted, fontSize: 13),
               ),
+              if (printError != null) ...[
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    const Icon(Icons.print_disabled, color: AppColors.nonVegRed, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(printError,
+                          style: const TextStyle(color: AppColors.nonVegRed, fontSize: 13)),
+                    ),
+                  ],
+                ),
+              ],
               const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () async {
+                    final messenger = ScaffoldMessenger.of(context);
+                    final ok = await provider.reprintKot(live);
+                    if (ok) {
+                      messenger.showSnackBar(const SnackBar(content: Text('KOT sent to the printer')));
+                    }
+                  },
+                  icon: const Icon(Icons.print, size: 18),
+                  label: const Text('Reprint KOT'),
+                ),
+              ),
+              const SizedBox(height: 10),
               // Action buttons — the dialog pops itself; each callback
               // navigates distinctly (order details vs floor tables).
               SizedBox(
