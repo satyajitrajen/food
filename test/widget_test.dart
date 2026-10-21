@@ -113,9 +113,48 @@ void main() {
         ),
       );
 
-      expect(find.text('Sales today'), findsOneWidget);
+      expect(find.text('Shift sales'), findsOneWidget);
       expect(find.text("Table Floor Status"), findsOneWidget);
       expect(find.text("Quick Operational Actions"), findsOneWidget);
+    });
+
+    testWidgets('POS Dashboard zeroes financial KPIs when no shift is open', (WidgetTester tester) async {
+      final provider = fixtureProvider();
+      await tester.pumpWidget(
+        ChangeNotifierProvider.value(
+          value: provider,
+          child: const MaterialApp(
+            home: PosDashboardScreen(),
+          ),
+        ),
+      );
+
+      // No shift → the counter is not trading: all money KPIs read zero.
+      expect(find.text('₹0'), findsWidgets);
+      expect(find.text('₹500'), findsNothing);
+    });
+
+    testWidgets('POS Dashboard shows the live shift and resets after close', (WidgetTester tester) async {
+      final provider = fixtureProvider();
+      await provider.openShift(openingCash: 500);
+      await tester.pumpWidget(
+        ChangeNotifierProvider.value(
+          value: provider,
+          child: const MaterialApp(
+            home: PosDashboardScreen(),
+          ),
+        ),
+      );
+
+      // Fresh shift: opening float sits in the drawer, nothing sold yet.
+      expect(find.text('₹500'), findsOneWidget);
+      expect(find.text('₹0'), findsWidgets);
+
+      await provider.closeShift(actualCash: 500);
+      await tester.pump();
+
+      // Shift closed → dashboard hands over clean.
+      expect(find.text('₹500'), findsNothing);
     });
 
     testWidgets('Table Selection screen displays floor tables', (WidgetTester tester) async {

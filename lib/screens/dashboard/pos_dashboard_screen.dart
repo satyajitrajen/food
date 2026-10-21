@@ -7,6 +7,7 @@ import '../../models/app_nav.dart';
 import '../../widgets/table_status_style.dart';
 import '../../models/table_model.dart';
 import '../../models/kot_model.dart';
+import '../../models/report_model.dart';
 import '../../widgets/stat_kpi_card.dart';
 import '../running_orders/running_order_detail_screen.dart';
 import '../modals/offline_sync_dialog.dart';
@@ -20,16 +21,32 @@ class PosDashboardScreen extends StatelessWidget {
     final provider = context.watch<PosProvider>();
     final shift = provider.currentShift;
 
-    // Financial Metrics. Server truth (outlet-wide, all terminals) when the
-    // dashboard report is available; local computation is the offline fallback.
-    final rep = provider.serverDashboard;
-    final todaySales = rep?.sales ?? (shift?.totalSales ?? 0.0);
-    final orderCount = rep?.orderCount ?? provider.completedTransactions.length;
+    // Financial Metrics — the dashboard belongs to the open shift: closing it
+    // hands the counter over, so every financial KPI reads zero until the
+    // next shift opens. While a shift is live, server truth scoped to the
+    // shift window (admin + online) leads; the open shift's own accumulators
+    // are the offline fallback.
+    DashboardStats? rep;
+    double todaySales = 0;
+    int orderCount = 0;
+    double todayExp = 0;
+    if (shift != null) {
+      final s = shift;
+      rep = provider.serverShiftDashboard;
+      todaySales = rep?.sales ?? s.totalSales;
+      orderCount = rep?.orderCount ??
+          provider.completedTransactions
+              .where((o) => (o.paidAt ?? o.createdAt).isAfter(s.startedAt))
+              .length;
+      todayExp = rep?.expenses ??
+          provider.expenses
+              .where((e) => e.date.isAfter(s.startedAt))
+              .fold(0.0, (sum, e) => sum + e.amount);
+    }
     final aov = rep?.aov ?? (orderCount > 0 ? (todaySales / orderCount) : 0.0);
-    final todayExp = rep?.expenses ?? provider.todayExpenses;
     // The open shift on this terminal is live; the server snapshot can be
     // older than the latest float, sale or cash move.
-    final cashInDrawer = shift?.expectedCash ?? rep?.cashDrawer ?? 0.0;
+    final cashInDrawer = shift?.expectedCash ?? 0.0;
     final pendingKOTs = rep?.pendingKots ??
         provider.kots
             .where((k) => k.status != KOTStatus.served && k.status != KOTStatus.cancelled)
@@ -121,7 +138,7 @@ class PosDashboardScreen extends StatelessWidget {
                   childAspectRatio: constraints.maxWidth > 900 ? 1.9 : (constraints.maxWidth > 600 ? 1.9 : 1.75),
                   children: [
                     StatKpiCard(
-                      title: 'Sales today',
+                      title: 'Shift sales',
                       value: formatInr(todaySales),
                       icon: Icons.payments_outlined,
                       iconColor: AppColors.primaryGreen,

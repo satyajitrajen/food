@@ -294,6 +294,7 @@ class PosProvider extends ChangeNotifier {
         _serverDashboard = dashboardReportFromApi(dash.cast<String, dynamic>());
         notifyListeners();
       }
+      await _fetchShiftDashboard();
     });
   }
 
@@ -1185,6 +1186,7 @@ class PosProvider extends ChangeNotifier {
             if (dash is Map) {
               _serverDashboard = dashboardReportFromApi(dash.cast<String, dynamic>());
             }
+            await _fetchShiftDashboard();
           }
           break;
       }
@@ -1788,6 +1790,9 @@ class PosProvider extends ChangeNotifier {
       if (notes != null && notes.isNotEmpty) 'notes': notes,
       if (denominations != null) 'denominations': denominationsToApi(denominations),
     });
+    if (error == null && _currentShift != null) {
+      unawaited(_fetchShiftDashboard());
+    }
     if (error != null && _currentShift == null) {
       // Someone else may have opened it meanwhile (409): show theirs.
       await _refresh(['shift']);
@@ -1825,6 +1830,8 @@ class PosProvider extends ChangeNotifier {
     });
     if (error == null) {
       _currentShift = null; // applyServerTruth already moved it to history
+      // The dashboard belongs to the shift: closing it zeroes the KPIs.
+      _serverShiftDashboard = null;
       notifyListeners();
     }
     return error;
@@ -3000,6 +3007,30 @@ class PosProvider extends ChangeNotifier {
   /// screens fall back to locally computed numbers.
   DashboardStats? _serverDashboard;
   DashboardStats? get serverDashboard => _serverDashboard;
+
+  /// Same report scoped to the current shift (from = shift start), so the
+  /// main dashboard reads as live shift figures. Null while no shift is
+  /// open — the dashboard then shows zeros (a closed shift hands the
+  /// counter over clean).
+  DashboardStats? _serverShiftDashboard;
+  DashboardStats? get serverShiftDashboard => _serverShiftDashboard;
+
+  Future<void> _fetchShiftDashboard() async {
+    final shift = _currentShift;
+    if (!apiEnabled || _api == null) return;
+    if (_currentStaff?.role != StaffRole.admin || shift == null) {
+      _serverShiftDashboard = null;
+      return;
+    }
+    final dash = await _tryRead('/api/v1/reports/dashboard', {
+      'outlet_id': _currentOutlet.id,
+      'from': shift.startedAt.toUtc().toIso8601String(),
+    });
+    if (dash is Map) {
+      _serverShiftDashboard = dashboardReportFromApi(dash.cast<String, dynamic>());
+      notifyListeners();
+    }
+  }
 
   /// On-demand server report for an arbitrary date range
   /// (GET /reports/dashboard?from=…&to=…, admin-only endpoint).
