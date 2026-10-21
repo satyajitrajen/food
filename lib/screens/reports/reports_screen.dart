@@ -9,6 +9,7 @@ import '../../models/menu_model.dart';
 import '../../models/report_model.dart';
 import '../../core/api/dto.dart';
 import '../../core/format.dart';
+import '../../core/share/report_pdf.dart';
 
 class CategorySales {
   final String name;
@@ -222,9 +223,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
     return rows;
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final provider = context.watch<PosProvider>();
+  /// Aggregates the currently filtered report view into the flat structure
+  /// shared by the UI and the PDF download, so a downloaded report always
+  /// matches what is on screen (server truth when available, local cache
+  /// computed offline otherwise).
+  ReportSnapshot _buildSnapshot(PosProvider provider) {
     final serverStats = _serverStatsFor(provider);
 
     // W9 (FR-R2): server-computed outlet-wide truth per selected range (admin
@@ -254,7 +257,29 @@ class _ReportsScreenState extends State<ReportsScreen> {
     final orderCount = serverStats?.orderCount ?? completed.length;
     final aov = orderCount > 0 ? grossSales / orderCount : 0.0;
 
-    final byType = _salesByType(completed);
+    final byTypeServer = serverStats?.salesByType ?? const <String, double>{};
+    final typeRows = <ReportRow>[];
+    void addType(String label, double amount) {
+      if (amount > 0) typeRows.add(ReportRow(label, amount));
+    }
+
+    if (byTypeServer.isNotEmpty) {
+      addType('Dine-In Orders', byTypeServer['dine_in'] ?? 0);
+      addType('Takeaway / Parcel', byTypeServer['takeaway'] ?? 0);
+      addType('Direct Delivery', byTypeServer['delivery'] ?? 0);
+    } else {
+      for (final entry in _salesByType(completed).entries) {
+        addType(
+          entry.key == OrderType.dineIn
+              ? 'Dine-In Orders'
+              : entry.key == OrderType.takeaway
+                  ? 'Takeaway / Parcel'
+                  : 'Direct Delivery',
+          entry.value.amount,
+        );
+      }
+    }
+
     final Map<String, double> byTender;
     if (serverStats != null && serverStats.salesByTender.isNotEmpty) {
       byTender = {
@@ -266,21 +291,32 @@ class _ReportsScreenState extends State<ReportsScreen> {
     } else {
       byTender = _salesByTender(completed);
     }
-    final byTypeServer = serverStats?.salesByType ?? const <String, double>{};
-    final categories =
-        serverStats != null && serverStats.topCategories.isNotEmpty
-            ? serverStats.topCategories
-                .map((c) => CategorySales(c.category, c.revenue, c.quantity))
-                .toList()
-            : _salesByCategory(completed, provider.menuItems);
+    final tenderRows = byTender.entries
+        .map((e) => ReportRow(PaymentMethodX.fromLabel(e.key).label, e.value))
+        .toList();
+
+    List<ReportRow> toRows(List<CategorySales> rows) => rows
+        .map((c) => ReportRow(c.name, c.revenue, count: c.itemQty))
+        .toList();
+
     // Server truth across all terminals when available; this terminal's
     // cached orders otherwise.
+    final categories =
+        serverStats != null && serverStats.topCategories.isNotEmpty
+            ? toRows(serverStats.topCategories
+                .map((c) => CategorySales(c.category, c.revenue, c.quantity))
+                .toList())
+            : toRows(_salesByCategory(completed, provider.menuItems));
     final topItems = serverStats != null && serverStats.topItems.isNotEmpty
-        ? serverStats.topItems.map((c) => CategorySales(c.category, c.revenue, c.quantity)).toList()
-        : _topItems(completed);
+        ? toRows(serverStats.topItems
+            .map((c) => CategorySales(c.category, c.revenue, c.quantity))
+            .toList())
+        : toRows(_topItems(completed));
     final waiterRows = serverStats != null && serverStats.staffSales.isNotEmpty
-        ? serverStats.staffSales.map((w) => CategorySales(w.staffName, w.revenue, w.orderCount)).toList()
-        : _salesByWaiter(completed);
+        ? toRows(serverStats.staffSales
+            .map((w) => CategorySales(w.staffName, w.revenue, w.orderCount))
+            .toList())
+        : toRows(_salesByWaiter(completed));
 
     final expenseByCat = <ExpenseCategory, double>{};
     if (serverStats != null && serverStats.expensesByCategory.isNotEmpty) {
@@ -296,11 +332,50 @@ class _ReportsScreenState extends State<ReportsScreen> {
     final expenseRows = expenseByCat.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
 
+    return ReportSnapshot(
+      restaurantName: provider.settings.restaurantName,
+      periodLabel: _periodLabel(),
+      typeLabel: 'Order type: $_typeFilter',
+      orderCount: orderCount,
+      grossSales: grossSales,
+      refunds: refunds,
+      netSales: netSales,
+      totalExpenses: totalExpenses,
+      estimatedProfit: estimatedProfit,
+      aov: aov,
+      typeFiltered: typeFiltered,
+      salesByType: typeRows,
+      salesByTender: tenderRows,
+      topCategories: categories.take(4).toList(),
+      topItems: topItems.take(5).toList(),
+      staffSales: waiterRows.take(5).toList(),
+      expensesByCategory:
+          expenseRows.map((e) => ReportRow(e.key.label, e.value)).toList(),
+    );
+  }
+
+  /// Saves + shares the on-screen report as a PDF.
+  Future<void> _downloadReport() async {
+    final snapshot = _buildSnapshot(context.read<PosProvider>());
+    final messenger = ScaffoldMessenger.of(context);
+    final message = await ReportPdf.share(snapshot);
+    messenger.showSnackBar(SnackBar(
+      content: Text(message ?? 'Report PDF ready to share'),
+      duration: const Duration(seconds: 4),
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<PosProvider>();
+    final r = _buildSnapshot(provider);
+
     double ratioOf(double amount) =>
-        grossSales > 0 ? (amount / grossSales).clamp(0.0, 1.0) : 0.0;
+        r.grossSales > 0 ? (amount / r.grossSales).clamp(0.0, 1.0) : 0.0;
 
     String amountLabel(double amount) {
-      final pct = grossSales > 0 ? (amount / grossSales * 100).toStringAsFixed(0) : '0';
+      final pct =
+          r.grossSales > 0 ? (amount / r.grossSales * 100).toStringAsFixed(0) : '0';
       return '${formatInr(amount)} ($pct%)';
     }
 
@@ -310,6 +385,13 @@ class _ReportsScreenState extends State<ReportsScreen> {
         title: const Text('Reports'),
         backgroundColor: Colors.white,
         elevation: 0,
+        actions: [
+          IconButton(
+            tooltip: 'Download report',
+            icon: const Icon(Icons.download_outlined),
+            onPressed: _downloadReport,
+          ),
+        ],
       ),
       body: SafeArea(
         top: false,
@@ -329,7 +411,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                         Expanded(
                           child: _buildStatCard(
                             'Orders',
-                            '$orderCount',
+                            '${r.orderCount}',
                             Icons.receipt_long_outlined,
                             AppColors.primaryGreen,
                           ),
@@ -338,7 +420,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                         Expanded(
                           child: _buildStatCard(
                             'Avg Order Value',
-                            formatInr(aov),
+                            formatInr(r.aov),
                             Icons.trending_up_outlined,
                             AppColors.infoBlue,
                           ),
@@ -350,8 +432,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
                       children: [
                         Expanded(
                           child: _buildStatCard(
-                            refunds > 0 ? 'Net sales (after ${formatInr(refunds)} refunds)' : 'Net sales',
-                            formatInr(netSales),
+                            r.refunds > 0 ? 'Net sales (after ${formatInr(r.refunds)} refunds)' : 'Net sales',
+                            formatInr(r.netSales),
                             Icons.currency_rupee_outlined,
                             AppColors.vegGreen,
                           ),
@@ -360,10 +442,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
                         Expanded(
                           child: _buildStatCard(
                             'Expenses',
-                            typeFiltered ? '—' : formatInr(totalExpenses),
+                            r.typeFiltered ? '—' : formatInr(r.totalExpenses),
                             Icons.payments_outlined,
                             AppColors.saffronAmber,
-                            subline: typeFiltered ? 'not attributed by order type' : null,
+                            subline: r.typeFiltered ? 'not attributed by order type' : null,
                           ),
                         ),
                       ],
@@ -393,11 +475,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            typeFiltered ? '—' : formatInr(estimatedProfit),
+                            r.typeFiltered ? '—' : formatInr(r.estimatedProfit),
                             style: TextStyle(
-                              color: typeFiltered
+                              color: r.typeFiltered
                                   ? Colors.white70
-                                  : (estimatedProfit >= 0 ? AppColors.brandGreen : const Color(0xFFFF8A80)),
+                                  : (r.estimatedProfit >= 0 ? AppColors.brandGreen : const Color(0xFFFF8A80)),
                               fontWeight: FontWeight.w900,
                               fontSize: 36,
                               letterSpacing: -0.5,
@@ -405,9 +487,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
                           ),
                           const SizedBox(height: 12),
                           Text(
-                            typeFiltered
+                            r.typeFiltered
                                 ? 'Expenses are not attributed by order type'
-                                : 'Net sales ${formatInr(netSales)} − expenses ${formatInr(totalExpenses)}',
+                                : 'Net sales ${formatInr(r.netSales)} − expenses ${formatInr(r.totalExpenses)}',
                             style: const TextStyle(color: Colors.white60, fontSize: 12),
                           ),
                         ],
@@ -420,46 +502,21 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     Container(
                       padding: const EdgeInsets.all(18),
                       decoration: _cardDecoration(),
-                      child: Builder(builder: (context) {
-                        final rows = <Widget>[];
-                        var shown = 0;
-                        void addRow(String label, double amount, Color color) {
-                          if (amount <= 0) return;
-                          if (shown > 0) {
-                            rows.add(const Divider(height: 20, color: AppColors.borderLight));
-                          }
-                          rows.add(_buildProgressRow(label, ratioOf(amount), amountLabel(amount), color));
-                          shown++;
-                        }
-
-                        if (byTypeServer.isNotEmpty) {
-                          addRow('Dine-In Orders', byTypeServer['dine_in'] ?? 0, AppColors.primaryGreen);
-                          addRow('Takeaway / Parcel', byTypeServer['takeaway'] ?? 0, AppColors.vegGreen);
-                          addRow('Direct Delivery', byTypeServer['delivery'] ?? 0, AppColors.infoBlue);
-                        } else {
-                          for (final t in OrderType.values) {
-                            final entry = byType[t];
-                            if (entry == null) continue;
-                            addRow(
-                              t == OrderType.dineIn
-                                  ? 'Dine-In Orders'
-                                  : t == OrderType.takeaway
-                                      ? 'Takeaway / Parcel'
-                                      : 'Direct Delivery',
-                              entry.amount,
-                              t == OrderType.dineIn
-                                  ? AppColors.primaryGreen
-                                  : t == OrderType.takeaway
-                                      ? AppColors.vegGreen
-                                      : AppColors.infoBlue,
-                            );
-                          }
-                        }
-                        if (shown == 0) {
-                          return _emptyText('No completed orders for this selection yet.');
-                        }
-                        return Column(children: rows);
-                      }),
+                      child: r.salesByType.isEmpty
+                          ? _emptyText('No completed orders for this selection yet.')
+                          : Column(
+                              children: [
+                                for (final (i, row) in r.salesByType.indexed) ...[
+                                  if (i > 0) const Divider(height: 20, color: AppColors.borderLight),
+                                  _buildProgressRow(
+                                    row.label,
+                                    ratioOf(row.amount),
+                                    amountLabel(row.amount),
+                                    _typeRowColor(row.label),
+                                  ),
+                                ],
+                              ],
+                            ),
                     ),
                     const SizedBox(height: 24),
 
@@ -468,20 +525,19 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     Container(
                       padding: const EdgeInsets.all(18),
                       decoration: _cardDecoration(),
-                      child: byTender.isEmpty
+                      child: r.salesByTender.isEmpty
                           ? _emptyText('No payments collected for this selection yet.')
                           : Column(
                               children: [
-                                for (final entry in byTender.entries) ...[
-                                  if (entry.key != byTender.keys.first)
-                                    const Divider(height: 20, color: AppColors.borderLight),
+                                for (final (i, row) in r.salesByTender.indexed) ...[
+                                  if (i > 0) const Divider(height: 20, color: AppColors.borderLight),
                                   _buildProgressRow(
-                                    PaymentMethodX.fromLabel(entry.key).label,
-                                    ratioOf(entry.value),
-                                    amountLabel(entry.value),
-                                    entry.key.toLowerCase() == 'cash'
+                                    row.label,
+                                    ratioOf(row.amount),
+                                    amountLabel(row.amount),
+                                    row.label.toLowerCase() == 'cash'
                                         ? AppColors.vegGreen
-                                        : entry.key.toLowerCase() == 'upi'
+                                        : row.label.toLowerCase() == 'upi'
                                             ? AppColors.infoBlue
                                             : AppColors.saffronAmber,
                                   ),
@@ -496,16 +552,16 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     Container(
                       padding: const EdgeInsets.all(18),
                       decoration: _cardDecoration(),
-                      child: categories.isEmpty
+                      child: r.topCategories.isEmpty
                           ? _emptyText('No item sales recorded for this selection yet.')
                           : Column(
                               children: [
-                                for (final cat in categories.take(4)) ...[
-                                  if (cat != categories.first) const Divider(height: 16, color: AppColors.borderLight),
+                                for (final (i, cat) in r.topCategories.indexed) ...[
+                                  if (i > 0) const Divider(height: 16, color: AppColors.borderLight),
                                   _buildCategoryRow(
-                                    cat.name,
-                                    formatInr(cat.revenue),
-                                    plural(cat.itemQty, 'item'),
+                                    cat.label,
+                                    formatInr(cat.amount),
+                                    plural(cat.count, 'item'),
                                   ),
                                 ],
                               ],
@@ -518,16 +574,16 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     Container(
                       padding: const EdgeInsets.all(18),
                       decoration: _cardDecoration(),
-                      child: topItems.isEmpty
+                      child: r.topItems.isEmpty
                           ? _emptyText('No item sales recorded for this selection yet.')
                           : Column(
                               children: [
-                                for (final item in topItems.take(5)) ...[
-                                  if (item != topItems.first) const Divider(height: 16, color: AppColors.borderLight),
+                                for (final (i, item) in r.topItems.indexed) ...[
+                                  if (i > 0) const Divider(height: 16, color: AppColors.borderLight),
                                   _buildCategoryRow(
-                                    item.name,
-                                    formatInr(item.revenue),
-                                    '${item.itemQty} Sold',
+                                    item.label,
+                                    formatInr(item.amount),
+                                    '${item.count} Sold',
                                   ),
                                 ],
                               ],
@@ -540,16 +596,16 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     Container(
                       padding: const EdgeInsets.all(18),
                       decoration: _cardDecoration(),
-                      child: waiterRows.isEmpty
+                      child: r.staffSales.isEmpty
                           ? _emptyText('No completed orders for this selection yet.')
                           : Column(
                               children: [
-                                for (final w in waiterRows.take(5)) ...[
-                                  if (w != waiterRows.first) const Divider(height: 16, color: AppColors.borderLight),
+                                for (final (i, w) in r.staffSales.indexed) ...[
+                                  if (i > 0) const Divider(height: 16, color: AppColors.borderLight),
                                   _buildCategoryRow(
-                                    w.name,
-                                    formatInr(w.revenue),
-                                    plural(w.itemQty, 'order'),
+                                    w.label,
+                                    formatInr(w.amount),
+                                    plural(w.count, 'order'),
                                   ),
                                 ],
                               ],
@@ -562,17 +618,16 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     Container(
                       padding: const EdgeInsets.all(18),
                       decoration: _cardDecoration(),
-                      child: expenseRows.isEmpty
+                      child: r.expensesByCategory.isEmpty
                           ? _emptyText('No expenses recorded for this selection yet.')
                           : Column(
                               children: [
-                                for (final e in expenseRows) ...[
-                                  if (e.key != expenseRows.first.key)
-                                    const Divider(height: 20, color: AppColors.borderLight),
+                                for (final (i, e) in r.expensesByCategory.indexed) ...[
+                                  if (i > 0) const Divider(height: 20, color: AppColors.borderLight),
                                   _buildProgressRow(
-                                    e.key.label,
-                                    totalExpenses > 0 ? (e.value / totalExpenses).clamp(0.0, 1.0) : 0.0,
-                                    '${formatInr(e.value)} (${totalExpenses > 0 ? (e.value / totalExpenses * 100).toStringAsFixed(0) : '0'}%)',
+                                    e.label,
+                                    r.totalExpenses > 0 ? (e.amount / r.totalExpenses).clamp(0.0, 1.0) : 0.0,
+                                    '${formatInr(e.amount)} (${r.totalExpenses > 0 ? (e.amount / r.totalExpenses * 100).toStringAsFixed(0) : '0'}%)',
                                     AppColors.saffronAmber,
                                   ),
                                 ],
@@ -590,6 +645,12 @@ class _ReportsScreenState extends State<ReportsScreen> {
   }
 
   // ---- Small UI builders ----
+
+  Color _typeRowColor(String label) => label == 'Dine-In Orders'
+      ? AppColors.primaryGreen
+      : label == 'Takeaway / Parcel'
+          ? AppColors.vegGreen
+          : AppColors.infoBlue;
 
   Widget _sectionTitle(String title) => Padding(
         padding: const EdgeInsets.only(bottom: 12),
