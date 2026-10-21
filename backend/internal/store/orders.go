@@ -1068,7 +1068,7 @@ func (s *Store) FireKOT(ctx context.Context, orderID string, build func(o *model
 			if !locked[it.ID] {
 				continue
 			}
-			kot.Items = append(kot.Items, models.KOTItem{OrderItemID: it.ID, Name: it.Name, Quantity: it.Quantity, IsVeg: it.IsVeg})
+			kot.Items = append(kot.Items, models.KOTItem{OrderItemID: it.ID, Name: it.Name, Quantity: it.Quantity, IsVeg: it.IsVeg, VariantName: it.VariantName})
 			ids = append(ids, it.ID)
 		}
 		if _, err := tx.ExecContext(ctx, `INSERT INTO kots (id, outlet_id, kot_number, order_id, status, waiter_id,
@@ -1078,8 +1078,8 @@ func (s *Store) FireKOT(ctx context.Context, orderID string, build func(o *model
 			return err
 		}
 		for _, it := range kot.Items {
-			if _, err := tx.ExecContext(ctx, `INSERT INTO kot_items (kot_id, order_item_id, name, quantity, is_veg) VALUES (?, ?, ?, ?, ?)`,
-				kot.ID, it.OrderItemID, it.Name, it.Quantity, b2i(it.IsVeg)); err != nil {
+			if _, err := tx.ExecContext(ctx, `INSERT INTO kot_items (kot_id, order_item_id, name, quantity, is_veg, variant_name) VALUES (?, ?, ?, ?, ?, ?)`,
+				kot.ID, it.OrderItemID, it.Name, it.Quantity, b2i(it.IsVeg), it.VariantName); err != nil {
 				return err
 			}
 		}
@@ -1137,7 +1137,7 @@ func (s *Store) ListKOTs(ctx context.Context, outletID, status string) ([]models
 	if len(ids) == 0 {
 		return out, nil
 	}
-	irows, err := s.DB.QueryContext(ctx, `SELECT kot_id, order_item_id, name, quantity, COALESCE(is_veg, 1)
+	irows, err := s.DB.QueryContext(ctx, `SELECT kot_id, order_item_id, name, quantity, COALESCE(is_veg, 1), variant_name
 		FROM kot_items WHERE kot_id = ANY(?)`, pq.Array(ids))
 	if err != nil {
 		return nil, err
@@ -1147,10 +1147,12 @@ func (s *Store) ListKOTs(ctx context.Context, outletID, status string) ([]models
 		var kid string
 		var it models.KOTItem
 		var veg int
-		if err := irows.Scan(&kid, &it.OrderItemID, &it.Name, &it.Quantity, &veg); err != nil {
+		var variantName sql.NullString
+		if err := irows.Scan(&kid, &it.OrderItemID, &it.Name, &it.Quantity, &veg, &variantName); err != nil {
 			return nil, err
 		}
 		it.IsVeg = veg == 1
+		it.VariantName = nullIfEmpty(variantName)
 		if i, ok := pos[kid]; ok {
 			out[i].Items = append(out[i].Items, it)
 		}
@@ -1184,7 +1186,7 @@ func (s *Store) GetKOT(ctx context.Context, id string) (*models.KOT, error) {
 	if err != nil {
 		return nil, err
 	}
-	rows, err := s.DB.QueryContext(ctx, `SELECT order_item_id, name, quantity, COALESCE(is_veg, 1) FROM kot_items WHERE kot_id = ?`, id)
+	rows, err := s.DB.QueryContext(ctx, `SELECT order_item_id, name, quantity, COALESCE(is_veg, 1), variant_name FROM kot_items WHERE kot_id = ?`, id)
 	if err != nil {
 		return nil, err
 	}
@@ -1192,10 +1194,12 @@ func (s *Store) GetKOT(ctx context.Context, id string) (*models.KOT, error) {
 	for rows.Next() {
 		var it models.KOTItem
 		var veg int
-		if err := rows.Scan(&it.OrderItemID, &it.Name, &it.Quantity, &veg); err != nil {
+		var variantName sql.NullString
+		if err := rows.Scan(&it.OrderItemID, &it.Name, &it.Quantity, &veg, &variantName); err != nil {
 			return nil, err
 		}
 		it.IsVeg = veg == 1
+		it.VariantName = nullIfEmpty(variantName)
 		k.Items = append(k.Items, it)
 	}
 	return k, rows.Err()

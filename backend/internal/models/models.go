@@ -340,6 +340,9 @@ type KOTItem struct {
 	Name        string `json:"name"`
 	Quantity    int    `json:"quantity"`
 	IsVeg       bool   `json:"is_veg"`
+	// Portion (Half/Full) snapshotted from the order line at fire time so the
+	// kitchen can tell portions apart.
+	VariantName *string `json:"variant_name"`
 }
 
 // KOTStatusPatch is the body of PATCH /kots/{id}.

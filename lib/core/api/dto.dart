@@ -422,19 +422,28 @@ KitchenOrderTicket kotFromApi(Map<String, dynamic> j) => KitchenOrderTicket(
       status: kotStatusFromApi(_str(j['status'])),
       items: (j['items'] as List? ?? [])
           .whereType<Map>()
-          .map((i) => OrderItem(
-                id: _str(i['order_item_id']),
-                menuItem: _menuItemForLookup(
-                  _str(i['order_item_id']),
-                  _str(i['name']),
-                  0,
-                  // Server truth: the veg flag is snapshotted onto the
-                  // ticket line at fire time (kot_items.is_veg).
-                  isVeg: i['is_veg'] == null || i['is_veg'] == true || i['is_veg'] == 1,
-                ),
-                quantity: _int(i['quantity']),
-                isKOTSent: true,
-              ))
+          .map((i) {
+            // Server truth: name/variant/is_veg are snapshotted onto the
+            // ticket line at fire time (kot_items), so tickets survive menu
+            // edits. The variant keeps Half/Full visible on the KDS and print.
+            final variantName = _optStr(i['variant_name']);
+            return OrderItem(
+              id: _str(i['order_item_id']),
+              menuItem: _menuItemForLookup(
+                _str(i['order_item_id']),
+                _str(i['name']),
+                0,
+                // Server truth: the veg flag is snapshotted onto the
+                // ticket line at fire time (kot_items.is_veg).
+                isVeg: i['is_veg'] == null || i['is_veg'] == true || i['is_veg'] == 1,
+              ),
+              selectedVariant: variantName != null && variantName.isNotEmpty
+                  ? ProductVariant(id: 'kot-variant', name: variantName, price: 0)
+                  : null,
+              quantity: _int(i['quantity']),
+              isKOTSent: true,
+            );
+          })
           .toList(),
       specialInstructions: _optStr(j['note']),
     );
