@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import 'package:in_app_purchase/in_app_purchase.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import '../../core/payments/apple_iap.dart';
 import '../../core/payments/billing_policy.dart';
 import '../../core/payments/razorpay_checkout.dart';
 import '../../core/theme/app_theme.dart';
@@ -23,6 +27,8 @@ class SubscriptionCardBody extends StatefulWidget {
 class _SubscriptionCardBodyState extends State<SubscriptionCardBody>
     with WidgetsBindingObserver {
   final _checkout = RazorpayCheckout();
+  AppleIap? _apple;
+  ProductDetails? _appleProduct;
   bool _busy = false;
 
   @override
@@ -32,6 +38,12 @@ class _SubscriptionCardBodyState extends State<SubscriptionCardBody>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) context.read<PosProvider>().loadSubscriptionStatus();
     });
+    if (appleBillingEnabled) {
+      _apple = AppleIap();
+      _apple!.loadProduct().then((p) {
+        if (mounted) setState(() => _appleProduct = p);
+      });
+    }
   }
 
   @override
@@ -99,9 +111,156 @@ class _SubscriptionCardBodyState extends State<SubscriptionCardBody>
           const SizedBox(height: 8),
           _actions(provider, status),
         ],
+        if (appleBillingEnabled) ...[
+          if (_appleProduct != null)
+            _row('Price', '${_appleProduct!.price} / year'),
+          const SizedBox(height: 8),
+          _appleActions(provider, status),
+        ],
       ],
     );
   }
+
+  /// iOS: the same Pro plan through Apple in-app purchase. Apple owns
+  /// cancellation, so an active subscription links to Apple's settings.
+  Widget _appleActions(PosProvider provider, SubscriptionStatus status) {
+    if (_busy) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 8),
+        child: SizedBox(
+            height: 18, width: 18,
+            child: CircularProgressIndicator(strokeWidth: 2)),
+      );
+    }
+    final product = _appleProduct;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Wrap(
+          alignment: WrapAlignment.end,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            TextButton(
+              onPressed: () => _appleRestore(provider),
+              child: const Text('Restore purchases'),
+            ),
+            if (status.autoRenewLive)
+              TextButton(
+                onPressed: () => _open(appleManageSubscriptionsUrl),
+                child: const Text('Manage subscription'),
+              )
+            else
+              FilledButton(
+                onPressed: product == null
+                    ? null
+                    : () => _appleBuy(provider, product),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.primaryGreen,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text(product == null
+                    ? 'Subscription unavailable'
+                    : 'Subscribe ${product.price}/year'),
+              ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Pro Dining, 1 year. Payment is charged to your Apple ID and the '
+          'subscription renews automatically each year unless cancelled at '
+          'least 24 hours before the period ends. Manage or cancel it in '
+          'your Apple ID settings.',
+          textAlign: TextAlign.end,
+          style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+        ),
+        Wrap(
+          alignment: WrapAlignment.end,
+          children: [
+            TextButton(
+              onPressed: () => _open(appleStandardEulaUrl),
+              child: const Text('Terms of Use', style: TextStyle(fontSize: 11)),
+            ),
+            TextButton(
+              onPressed: () => _open(
+                  'https://food.nexorytechnologies.com/privacy-policy'),
+              child:
+                  const Text('Privacy Policy', style: TextStyle(fontSize: 11)),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Future<void> _appleBuy(PosProvider provider, ProductDetails product) async {
+    final creds = await _askOwnerToken();
+    if (creds == null || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      final result = await _apple!.buy(product);
+      if (!mounted) return;
+      if (result.cancelled) {
+        _snack(context, 'Purchase cancelled');
+      } else if (result.error != null) {
+        _snack(context, result.error!);
+      } else {
+        await _linkApple(provider, creds.$1, result.signedTransactions,
+            success: 'Subscription active — thank you!');
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+      await provider.loadSubscriptionStatus();
+    }
+  }
+
+  Future<void> _appleRestore(PosProvider provider) async {
+    final creds = await _askOwnerToken();
+    if (creds == null || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      final result = await _apple!.restore();
+      if (!mounted) return;
+      if (result.error != null) {
+        _snack(context, result.error!);
+      } else if (result.signedTransactions.isEmpty) {
+        _snack(context, 'No App Store subscription found for this Apple ID');
+      } else {
+        await _linkApple(provider, creds.$1, result.signedTransactions,
+            success: 'Subscription restored');
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+      await provider.loadSubscriptionStatus();
+    }
+  }
+
+  /// Posts Apple's signed transactions; one accepted is enough (a restore
+  /// may include expired ones the server rejects).
+  Future<void> _linkApple(
+      PosProvider provider, String ownerToken, List<String> signed,
+      {required String success}) async {
+    var ok = false;
+    for (final jws in signed.reversed) {
+      if (await provider.recordApplePurchase(ownerToken, jws)) {
+        ok = true;
+        break;
+      }
+    }
+    if (!mounted) return;
+    _snack(
+        context,
+        ok
+            ? success
+            : provider.subscriptionActionError ??
+                'Payment received but not yet linked. Tap Restore purchases.');
+  }
+
+  Future<void> _open(String url) =>
+      launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
 
   Widget _trialBanner(
       SubscriptionStatus status, String? trialEndText, String? firstChargeText) {

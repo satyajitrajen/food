@@ -31,7 +31,7 @@ class LicenseBanner extends StatelessWidget {
       final status = entitle.status;
       final message = status == 'suspended'
           ? 'Subscription suspended by the platform.'
-          : inAppBillingAllowed
+          : anyBillingAllowed
               ? 'Subscription $status. Renew to keep taking orders.'
               : 'Subscription $status. New orders are paused.';
       return _banner(child, message, warn: true,
@@ -42,7 +42,7 @@ class LicenseBanner extends StatelessWidget {
     // auto-pay is not armed, so owners are not surprised on day 8.
     final card = provider.subscriptionStatus;
     final trialLeft = provider.trialDaysLeft;
-    final showTrialNudge = inAppBillingAllowed &&
+    final showTrialNudge = anyBillingAllowed &&
         provider.apiEnabled &&
         provider.orgCode != null &&
         !provider.needsOrgSetup &&
@@ -55,7 +55,7 @@ class LicenseBanner extends StatelessWidget {
       return _banner(
           child,
           'Free trial ends in $trialLeft day${trialLeft == 1 ? '' : 's'} — '
-          'enable auto-pay in Settings → Subscription.',
+          '${appleBillingEnabled ? 'subscribe' : 'enable auto-pay'} in Settings → Subscription.',
           warn: false,
           verified: false);
     }

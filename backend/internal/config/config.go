@@ -45,6 +45,11 @@ type Config struct {
 	// FCMCredentials is the path of a Google service-account JSON for FCM
 	// HTTP v1 push. Empty = push disabled (silent no-op).
 	FCMCredentials string
+
+	// Apple in-app subscription: the iOS bundle whose signed transactions
+	// are accepted, and the auto-renewable product that buys the org's plan.
+	AppleBundleID  string
+	AppleProductID string
 }
 
 // DevJWTSecret is the built-in secret; accepted only when Dev is on.
@@ -83,6 +88,9 @@ func Load() Config {
 		CORSOrigins: os.Getenv("FOODPOS_CORS_ORIGINS"),
 
 		FCMCredentials: os.Getenv("FOODPOS_FCM_CREDENTIALS"),
+
+		AppleBundleID:  env("FOODPOS_APPLE_BUNDLE_ID", "com.nexory.hishobkr"),
+		AppleProductID: env("FOODPOS_APPLE_PRODUCT_ID", "com.nexory.hishobkr.pro.yearly"),
 	}
 }
 

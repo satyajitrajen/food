@@ -854,6 +854,28 @@ class PosProvider extends ChangeNotifier {
         (j) => razorpayManualOrderFromApi(j));
   }
 
+  /// Links an App Store purchase (StoreKit 2 signed transaction) to the org
+  /// and opens its paid period. Safe to repeat: the server is idempotent per
+  /// Apple transaction, so restores re-post freely.
+  Future<bool> recordApplePurchase(
+      String ownerToken, String signedTransaction) async {
+    if (_api == null) return false;
+    _subscriptionActionError = null;
+    try {
+      await _api!.request('POST', '/api/v1/saas/subscription/apple',
+          body: {'signed_transaction': signedTransaction}, token: ownerToken);
+      return true;
+    } on ApiException catch (e) {
+      _subscriptionActionError = e.message;
+      notifyListeners();
+      return false;
+    } on NetworkException {
+      _subscriptionActionError = 'Server unreachable';
+      notifyListeners();
+      return false;
+    }
+  }
+
   Future<bool> cancelAutoRenew(String ownerToken) async {
     return (await _ownerBillingCall<bool>(
             ownerToken, '/api/v1/saas/subscription/cancel', (_) => true)) ??

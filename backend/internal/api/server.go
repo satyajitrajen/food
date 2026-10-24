@@ -11,6 +11,7 @@ import (
 	chimw "github.com/go-chi/chi/v5/middleware"
 
 	"foodpos/backend/internal/auth"
+	"foodpos/backend/internal/billing"
 	"foodpos/backend/internal/config"
 	"foodpos/backend/internal/httpx"
 	"foodpos/backend/internal/middleware"
@@ -28,6 +29,8 @@ type Server struct {
 	Cfg       config.Config
 	UploadDir string // where menu photos are stored; served at /media/*
 	Notifier  *notify.FCMNotifier
+	// AppleVerifier overrides the Apple-root verifier (tests); nil = Apple.
+	AppleVerifier *billing.AppleVerifier
 
 	pinOnce sync.Once
 	pinLock *auth.PINLockout
@@ -97,6 +100,7 @@ func (s *Server) Routes() http.Handler {
 		r.Post("/subscription/cancel", s.handleSaaSCancelSubscription)
 		r.Post("/subscription/razorpay", s.handleOwnerStartSubscription)
 		r.Post("/subscription/manual-order", s.handleOwnerManualOrder)
+		r.Post("/subscription/apple", s.handleOwnerAppleSubscription)
 		r.Post("/org/rotate-code", s.handleRotateOrgCode)
 		r.Delete("/org", s.handleDeleteOrg)
 		r.Get("/invoices/{id}/pdf", s.handleOwnerInvoicePDF)
@@ -130,6 +134,8 @@ func (s *Server) Routes() http.Handler {
 
 	// Razorpay webhook (public; signature-verified).
 	r.Post("/api/v1/webhooks/razorpay", s.handleRazorpayWebhook)
+	// App Store Server Notifications V2 (public; JWS-verified).
+	r.Post("/api/v1/webhooks/apple", s.handleAppleNotification)
 
 	// Authenticated POS routes (scope: staff, tenant-bound).
 	r.Route("/api/v1", func(r chi.Router) {

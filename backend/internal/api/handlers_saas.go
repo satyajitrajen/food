@@ -414,6 +414,13 @@ func (s *Server) handleSaaSCancelSubscription(w http.ResponseWriter, r *http.Req
 		httpx.ErrorJSON(w, r, err)
 		return
 	}
+	// Apple subscriptions can only be cancelled by the customer in their
+	// Apple ID settings; the renewal-status notification records it here.
+	if isAppleSubscription(sub.GatewaySubscriptionID) {
+		httpx.ErrorJSON(w, r, httpx.NewError(http.StatusConflict, "manage_in_app_store",
+			"This subscription is billed by Apple. Cancel it in your Apple ID subscription settings."))
+		return
+	}
 	next := *sub
 	next.CancelAtPeriodEnd = true
 	if err := s.Store.UpsertSubscription(r.Context(), &next); err != nil {

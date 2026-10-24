@@ -586,7 +586,8 @@ func (s *Server) handleDeleteOrg(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorJSON(w, r, httpx.NewError(http.StatusForbidden, "bad_password", "Password is incorrect"))
 		return
 	}
-	if sub, err := s.Store.GetSubscription(r.Context(), c.OrgID); err == nil && sub.GatewaySubscriptionID != "" {
+	if sub, err := s.Store.GetSubscription(r.Context(), c.OrgID); err == nil && sub.GatewaySubscriptionID != "" &&
+		!isAppleSubscription(sub.GatewaySubscriptionID) {
 		if gw := s.razorpayGateway(); gw != nil {
 			if _, err := gw.CancelSubscription(r.Context(), sub.GatewaySubscriptionID, false); err != nil {
 				_ = s.Store.AddOrgEvent(r.Context(), c.OrgID, c.ActorID, "razorpay.cancel_failed",
