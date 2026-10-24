@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../core/payments/billing_policy.dart';
 import '../core/theme/app_theme.dart';
 import '../providers/pos_provider.dart';
 
@@ -30,7 +31,9 @@ class LicenseBanner extends StatelessWidget {
       final status = entitle.status;
       final message = status == 'suspended'
           ? 'Subscription suspended by the platform.'
-          : 'Subscription $status. Renew to keep taking orders.';
+          : inAppBillingAllowed
+              ? 'Subscription $status. Renew to keep taking orders.'
+              : 'Subscription $status. New orders are paused.';
       return _banner(child, message, warn: true,
           verified: provider.licenseTokenVerified);
     }
@@ -39,7 +42,8 @@ class LicenseBanner extends StatelessWidget {
     // auto-pay is not armed, so owners are not surprised on day 8.
     final card = provider.subscriptionStatus;
     final trialLeft = provider.trialDaysLeft;
-    final showTrialNudge = provider.apiEnabled &&
+    final showTrialNudge = inAppBillingAllowed &&
+        provider.apiEnabled &&
         provider.orgCode != null &&
         !provider.needsOrgSetup &&
         provider.currentStaff != null &&

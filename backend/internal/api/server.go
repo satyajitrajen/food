@@ -98,6 +98,7 @@ func (s *Server) Routes() http.Handler {
 		r.Post("/subscription/razorpay", s.handleOwnerStartSubscription)
 		r.Post("/subscription/manual-order", s.handleOwnerManualOrder)
 		r.Post("/org/rotate-code", s.handleRotateOrgCode)
+		r.Delete("/org", s.handleDeleteOrg)
 		r.Get("/invoices/{id}/pdf", s.handleOwnerInvoicePDF)
 	})
 

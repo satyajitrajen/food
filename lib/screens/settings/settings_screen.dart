@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/media.dart';
@@ -141,10 +142,135 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ],
             ),
+            const SizedBox(height: 16),
+
+            // Account & legal (App Store 5.1.1: privacy policy + in-app deletion)
+            _buildSettingsSection(
+              title: 'Account & Privacy',
+              subtitle: 'Privacy policy and account deletion',
+              icon: Icons.privacy_tip_outlined,
+              children: [
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.description_outlined),
+                  title: const Text('Privacy Policy',
+                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                  trailing: const Icon(Icons.open_in_new, size: 18),
+                  onTap: () => launchUrl(Uri.parse(_privacyPolicyUrl),
+                      mode: LaunchMode.externalApplication),
+                ),
+                if (provider.apiEnabled && provider.isAdmin)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.delete_forever_outlined, color: Colors.red),
+                    title: const Text('Delete account',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w600, fontSize: 13, color: Colors.red)),
+                    subtitle: const Text(
+                        'Permanently delete your organization and its personal data',
+                        style: TextStyle(fontSize: 12)),
+                    onTap: () => _confirmDeleteAccount(context, provider),
+                  ),
+              ],
+            ),
           ],
         ),
       ),
     );
+  }
+
+  static const _privacyPolicyUrl = 'https://food.nexorytechnologies.com/privacy-policy';
+
+  Future<void> _confirmDeleteAccount(BuildContext context, PosProvider provider) async {
+    final emailCtrl = TextEditingController();
+    final passCtrl = TextEditingController();
+    final confirmCtrl = TextEditingController();
+    String? error;
+    bool busy = false;
+    final deleted = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: const Text('Delete account'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'This permanently closes your organization, signs out every '
+                  'terminal and erases staff and customer personal data. '
+                  'GST invoices are kept anonymised for the legal retention '
+                  'period. This cannot be undone.',
+                  style: TextStyle(fontSize: 12, height: 1.4),
+                ),
+                TextField(
+                  controller: emailCtrl,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: const InputDecoration(labelText: 'Owner email'),
+                ),
+                TextField(
+                  controller: passCtrl,
+                  obscureText: true,
+                  decoration: const InputDecoration(labelText: 'Password'),
+                ),
+                TextField(
+                  controller: confirmCtrl,
+                  decoration: const InputDecoration(labelText: 'Type DELETE to confirm'),
+                ),
+                if (error != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(error!,
+                        style: const TextStyle(color: Colors.red, fontSize: 12)),
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: busy ? null : () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: Colors.red),
+              onPressed: busy
+                  ? null
+                  : () async {
+                      if (confirmCtrl.text.trim() != 'DELETE') {
+                        setDialogState(() => error = 'Type DELETE to confirm');
+                        return;
+                      }
+                      setDialogState(() {
+                        busy = true;
+                        error = null;
+                      });
+                      final token = await provider.loginOwnerForAction(
+                          emailCtrl.text.trim(), passCtrl.text);
+                      final ok = token != null &&
+                          await provider.deleteOrganization(token, passCtrl.text);
+                      if (!dialogContext.mounted) return;
+                      if (ok) {
+                        Navigator.pop(dialogContext, true);
+                      } else {
+                        setDialogState(() {
+                          busy = false;
+                          error = provider.subscriptionActionError ??
+                              'Wrong email or password';
+                        });
+                      }
+                    },
+              child: const Text('Delete permanently'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (deleted == true && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Your account has been deleted.')));
+      Navigator.of(context).popUntil((r) => r.isFirst);
+    }
   }
 
   // ---- Dialogs ----

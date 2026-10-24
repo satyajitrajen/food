@@ -199,3 +199,41 @@ func (s *Store) GetSaaSInvoice(ctx context.Context, id string) (*models.SaaSInvo
 	}
 	return &inv, nil
 }
+
+// ---- Account deletion (owner self-service) ----
+
+// DeleteOrganization closes an org and scrubs its personal data in one
+// transaction. Orders and invoices stay (GST retention) but customer and staff
+// identities are anonymised, so retained records no longer name anyone.
+func (s *Store) DeleteOrganization(ctx context.Context, orgID string) error {
+	now := TimeStr(Now())
+	outlets := `SELECT id FROM outlets WHERE org_id = ?`
+	return s.withTx(ctx, func(tx *sql.Tx) error {
+		stmts := []struct {
+			q    string
+			args []any
+		}{
+			{`UPDATE organizations SET status = 'closed', name = 'Deleted organization',
+				email = 'deleted+' || id || '@invalid', gstin = '', updated_at = ? WHERE id = ?`, []any{now, orgID}},
+			{`UPDATE accounts SET is_active = 0, name = 'Deleted', password_hash = '',
+				email = 'deleted+' || id || '@invalid' WHERE org_id = ?`, []any{orgID}},
+			{`UPDATE auth_refresh SET revoked_at = ? WHERE revoked_at IS NULL AND (org_id = ?
+				OR actor_id IN (SELECT id FROM accounts WHERE org_id = ?))`, []any{now, orgID, orgID}},
+			{`UPDATE refresh_tokens SET revoked_at = ? WHERE revoked_at IS NULL
+				AND staff_id IN (SELECT id FROM staff WHERE org_id = ?)`, []any{now, orgID}},
+			{`UPDATE staff SET is_active = 0, name = 'Deleted staff', mobile = '', avatar_url = '',
+				pin_hash = '' WHERE org_id = ?`, []any{orgID}},
+			{`UPDATE customers SET is_deleted = 1, name = 'Deleted customer', phone_norm = 'deleted-' || id,
+				email = NULL, address = NULL, gstin = NULL, notes = NULL
+				WHERE outlet_id IN (` + outlets + `)`, []any{orgID}},
+			{`UPDATE org_codes SET active = 0 WHERE org_id = ?`, []any{orgID}},
+			{`DELETE FROM device_tokens WHERE org_id = ?`, []any{orgID}},
+		}
+		for _, st := range stmts {
+			if _, err := tx.ExecContext(ctx, st.q, st.args...); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}

@@ -860,6 +860,34 @@ class PosProvider extends ChangeNotifier {
         false;
   }
 
+  /// Permanently deletes the org (owner re-auth + password re-check server
+  /// side), then forgets the tenant so the terminal returns to org setup.
+  Future<bool> deleteOrganization(String ownerToken, String password) async {
+    if (_api == null) return false;
+    _subscriptionActionError = null;
+    try {
+      await _api!.request('DELETE', '/api/v1/saas/org',
+          body: {'password': password}, token: ownerToken);
+    } on ApiException catch (e) {
+      _subscriptionActionError = e.message;
+      notifyListeners();
+      return false;
+    } on NetworkException {
+      _subscriptionActionError = 'Server unreachable';
+      notifyListeners();
+      return false;
+    }
+    logout();
+    _tenant = null;
+    _entitlement = null;
+    _staffList.clear();
+    _outlets.clear();
+    await _tenantStore?.clear();
+    await _tenantStore?.clearEntitlement();
+    notifyListeners();
+    return true;
+  }
+
   Future<T?> _ownerBillingCall<T>(
     String ownerToken,
     String path,

@@ -562,3 +562,42 @@ func (s *Server) handleSubscriptionEnded(w http.ResponseWriter, r *http.Request,
 		store.MetaJSON(map[string]any{"gateway_sub_id": subEnt.ID, "event": event, "period_running": periodRunning}))
 	httpx.JSON(w, http.StatusOK, map[string]any{"recorded": event})
 }
+
+// ---- Account deletion (owner) ----
+
+// handleDeleteOrg permanently closes the caller's org (App Store 5.1.1(v)).
+// The owner re-enters their password; the gateway subscription is cancelled
+// immediately so no further charge can reactivate a deleted org.
+func (s *Server) handleDeleteOrg(w http.ResponseWriter, r *http.Request) {
+	c, ok := claimsFrom(r)
+	if !ok {
+		httpx.ErrorJSON(w, r, httpx.ErrUnauthorized)
+		return
+	}
+	var req struct {
+		Password string `json:"password"`
+	}
+	if err := httpx.Decode(r, &req); err != nil {
+		httpx.ErrorJSON(w, r, err)
+		return
+	}
+	acc, err := s.Store.GetAccount(r.Context(), c.ActorID)
+	if err != nil || acc.OrgID != c.OrgID || !s.Auth.CheckPassword(acc.PasswordHash, req.Password) {
+		httpx.ErrorJSON(w, r, httpx.NewError(http.StatusForbidden, "bad_password", "Password is incorrect"))
+		return
+	}
+	if sub, err := s.Store.GetSubscription(r.Context(), c.OrgID); err == nil && sub.GatewaySubscriptionID != "" {
+		if gw := s.razorpayGateway(); gw != nil {
+			if _, err := gw.CancelSubscription(r.Context(), sub.GatewaySubscriptionID, false); err != nil {
+				_ = s.Store.AddOrgEvent(r.Context(), c.OrgID, c.ActorID, "razorpay.cancel_failed",
+					store.MetaJSON(map[string]any{"gateway_sub_id": sub.GatewaySubscriptionID, "error": err.Error()}))
+			}
+		}
+	}
+	if err := s.Store.DeleteOrganization(r.Context(), c.OrgID); err != nil {
+		httpx.ErrorJSON(w, r, err)
+		return
+	}
+	_ = s.Store.AddOrgEvent(r.Context(), c.OrgID, c.ActorID, "org.deleted", "{}")
+	httpx.JSON(w, http.StatusOK, map[string]any{"deleted": true})
+}

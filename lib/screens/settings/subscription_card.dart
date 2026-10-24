@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/payments/billing_policy.dart';
 import '../../core/payments/razorpay_checkout.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/subscription_model.dart';
@@ -93,9 +94,11 @@ class _SubscriptionCardBodyState extends State<SubscriptionCardBody>
           _row('Next cycle', periodText),
         if (status.isTrial && firstChargeText != null && status.autoRenewLive)
           _row('First charge', firstChargeText),
-        _row('Price (excl. GST)', formatInr(status.priceRupees)),
-        const SizedBox(height: 8),
-        _actions(provider, status),
+        if (inAppBillingAllowed) ...[
+          _row('Price (excl. GST)', formatInr(status.priceRupees)),
+          const SizedBox(height: 8),
+          _actions(provider, status),
+        ],
       ],
     );
   }
@@ -103,7 +106,10 @@ class _SubscriptionCardBodyState extends State<SubscriptionCardBody>
   Widget _trialBanner(
       SubscriptionStatus status, String? trialEndText, String? firstChargeText) {
     final days = status.trialDaysLeft;
-    final message = status.autoRenewLive
+    final message = !inAppBillingAllowed
+        ? 'Free trial${days > 0 ? ' — $days day${days == 1 ? '' : 's'} left' : ''}'
+            '${trialEndText != null ? ' (ends $trialEndText)' : ''}.'
+        : status.autoRenewLive
         ? 'Free trial${days > 0 ? ' — $days day${days == 1 ? '' : 's'} left' : ''}'
             '${firstChargeText != null ? ', first charge $firstChargeText' : ''}. Auto-pay is on.'
         : 'Free trial${days > 0 ? ' — $days day${days == 1 ? '' : 's'} left' : ''}'

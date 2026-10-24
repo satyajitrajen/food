@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import '../api/api_client.dart';
+import '../payments/billing_policy.dart';
 import 'outbox.dart';
 
 typedef OpHandler = Future<Map<String, dynamic>?> Function(
@@ -197,7 +198,9 @@ class SyncEngine {
   static String describeWriteError(ApiException e) {
     if (e.status == 401) return 'Your session expired. Sign in again.';
     if (e.status == 402 || e.code == 'subscription_expired') {
-      return 'Subscription expired. Renew to keep saving.';
+      return inAppBillingAllowed
+          ? 'Subscription expired. Renew to keep saving.'
+          : 'Subscription expired. Changes cannot be saved.';
     }
     if (e.status == 403 && e.code == 'forbidden') {
       return "You don't have permission to do this.";
