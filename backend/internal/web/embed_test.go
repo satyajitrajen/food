@@ -16,13 +16,13 @@ func TestHandlerServesRootAndSPAFallback(t *testing.T) {
 	// "/" → index.html
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
-	if rec.Code != 200 || !strings.Contains(rec.Body.String(), "FoodPOS") {
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), "Hishobkr") {
 		t.Fatalf("root: status=%d body=%q", rec.Code, rec.Body.String())
 	}
 	// "/console/login" (client-side route) → SPA fallback index.html
 	rec = httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/console/login", nil))
-	if rec.Code != 200 || !strings.Contains(rec.Body.String(), "FoodPOS") {
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), "Hishobkr") {
 		t.Fatalf("console route: status=%d body=%q", rec.Code, rec.Body.String())
 	}
 }

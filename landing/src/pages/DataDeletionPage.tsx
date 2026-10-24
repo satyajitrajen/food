@@ -25,7 +25,10 @@ export const DataDeletionPage: React.FC = () => {
         </p>
 
         <h2>1. How to Request Account & Data Deletion</h2>
-        <p>You can request permanent deletion of your account and its data by email:</p>
+        <p>
+          Restaurant owners can close their account directly in the app: open <strong>Settings</strong>, choose <strong>Delete account</strong>, enter your owner email and password, and type DELETE to confirm. The account is closed immediately.
+        </p>
+        <p>You can also request deletion by email:</p>
 
         <div className="policy-box">
           <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -49,14 +52,15 @@ export const DataDeletionPage: React.FC = () => {
           </ul>
         </div>
 
-        <h2>2. What Data Is Permanently Deleted</h2>
-        <p>Upon verification of your request, the following data is permanently purged from our active databases and cloud storage within <strong>48 hours</strong>:</p>
+        <h2>2. What Happens to Your Data</h2>
+        <p>When an account is closed, sign-in is disabled and the following personal data is erased:</p>
         <ul>
-          <li><strong>Staff Records:</strong> Staff names, login profiles, hashed PINs, and personal mobile numbers.</li>
-          <li><strong>Customer Directory:</strong> Patron phone numbers, saved loyalty notes, and repeat visit logs.</li>
-          <li><strong>Catalog & Menu Data:</strong> Custom categories, dish names, pricing matrices, and modifier groupings.</li>
-          <li><strong>Device Tokens & Sessions:</strong> Push notification tokens, WebSocket connection IDs, and refresh tokens.</li>
+          <li><strong>Owner Account:</strong> Name, email address, and password are erased, and the organization name and GSTIN are removed.</li>
+          <li><strong>Staff Records:</strong> Staff names, mobile numbers, photos, and PINs are erased, and staff logins are disabled.</li>
+          <li><strong>Customer Directory:</strong> Customer names, phone numbers, email addresses, postal addresses, GSTINs, and notes are erased.</li>
+          <li><strong>Device Tokens & Sessions:</strong> Push notification tokens are deleted and all active sessions are revoked.</li>
         </ul>
+        <p>Orders, tax invoices, and your menu catalog are not deleted. They are kept in anonymised form so that the records required by law (see below) remain intact, but they no longer identify you, your staff, or your customers.</p>
 
         <h2>3. Data Retention Exceptions (Statutory Tax Compliance)</h2>
         <div className="policy-box" style={{ borderLeftColor: 'var(--color-warning)' }}>
@@ -66,13 +70,13 @@ export const DataDeletionPage: React.FC = () => {
             Under Section 36 of the Central Goods and Services Tax (CGST) Act, 2017, registered businesses are legally obligated to maintain tax invoices, credit notes, and annual financial turnover records for a mandatory statutory period (up to 72 months). 
           </p>
           <p style={{ marginTop: '8px', fontSize: '0.95rem' }}>
-            Consequently, financial ledger entries and finalized GST invoices will be anonymized (stripped of personal names and phone numbers) and archived securely until the statutory period expires, after which they are permanently destroyed.
+            Consequently, financial ledger entries and finalized GST invoices are retained in anonymised form (stripped of personal names and contact details) for the statutory period.
           </p>
         </div>
 
         <h2>4. Turnaround Time & Confirmation</h2>
         <p>
-          Once your deletion request is received, our data governance team will confirm receipt within <strong>24 business hours</strong>. Complete deletion of eligible records is accomplished within <strong>48 hours</strong>, followed by a formal Certificate of Erasure delivered via email.
+          Deletion from within the app takes effect immediately. For email requests, we will confirm receipt within <strong>24 business hours</strong> and close the account within <strong>48 hours</strong> of verifying your request, then confirm by email.
         </p>
 
         <h2>5. Contact Us</h2>

@@ -95,7 +95,7 @@ export const PrivacyPolicyPage: React.FC = () => {
 
         <h2>5. Your Rights & Data Deletion Requests</h2>
         <p>
-          Restaurant administrators have the right to inspect, correct, export, or permanently erase their accounts. For complete account closure and data deletion procedures, visit our dedicated <a href="#/data-deletion" onClick={(e) => { e.preventDefault(); navigate('/data-deletion'); }} style={{ color: 'var(--brand-primary)', fontWeight: 600, textDecoration: 'underline' }}>Account & Data Deletion Portal</a>.
+          Restaurant administrators have the right to inspect, correct, and export their data, and to close their account at any time from Settings in the app or by email request. When an account is closed, sign-in is disabled immediately and personal data is removed: owner and staff names, email addresses, mobile numbers, PINs and passwords are erased, customer contact details are erased, and push notification tokens and active sessions are revoked. Orders and tax invoices are not deleted, because Indian GST law requires them to be kept for the statutory period described in Section 4; they are retained in anonymised form and no longer identify any person. For full details, visit our dedicated <a href="#/data-deletion" onClick={(e) => { e.preventDefault(); navigate('/data-deletion'); }} style={{ color: 'var(--brand-primary)', fontWeight: 600, textDecoration: 'underline' }}>Account & Data Deletion Portal</a>.
         </p>
 
         <h2>6. Security Measures</h2>
