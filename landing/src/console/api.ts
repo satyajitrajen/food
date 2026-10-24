@@ -153,7 +153,7 @@ export interface RegisterPayload {
 export const WHATSAPP_NUMBER: string =
   ((import.meta as any).env && (import.meta as any).env.VITE_FOODPOS_WHATSAPP) || '';
 
-export const SUPPORT_EMAIL = 'support@hishobkr.com';
+export const SUPPORT_EMAIL = 'hishobkr@nexorytechnologies.com';
 
 export interface LeadPayload {
   restaurant_name: string;

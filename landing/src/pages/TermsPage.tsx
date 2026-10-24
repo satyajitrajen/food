@@ -65,7 +65,7 @@ export const TermsPage: React.FC = () => {
 
         <h2>8. Contact Legal Support</h2>
         <p>
-          For legal inquiries or notices, reach out to <a href="mailto:support@hishobkr.com" style={{ color: 'var(--brand-primary)', fontWeight: 600 }}>support@hishobkr.com</a>.
+          For legal inquiries or notices, reach out to <a href="mailto:hishobkr@nexorytechnologies.com" style={{ color: 'var(--brand-primary)', fontWeight: 600 }}>hishobkr@nexorytechnologies.com</a>.
         </p>
       </div>
     </div>

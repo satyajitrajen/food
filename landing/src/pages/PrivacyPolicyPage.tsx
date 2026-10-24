@@ -111,7 +111,7 @@ export const PrivacyPolicyPage: React.FC = () => {
         <p>If you have any questions, concerns, or requests regarding this Privacy Policy, contact us at:</p>
         <p>
           <strong>Hishobkr Data Governance Team</strong><br />
-          Email: <a href="mailto:support@hishobkr.com" style={{ color: 'var(--brand-primary)' }}>support@hishobkr.com</a><br />
+          Email: <a href="mailto:hishobkr@nexorytechnologies.com" style={{ color: 'var(--brand-primary)' }}>hishobkr@nexorytechnologies.com</a><br />
           Location: Pune, Maharashtra, India
         </p>
       </div>

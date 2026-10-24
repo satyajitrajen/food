@@ -52,7 +52,7 @@ export const RefundPolicyPage: React.FC = () => {
 
         <h2>4. How to Request a Refund</h2>
         <p>
-          To process a cancellation or refund, email our accounts desk at <a href="mailto:support@hishobkr.com" style={{ color: 'var(--brand-primary)', fontWeight: 600 }}>support@hishobkr.com</a> with your Outlet ID and Tax Invoice Number.
+          To process a cancellation or refund, email our accounts desk at <a href="mailto:hishobkr@nexorytechnologies.com" style={{ color: 'var(--brand-primary)', fontWeight: 600 }}>hishobkr@nexorytechnologies.com</a> with your Outlet ID and Tax Invoice Number.
         </p>
       </div>
     </div>

@@ -39,7 +39,7 @@ export const DataDeletionPage: React.FC = () => {
             Send an email from your registered restaurant admin email address to:
           </p>
           <p style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--brand-primary)' }}>
-            <a href="mailto:support@hishobkr.com?subject=Account%20and%20Data%20Deletion%20Request">support@hishobkr.com</a>
+            <a href="mailto:hishobkr@nexorytechnologies.com?subject=Account%20and%20Data%20Deletion%20Request">hishobkr@nexorytechnologies.com</a>
           </p>
           <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
             Subject Line: <strong>&ldquo;Account and Data Deletion Request — [Your Restaurant Name]&rdquo;</strong><br />
@@ -81,7 +81,7 @@ export const DataDeletionPage: React.FC = () => {
 
         <h2>5. Contact Us</h2>
         <p>
-          For urgent queries regarding data protection, contact our Data Protection Officer at <a href="mailto:support@hishobkr.com" style={{ color: 'var(--brand-primary)', fontWeight: 600 }}>support@hishobkr.com</a>.
+          For urgent queries regarding data protection, contact our Data Protection Officer at <a href="mailto:hishobkr@nexorytechnologies.com" style={{ color: 'var(--brand-primary)', fontWeight: 600 }}>hishobkr@nexorytechnologies.com</a>.
         </p>
       </div>
     </div>

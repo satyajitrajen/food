@@ -78,7 +78,7 @@ func Load() Config {
 		SMTPPort:    envInt("FOODPOS_SMTP_PORT", 587),
 		SMTPUser:    env("FOODPOS_SMTP_USER", ""),
 		SMTPPass:    env("FOODPOS_SMTP_PASS", ""),
-		SMTPFrom:    env("FOODPOS_SMTP_FROM", "Hishobkr <no-reply@hishobkr.com>"),
+		SMTPFrom:    env("FOODPOS_SMTP_FROM", "Hishobkr <hishobkr@nexorytechnologies.com>"),
 		AppBaseURL:  env("FOODPOS_APP_BASE_URL", "https://food.nexorytechnologies.com"),
 		CORSOrigins: os.Getenv("FOODPOS_CORS_ORIGINS"),
 
