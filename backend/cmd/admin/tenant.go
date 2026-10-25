@@ -8,10 +8,12 @@ package main
 //	cmd/admin move-outlet -outlet <outlet_id> -to-org <org_id>
 
 import (
+	"bufio"
 	"context"
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 
 	"foodpos/backend/internal/auth"
@@ -29,6 +31,8 @@ func runTenantCommand(ctx context.Context, st *store.Store, cfg config.Config, c
 		importMenu(ctx, st, args)
 	case "move-outlet":
 		moveOutlet(ctx, st, args)
+	case "set-password":
+		setPassword(ctx, st, cfg, args)
 	default:
 		return false
 	}
@@ -121,4 +125,47 @@ func moveOutlet(ctx context.Context, st *store.Store, args []string) {
 		fatal(err)
 	}
 	fmt.Printf("moved outlet %s to org %s (outlet-bound staff moved; sessions revoked)\n", *outlet, *toOrg)
+}
+
+// setPassword sets an owner account's password without the e-mail reset
+// flow (e.g. a test account on an address nobody reads). The password is
+// read from stdin, never from a flag, so it stays out of shell history.
+func setPassword(ctx context.Context, st *store.Store, cfg config.Config, args []string) {
+	fs := flag.NewFlagSet("set-password", flag.ExitOnError)
+	email := fs.String("email", "", "owner account e-mail")
+	_ = fs.Parse(args)
+	required(fs, "email")
+
+	acc, err := st.GetAccountByEmail(ctx, strings.ToLower(strings.TrimSpace(*email)))
+	if err != nil {
+		fatal(fmt.Errorf("no account with e-mail %s", *email))
+	}
+	fmt.Fprint(os.Stderr, "New password (min 8 characters): ")
+	echoOff := exec.Command("stty", "-echo")
+	echoOff.Stdin = os.Stdin
+	hidden := echoOff.Run() == nil
+	line, readErr := bufio.NewReader(os.Stdin).ReadString('\n')
+	if hidden {
+		restore := exec.Command("stty", "echo")
+		restore.Stdin = os.Stdin
+		_ = restore.Run()
+		fmt.Fprintln(os.Stderr)
+	}
+	password := strings.TrimRight(line, "\r\n")
+	if readErr != nil && password == "" {
+		fatal(fmt.Errorf("no password given"))
+	}
+	if len(password) < 8 {
+		fatal(fmt.Errorf("password must be at least 8 characters"))
+	}
+	hash, err := auth.New(cfg.JWTSecret, cfg.BcryptCost).HashPassword(password)
+	if err != nil {
+		fatal(err)
+	}
+	if err := st.UpdateAccountPassword(ctx, acc.ID, hash); err != nil {
+		fatal(err)
+	}
+	// Signed-in owner sessions keep the old credentials' access; end them.
+	_ = st.RevokeAllSessions(ctx, auth.ScopeOwner, acc.ID)
+	fmt.Printf("password updated for %s (%s); owner sessions signed out\n", acc.Email, acc.OrgID)
 }

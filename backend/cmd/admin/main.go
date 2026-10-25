@@ -7,7 +7,7 @@
 //	cmd/admin suspend <org_id> [-note ""]
 //	cmd/admin cancel <org_id> [-note ""]
 //	cmd/admin stats
-//	cmd/admin create-org | import-menu | move-outlet  (see tenant.go)
+//	cmd/admin create-org | import-menu | move-outlet | set-password  (see tenant.go)
 package main
 
 import (
