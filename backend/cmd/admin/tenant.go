@@ -19,6 +19,7 @@ import (
 	"foodpos/backend/internal/auth"
 	"foodpos/backend/internal/config"
 	"foodpos/backend/internal/menuimport"
+	"foodpos/backend/internal/models"
 	"foodpos/backend/internal/store"
 )
 
@@ -33,6 +34,8 @@ func runTenantCommand(ctx context.Context, st *store.Store, cfg config.Config, c
 		moveOutlet(ctx, st, args)
 	case "set-password":
 		setPassword(ctx, st, cfg, args)
+	case "set-pin":
+		setPIN(ctx, st, cfg, args)
 	default:
 		return false
 	}
@@ -140,19 +143,8 @@ func setPassword(ctx context.Context, st *store.Store, cfg config.Config, args [
 	if err != nil {
 		fatal(fmt.Errorf("no account with e-mail %s", *email))
 	}
-	fmt.Fprint(os.Stderr, "New password (min 8 characters): ")
-	echoOff := exec.Command("stty", "-echo")
-	echoOff.Stdin = os.Stdin
-	hidden := echoOff.Run() == nil
-	line, readErr := bufio.NewReader(os.Stdin).ReadString('\n')
-	if hidden {
-		restore := exec.Command("stty", "echo")
-		restore.Stdin = os.Stdin
-		_ = restore.Run()
-		fmt.Fprintln(os.Stderr)
-	}
-	password := strings.TrimRight(line, "\r\n")
-	if readErr != nil && password == "" {
+	password := readSecret("New password (min 8 characters): ")
+	if password == "" {
 		fatal(fmt.Errorf("no password given"))
 	}
 	if len(password) < 8 {
@@ -168,4 +160,47 @@ func setPassword(ctx context.Context, st *store.Store, cfg config.Config, args [
 	// Signed-in owner sessions keep the old credentials' access; end them.
 	_ = st.RevokeAllSessions(ctx, auth.ScopeOwner, acc.ID)
 	fmt.Printf("password updated for %s (%s); owner sessions signed out\n", acc.Email, acc.OrgID)
+}
+
+// setPIN sets a staff member's POS PIN (4-6 digits), read from stdin like
+// set-password, for test terminals whose admin PIN was never noted down.
+func setPIN(ctx context.Context, st *store.Store, cfg config.Config, args []string) {
+	fs := flag.NewFlagSet("set-pin", flag.ExitOnError)
+	staffID := fs.String("staff", "", "staff id")
+	_ = fs.Parse(args)
+	required(fs, "staff")
+
+	row, err := st.GetStaff(ctx, strings.TrimSpace(*staffID))
+	if err != nil {
+		fatal(fmt.Errorf("no staff with id %s", *staffID))
+	}
+	pin := readSecret("New PIN (4-6 digits): ")
+	if len(pin) < 4 || len(pin) > 6 || strings.Trim(pin, "0123456789") != "" {
+		fatal(fmt.Errorf("PIN must be 4-6 digits"))
+	}
+	hash, err := auth.New(cfg.JWTSecret, cfg.BcryptCost).HashPIN(pin)
+	if err != nil {
+		fatal(err)
+	}
+	if _, err := st.UpdateStaff(ctx, row.ID, models.StaffPatch{}, &hash); err != nil {
+		fatal(err)
+	}
+	fmt.Printf("PIN updated for %s (%s)\n", row.Name, row.ID)
+}
+
+// readSecret prompts on stderr and reads one line from stdin, with terminal
+// echo off when stdin is a terminal.
+func readSecret(prompt string) string {
+	fmt.Fprint(os.Stderr, prompt)
+	echoOff := exec.Command("stty", "-echo")
+	echoOff.Stdin = os.Stdin
+	hidden := echoOff.Run() == nil
+	line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
+	if hidden {
+		restore := exec.Command("stty", "echo")
+		restore.Stdin = os.Stdin
+		_ = restore.Run()
+		fmt.Fprintln(os.Stderr)
+	}
+	return strings.TrimRight(line, "\r\n")
 }
