@@ -73,7 +73,7 @@ func createOrg(ctx context.Context, st *store.Store, cfg config.Config, args []s
 	if err != nil {
 		fatal(err)
 	}
-	res, err := st.RegisterOrg(ctx, strings.TrimSpace(*name), strings.ToLower(strings.TrimSpace(*email)), *gstin,
+	res, err := st.RegisterOrg(ctx, strings.TrimSpace(*name), strings.ToLower(strings.TrimSpace(*email)), *gstin, "",
 		strings.TrimSpace(*owner), pwHash, strings.TrimSpace(*outlet), *terminal, pinHash, *plan)
 	if err != nil {
 		fatal(err)

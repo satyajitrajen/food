@@ -999,6 +999,7 @@ class PosProvider extends ChangeNotifier {
     required String email,
     required String password,
     required String outletName,
+    String phone = '',
     String terminal = 'Counter 1',
   }) async {
     if (!apiEnabled || _api == null) {
@@ -1021,6 +1022,7 @@ class PosProvider extends ChangeNotifier {
           'org_name': org,
           'owner_name': owner,
           'email': mail,
+          if (phone.trim().isNotEmpty) 'phone': phone.trim(),
           'password': password,
           'outlet_name': outlet,
           'terminal': term,

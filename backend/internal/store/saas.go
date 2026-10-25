@@ -29,7 +29,7 @@ var ErrUnknownPlan = errors.New("unknown plan")
 func scanOrg(sc interface{ Scan(...any) error }) (*models.Organization, error) {
 	var o models.Organization
 	var created, updated string
-	if err := sc.Scan(&o.ID, &o.Name, &o.Email, &o.GSTIN, &o.Status, &created, &updated); err != nil {
+	if err := sc.Scan(&o.ID, &o.Name, &o.Email, &o.GSTIN, &o.Phone, &o.Status, &created, &updated); err != nil {
 		return nil, err
 	}
 	o.CreatedAt = ParseTime(created)
@@ -82,8 +82,8 @@ func parseOptTime(s string) *time.Time {
 func (s *Store) GetOrganization(ctx context.Context, id string) (*models.Organization, error) {
 	var o models.Organization
 	var created, updated string
-	err := s.DB.QueryRowContext(ctx, `SELECT id, name, email, gstin, status, created_at, updated_at FROM organizations WHERE id = ?`, id).
-		Scan(&o.ID, &o.Name, &o.Email, &o.GSTIN, &o.Status, &created, &updated)
+	err := s.DB.QueryRowContext(ctx, `SELECT id, name, email, gstin, phone, status, created_at, updated_at FROM organizations WHERE id = ?`, id).
+		Scan(&o.ID, &o.Name, &o.Email, &o.GSTIN, &o.Phone, &o.Status, &created, &updated)
 	if err == sql.ErrNoRows {
 		return nil, httpx.ErrNotFound
 	}
@@ -96,7 +96,7 @@ func (s *Store) GetOrganization(ctx context.Context, id string) (*models.Organiz
 }
 
 func (s *Store) ListOrganizations(ctx context.Context, status string) ([]models.Organization, error) {
-	q := `SELECT id, name, email, gstin, status, created_at, updated_at FROM organizations`
+	q := `SELECT id, name, email, gstin, phone, status, created_at, updated_at FROM organizations`
 	args := []any{}
 	if status != "" {
 		q += ` WHERE status = ?`
@@ -654,7 +654,7 @@ func newOrgCode() (string, error) {
 // RegisterOrg provisions a full tenant: org + owner account + org code +
 // default plan subscription (trial) + first outlet + initial admin staff.
 // Runs in a transaction; password hashes must be precomputed by the caller.
-func (s *Store) RegisterOrg(ctx context.Context, name, email, gstin, ownerName, pwHash string,
+func (s *Store) RegisterOrg(ctx context.Context, name, email, gstin, phone, ownerName, pwHash string,
 	outletName, terminal, adminPINHash, planCode string) (*RegisterResult, error) {
 
 	if planCode == "" {
@@ -680,9 +680,9 @@ func (s *Store) RegisterOrg(ctx context.Context, name, email, gstin, ownerName, 
 	defer tx.Rollback()
 
 	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO organizations (id, name, email, gstin, status, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, 'trial', ?, ?)`,
-		orgID, name, email, gstin, TimeStr(now), TimeStr(now)); err != nil {
+		`INSERT INTO organizations (id, name, email, gstin, phone, status, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, 'trial', ?, ?)`,
+		orgID, name, email, gstin, phone, TimeStr(now), TimeStr(now)); err != nil {
 		return nil, err
 	}
 	if _, err := tx.ExecContext(ctx,

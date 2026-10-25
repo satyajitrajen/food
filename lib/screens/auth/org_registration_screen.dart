@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../core/api/api_client.dart';
+import '../../core/payments/billing_policy.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/subscription_model.dart';
 import '../../providers/pos_provider.dart';
@@ -24,6 +25,7 @@ class _OrgRegistrationScreenState extends State<OrgRegistrationScreen> {
   final _orgC = TextEditingController();
   final _ownerC = TextEditingController();
   final _emailC = TextEditingController();
+  final _phoneC = TextEditingController();
   final _passwordC = TextEditingController();
   final _outletC = TextEditingController();
   final _terminalC = TextEditingController(text: 'Counter 1');
@@ -37,6 +39,7 @@ class _OrgRegistrationScreenState extends State<OrgRegistrationScreen> {
     _orgC.dispose();
     _ownerC.dispose();
     _emailC.dispose();
+    _phoneC.dispose();
     _passwordC.dispose();
     _outletC.dispose();
     _terminalC.dispose();
@@ -55,6 +58,7 @@ class _OrgRegistrationScreenState extends State<OrgRegistrationScreen> {
         orgName: _orgC.text,
         ownerName: _ownerC.text,
         email: _emailC.text,
+        phone: _phoneC.text,
         password: _passwordC.text,
         outletName: _outletC.text,
         terminal: _terminalC.text,
@@ -65,7 +69,11 @@ class _OrgRegistrationScreenState extends State<OrgRegistrationScreen> {
         _result = result;
       });
     } on ApiException catch (e) {
-      _fail(e.code == 'email_taken' ? 'An account with this email already exists' : e.message);
+      _fail(e.code == 'email_taken'
+          ? 'An account with this email already exists'
+          : e.code == 'invalid_phone'
+              ? 'Enter a valid mobile number or leave it blank'
+              : e.message);
     } on NetworkException {
       _fail('Cannot reach the server. Check the connection and try again.');
     } on FormatException catch (e) {
@@ -139,9 +147,11 @@ class _OrgRegistrationScreenState extends State<OrgRegistrationScreen> {
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 6),
-          const Text(
-            'Start your 7-day free trial on Pro — no card needed.\n'
-            'Authorize auto-pay anytime during the trial; the first charge happens on day 8.',
+          Text(
+            inAppBillingAllowed
+                ? 'Start your 7-day free trial on Pro — no card needed.\n'
+                    'Authorize auto-pay anytime during the trial; the first charge happens on day 8.'
+                : 'Start your 7-day free trial on Pro — no card needed.',
             textAlign: TextAlign.center,
             style: TextStyle(color: AppColors.textMuted, fontSize: 13, height: 1.4),
           ),
@@ -157,6 +167,18 @@ class _OrgRegistrationScreenState extends State<OrgRegistrationScreen> {
               validator: (v) {
                 if (v == null || v.trim().isEmpty) return 'Email is required';
                 if (!v.contains('@')) return 'Enter a valid email';
+                return null;
+              }),
+          const SizedBox(height: 12),
+          _field(_phoneC, 'Mobile number (optional)', 'e.g. 98765 43210',
+              keyboard: TextInputType.phone,
+              helper: 'So we can help you get set up.',
+              validator: (v) {
+                final digits = (v ?? '').replaceAll(RegExp(r'\D'), '');
+                if (digits.isEmpty) return null;
+                if (digits.length < 7 || digits.length > 15) {
+                  return 'Enter a valid mobile number or leave it blank';
+                }
                 return null;
               }),
           const SizedBox(height: 12),

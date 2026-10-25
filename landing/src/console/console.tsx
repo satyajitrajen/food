@@ -408,7 +408,7 @@ const RegisterPage: React.FC = () => {
   const { navigate } = useRouter();
   // Single plan today: any ?plan= value registers on it (the backend rejects
   // unknown codes, so never forward an arbitrary query value).
-  const [form, setForm] = useState({ org_name: '', owner_name: '', email: '', password: '', outlet_name: '', gstin: '', plan_code: PLAN.code as string });
+  const [form, setForm] = useState({ org_name: '', owner_name: '', email: '', phone: '', password: '', outlet_name: '', gstin: '', plan_code: PLAN.code as string });
   const [error, setError] = useState('');
   const [info, setInfo] = useState<Record<string, any> | null>(null);
   const [busy, setBusy] = useState(false);
@@ -468,6 +468,11 @@ const RegisterPage: React.FC = () => {
         <div className="console-field">
           <label htmlFor="reg-email">E-mail</label>
           <input id="reg-email" className="console-input" required type="email" autoComplete="email" value={form.email} onChange={set('email')} />
+        </div>
+        <div className="console-field">
+          <label htmlFor="reg-phone">Mobile number <span className="console-optional">(optional)</span></label>
+          <input id="reg-phone" className="console-input" type="tel" autoComplete="tel" inputMode="tel"
+            pattern="[+]?[0-9 \-]{7,20}" placeholder="e.g. 98765 43210" value={form.phone} onChange={set('phone')} />
         </div>
         <div className="console-field">
           <label htmlFor="reg-password">Password</label>
@@ -961,7 +966,7 @@ const SuperAdminPanel: React.FC = () => {
               <div className="console-item" key={o.id}>
                 <div>
                   <div className="item-main">{o.name}</div>
-                  <div className="item-sub">{o.email} · {planName(s)}</div>
+                  <div className="item-sub">{o.email}{o.phone ? ` · ${o.phone}` : ''} · {planName(s)}</div>
                 </div>
                 <div className="console-row">
                   <span className={`console-badge badge-${o.status}`}>{statusLabel(o.status)}</span>
@@ -1039,7 +1044,7 @@ const OrgDetailDialog: React.FC<{ detail: Record<string, any>; busy: boolean; ac
   return (
     <ConsoleDialog title={org.name} onClose={onClose}>
       <p className="console-text" style={{ margin: '0 0 8px' }}>
-        {org.email} · <span className={`console-badge badge-${org.status}`}>{statusLabel(org.status)}</span>
+        {org.email}{org.phone ? <> · <a href={`tel:${org.phone}`}>{org.phone}</a></> : null} · <span className={`console-badge badge-${org.status}`}>{statusLabel(org.status)}</span>
       </p>
       <p className="console-text" style={{ margin: '0 0 14px' }}>
         {planName(sub)} · <b>{statusLabel(sub.status)}</b> · ends {fmtDate(sub.current_period_end || sub.trial_ends_at)}

@@ -40,7 +40,7 @@ export const PrivacyPolicyPage: React.FC = () => {
 
         <h3>A. Restaurant Account & Staff Profile Data</h3>
         <p>
-          When setting up an outlet on Hishobkr, we collect business registration details such as Restaurant Name, Trade Name, Outlet Address, GSTIN (optional for unregistered entities), and FSSAI license numbers.
+          When setting up an outlet on Hishobkr, we collect business registration details such as Restaurant Name, Trade Name, Outlet Address, GSTIN (optional for unregistered entities), and FSSAI license numbers. For the owner account we collect the owner&apos;s name, email address and, if provided, a mobile number, which we use only to contact the restaurant about its account and onboarding.
         </p>
         <p>
           For operational authentication, staff profiles include staff names, role assignments (Admin, Manager, Cashier, Waiter, Kitchen), and 4-to-6 digit access PINs. <strong>All staff PINs are salted and hashed using bcrypt before local storage or cloud transmission.</strong>

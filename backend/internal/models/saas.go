@@ -28,6 +28,7 @@ type Organization struct {
 	Name      string    `json:"name"`
 	Email     string    `json:"email"`
 	GSTIN     string    `json:"gstin"`
+	Phone     string    `json:"phone"`
 	Status    string    `json:"status"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -140,6 +141,7 @@ type RegisterOrgReq struct {
 	Email      string `json:"email"`
 	Password   string `json:"password"`
 	GSTIN      string `json:"gstin,omitempty"`
+	Phone      string `json:"phone,omitempty"` // optional owner contact number
 	OutletName string `json:"outlet_name"`
 	Terminal   string `json:"terminal,omitempty"`
 	// PlanCode selects the subscription tier (landing pricing). Empty → "pro".

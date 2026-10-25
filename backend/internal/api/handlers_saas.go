@@ -38,6 +38,11 @@ func (s *Server) handleRegisterOrg(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorJSON(w, r, httpx.NewError(400, "missing_fields", "org_name, owner_name, email and outlet_name are required"))
 		return
 	}
+	phone, ok := normalizePhone(req.Phone)
+	if !ok {
+		httpx.ErrorJSON(w, r, httpx.NewError(400, "invalid_phone", "Enter a valid mobile number or leave it blank"))
+		return
+	}
 	if len(req.Password) < 8 {
 		httpx.ErrorJSON(w, r, httpx.NewError(400, "weak_password", "Password must be at least 8 characters"))
 		return
@@ -60,7 +65,7 @@ func (s *Server) handleRegisterOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res, err := s.Store.RegisterOrg(r.Context(), req.OrgName, req.Email, req.GSTIN,
+	res, err := s.Store.RegisterOrg(r.Context(), req.OrgName, req.Email, req.GSTIN, phone,
 		req.OwnerName, pwHash, req.OutletName, req.Terminal, pinHash, req.PlanCode)
 	if err != nil {
 		if errors.Is(err, store.ErrUnknownPlan) {
@@ -445,6 +450,31 @@ func (s *Server) handleSaaSCancelSubscription(w http.ResponseWriter, r *http.Req
 }
 
 // ---- helpers ----
+
+// normalizePhone accepts an optional contact number: blank is fine;
+// otherwise 7-15 digits, optionally led by '+', with spaces or dashes
+// between groups. Returns the number with separators removed.
+func normalizePhone(raw string) (string, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", true
+	}
+	var b strings.Builder
+	for i, c := range raw {
+		switch {
+		case c >= '0' && c <= '9':
+			b.WriteRune(c)
+		case c == '+' && i == 0:
+			b.WriteRune(c)
+		case c == ' ' || c == '-':
+		default:
+			return "", false
+		}
+	}
+	out := b.String()
+	digits := len(strings.TrimPrefix(out, "+"))
+	return out, digits >= 7 && digits <= 15
+}
 
 func randomPIN() (string, error) {
 	const digits = "0123456789"

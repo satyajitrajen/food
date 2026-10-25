@@ -214,7 +214,7 @@ func (s *Store) DeleteOrganization(ctx context.Context, orgID string) error {
 			args []any
 		}{
 			{`UPDATE organizations SET status = 'closed', name = 'Deleted organization',
-				email = 'deleted+' || id || '@invalid', gstin = '', updated_at = ? WHERE id = ?`, []any{now, orgID}},
+				email = 'deleted+' || id || '@invalid', gstin = '', phone = '', updated_at = ? WHERE id = ?`, []any{now, orgID}},
 			{`UPDATE accounts SET is_active = 0, name = 'Deleted', password_hash = '',
 				email = 'deleted+' || id || '@invalid' WHERE org_id = ?`, []any{orgID}},
 			{`UPDATE auth_refresh SET revoked_at = ? WHERE revoked_at IS NULL AND (org_id = ?

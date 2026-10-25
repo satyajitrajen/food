@@ -10,9 +10,11 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"foodpos/backend/internal/config"
 	"foodpos/backend/internal/models"
@@ -216,5 +218,31 @@ func TestRazorpayFailureAndRefundAreAudited(t *testing.T) {
 	}
 	if after.Status != before.Status {
 		t.Fatalf("webhook must not change subscription status: %s → %s", before.Status, after.Status)
+	}
+}
+
+func TestRegisterOptionalPhone(t *testing.T) {
+	e := newEnv(t)
+	suffix := fmt.Sprint(time.Now().UnixNano())
+
+	body := registerBody("phone-" + suffix + "@test")
+	body["phone"] = "+91 80554-95055"
+	code, resp := e.do(t, "POST", "/api/v1/auth/register", body, false)
+	if code != 201 {
+		t.Fatalf("register with phone: %d %v", code, resp)
+	}
+	org, _ := resp["org"].(map[string]any)
+	if org["phone"] != "+918055495055" {
+		t.Fatalf("phone not normalized/stored: %v", org)
+	}
+
+	if code, resp := e.do(t, "POST", "/api/v1/auth/register", registerBody("nophone-"+suffix+"@test"), false); code != 201 {
+		t.Fatalf("register without phone: %d %v", code, resp)
+	}
+
+	bad := registerBody("badphone-" + suffix + "@test")
+	bad["phone"] = "call me"
+	if code, resp := e.do(t, "POST", "/api/v1/auth/register", bad, false); code != 400 || resp["error"].(map[string]any)["code"] != "invalid_phone" {
+		t.Fatalf("invalid phone: %d %v", code, resp)
 	}
 }

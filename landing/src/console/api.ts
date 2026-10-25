@@ -141,6 +141,7 @@ export interface RegisterPayload {
   owner_name: string;
   email: string;
   password: string;
+  phone?: string;
   gstin?: string;
   outlet_name: string;
   terminal?: string;
