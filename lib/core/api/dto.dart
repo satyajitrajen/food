@@ -440,7 +440,16 @@ KitchenOrderTicket kotFromApi(Map<String, dynamic> j) => KitchenOrderTicket(
               selectedVariant: variantName != null && variantName.isNotEmpty
                   ? ProductVariant(id: 'kot-variant', name: variantName, price: 0)
                   : null,
+              selectedModifiers: (i['modifiers'] as List? ?? const [])
+                  .map((m) => ModifierItem(
+                        id: 'kot-mod-$m',
+                        name: m.toString(),
+                        price: 0,
+                        isSelected: true,
+                      ))
+                  .toList(),
               quantity: _int(i['quantity']),
+              itemNote: _optStr(i['note']),
               isKOTSent: true,
             );
           })

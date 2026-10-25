@@ -663,3 +663,22 @@ func TestEntitlementHonoursTrialEnd(t *testing.T) {
 		t.Fatalf("expired trial write = %d %v, want 402", code, body)
 	}
 }
+
+func TestKOTLineCarriesNote(t *testing.T) {
+	f := newFixture(t)
+	c := f.cashier(t)
+	o := f.must(t, 201, c, "POST", "/api/v1/orders", map[string]any{"type": "takeaway"})
+	id := o["id"].(string)
+	f.must(t, 201, c, "POST", "/api/v1/orders/"+id+"/items",
+		map[string]any{"menu_item_id": f.item, "quantity": 1, "note": "extra spicy"})
+	f.must(t, 201, c, "POST", "/api/v1/orders/"+id+"/kot", map[string]any{})
+	list := f.must(t, 200, c, "GET", "/api/v1/kots", nil)
+	kots := list["kots"].([]any)
+	line := kots[0].(map[string]any)["items"].([]any)[0].(map[string]any)
+	if line["note"] != "extra spicy" {
+		t.Fatalf("KDS ticket line lost the note: %v", line)
+	}
+	if mods, ok := line["modifiers"].([]any); !ok || len(mods) != 0 {
+		t.Fatalf("modifiers should be an empty list, got %v", line["modifiers"])
+	}
+}

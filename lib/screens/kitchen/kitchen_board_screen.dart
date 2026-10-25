@@ -266,7 +266,7 @@ class _KitchenBoardScreenState extends State<KitchenBoardScreen>
                                         fontSize: 11,
                                       ),
                                     ),
-                                  if (item.itemNote != null)
+                                  if (item.itemNote?.trim().isNotEmpty ?? false)
                                     Text(
                                       'Special: "${item.itemNote}"',
                                       style: const TextStyle(

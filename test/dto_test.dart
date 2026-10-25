@@ -149,6 +149,30 @@ void main() {
       expect(kot.waiterName, 'Rahul');
     });
 
+    test('kotFromApi carries line note and add-ons to the KDS', () {
+      final kot = kotFromApi({
+        'id': 'kot-1',
+        'outlet_id': 'out-01',
+        'kot_number': 'KOT #1',
+        'order_id': 'ord-1',
+        'order_type': 'dine_in',
+        'items': [
+          {
+            'order_item_id': 'oi-1',
+            'name': 'Paneer Tikka',
+            'quantity': 1,
+            'note': 'extra spicy',
+            'modifiers': ['Extra cheese'],
+          },
+          {'order_item_id': 'oi-2', 'name': 'Plain Dosa', 'quantity': 1},
+        ],
+      });
+      expect(kot.items[0].itemNote, 'extra spicy');
+      expect(kot.items[0].selectedModifiers.map((m) => m.name), ['Extra cheese']);
+      expect(kot.items[1].itemNote, isNull);
+      expect(kot.items[1].selectedModifiers, isEmpty);
+    });
+
     test('shiftFromApi keeps a missing staff_name null', () {
       final shift = shiftFromApi({
         'id': 'sh-1',

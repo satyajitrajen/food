@@ -343,6 +343,10 @@ type KOTItem struct {
 	// Portion (Half/Full) snapshotted from the order line at fire time so the
 	// kitchen can tell portions apart.
 	VariantName *string `json:"variant_name"`
+	// Special instruction and add-on names snapshotted at fire time, shown on
+	// the KDS the same way the printed KOT shows them.
+	Note      *string  `json:"note"`
+	Modifiers []string `json:"modifiers"`
 }
 
 // KOTStatusPatch is the body of PATCH /kots/{id}.
