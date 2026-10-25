@@ -36,6 +36,8 @@ func runTenantCommand(ctx context.Context, st *store.Store, cfg config.Config, c
 		setPassword(ctx, st, cfg, args)
 	case "set-pin":
 		setPIN(ctx, st, cfg, args)
+	case "add-outlet":
+		addOutlet(ctx, st, args)
 	default:
 		return false
 	}
@@ -203,4 +205,35 @@ func readSecret(prompt string) string {
 		fmt.Fprintln(os.Stderr)
 	}
 	return strings.TrimRight(line, "\r\n")
+}
+
+// addOutlet creates an outlet for an org (plan outlet limit enforced), e.g.
+// to repair a test org whose only outlet was moved away.
+func addOutlet(ctx context.Context, st *store.Store, args []string) {
+	fs := flag.NewFlagSet("add-outlet", flag.ExitOnError)
+	orgID := fs.String("org", "", "org id")
+	name := fs.String("name", "", "outlet name")
+	terminal := fs.String("terminal", "Counter 1", "counter name")
+	_ = fs.Parse(args)
+	required(fs, "org", "name")
+
+	sub, err := st.GetSubscriptionWithPlan(ctx, *orgID)
+	if err != nil {
+		fatal(err)
+	}
+	count, err := st.CountOutlets(ctx, *orgID)
+	if err != nil {
+		fatal(err)
+	}
+	if sub.Plan != nil && count >= sub.Plan.MaxOutlets {
+		fatal(fmt.Errorf("plan allows at most %d outlet(s)", sub.Plan.MaxOutlets))
+	}
+	out, err := st.CreateOutlet(ctx, *orgID, models.Outlet{
+		Name: strings.TrimSpace(*name), Terminal: strings.TrimSpace(*terminal),
+	})
+	if err != nil {
+		fatal(err)
+	}
+	_ = st.AddOrgEvent(ctx, *orgID, "admin-cli", "outlet.created", store.MetaJSON(map[string]any{"outlet_id": out.ID}))
+	fmt.Printf("outlet %s (%s) created for %s\n", out.Name, out.ID, *orgID)
 }
