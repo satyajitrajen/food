@@ -246,3 +246,19 @@ func TestRegisterOptionalPhone(t *testing.T) {
 		t.Fatalf("invalid phone: %d %v", code, resp)
 	}
 }
+
+// A new org has no invoices or events: the lists must still be [] so the
+// owner console (which reads .length) does not crash.
+func TestOrgDetailEmptyListsNotNull(t *testing.T) {
+	e := newEnv(t)
+	registerOwner(t, e, "emptylists-"+fmt.Sprint(time.Now().UnixNano())+"@test")
+	code, body := e.do(t, "GET", "/api/v1/saas/org", nil, true)
+	if code != 200 {
+		t.Fatalf("org: %d %v", code, body)
+	}
+	for _, k := range []string{"outlets", "staff", "invoices", "events"} {
+		if _, ok := body[k].([]any); !ok {
+			t.Fatalf("%s = %#v, want a JSON array", k, body[k])
+		}
+	}
+}

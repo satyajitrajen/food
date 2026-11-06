@@ -212,6 +212,24 @@ type OrgDetail struct {
 	Events       []OrgEvent       `json:"events"`
 }
 
+// WithEmptyLists turns nil lists into empty ones so they serialize as []
+// rather than null (the console reads .length on each).
+func (d OrgDetail) WithEmptyLists() OrgDetail {
+	if d.Outlets == nil {
+		d.Outlets = []Outlet{}
+	}
+	if d.Staff == nil {
+		d.Staff = []Staff{}
+	}
+	if d.Invoices == nil {
+		d.Invoices = []SaaSInvoice{}
+	}
+	if d.Events == nil {
+		d.Events = []OrgEvent{}
+	}
+	return d
+}
+
 // Superadmin subscription operations (manual billing).
 type ActivateReq struct {
 	Method      string `json:"method"`                 // bank | upi | razorpay

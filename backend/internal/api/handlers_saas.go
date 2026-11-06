@@ -320,7 +320,7 @@ func (s *Server) handleSaaSOrg(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, models.OrgDetail{
 		Org: *org, Subscription: sub, Outlets: outlets,
 		Staff: staff, Invoices: invoices, Events: events,
-	})
+	}.WithEmptyLists())
 }
 
 func (s *Server) handleSaaSCreateOutlet(w http.ResponseWriter, r *http.Request) {

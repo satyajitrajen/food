@@ -166,7 +166,7 @@ func (s *Server) handleAdminOrgDetail(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, models.OrgDetail{
 		Org: *org, Subscription: sub, Outlets: outlets,
 		Staff: staff, Invoices: invoices, Events: events,
-	})
+	}.WithEmptyLists())
 }
 
 func (s *Server) adminActor(r *http.Request) string {

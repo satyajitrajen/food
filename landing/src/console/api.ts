@@ -214,7 +214,11 @@ export async function startAutoRenew(): Promise<RazorpaySubscriptionStart> {
 // ---- owner APIs ----
 export const api = {
   me: () => request('/api/v1/saas/me', { token: sessionToken() }),
-  org: () => request('/api/v1/saas/org', { token: sessionToken() }),
+  // Lists default to [] so an empty org never renders null.length.
+  org: async () => {
+    const d: any = await request('/api/v1/saas/org', { token: sessionToken() });
+    return { ...d, outlets: d?.outlets ?? [], staff: d?.staff ?? [], invoices: d?.invoices ?? [], events: d?.events ?? [] };
+  },
   createOutlet: (body: Record<string, unknown>) =>
     request('/api/v1/saas/outlets', { method: 'POST', body, token: sessionToken() }),
   createStaff: (body: Record<string, unknown>) =>
