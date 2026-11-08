@@ -5,10 +5,13 @@ import 'dart:typed_data';
 class EscPosBuilder {
   final BytesBuilder _b = BytesBuilder();
 
+  /// Characters per line in the normal font: 32 on 58 mm paper, 48 on 80 mm.
+  final int columns;
+
   static const _esc = 0x1B;
   static const _gs = 0x1D;
 
-  EscPosBuilder() {
+  EscPosBuilder({this.columns = 32}) {
     _b.add([_esc, 0x40]); // initialize
   }
 
@@ -35,7 +38,7 @@ class EscPosBuilder {
   }
 
   EscPosBuilder divider([String char = '-']) {
-    return text(char * 32);
+    return text(char * columns);
   }
 
   EscPosBuilder feed(int lines) {

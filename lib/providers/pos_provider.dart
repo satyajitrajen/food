@@ -143,6 +143,7 @@ class PosProvider extends ChangeNotifier {
     unawaited(SharedPreferences.getInstance()
         .then((p) => p.remove('foodpos.pinvault'))
         .then((_) {}, onError: (_) {}));
+    unawaited(_loadDevicePrinters());
     // Restore the bound tenant + last entitlement before any network calls so
     // hydrations are org-scoped and offline grace survives restarts.
     if (_tenantStore != null) {
@@ -778,6 +779,17 @@ class PosProvider extends ChangeNotifier {
   bool get licenseActive => !apiEnabled || (_entitlement?.isActive ?? false);
   bool get canTakeOrders => licenseActive;
   int get licenseDaysLeft => _entitlement?.daysLeft ?? 0;
+
+  /// Trial or paid period has ended but the grace window still runs: orders
+  /// work, but staff must be warned that they stop on [graceEndsOn].
+  bool get inGracePeriod {
+    final e = _entitlement;
+    if (!apiEnabled || e == null || !e.isActive) return false;
+    final periodEnd = e.validUntil.subtract(Duration(days: e.graceDays));
+    return DateTime.now().isAfter(periodEnd);
+  }
+
+  DateTime? get graceEndsOn => inGracePeriod ? _entitlement!.validUntil : null;
   bool get licenseTokenVerified => _entitlement?.tokenVerified ?? false;
   bool get isTrial => _entitlement?.status == 'trial';
 
@@ -2300,6 +2312,9 @@ class PosProvider extends ChangeNotifier {
   }
 
   void startNewOrder(OrderType type, {String? customerName, String? customerPhone, String? address}) {
+    // Subscription ended (past the grace window): no new orders. Open bills
+    // can still be served, settled and reported.
+    if (!canTakeOrders) return;
     _orderCounter++;
     // Mirror the outlet settings defaults (same rules the server applies on
     // order create) so offline-created orders bill identically once synced.
@@ -2335,6 +2350,7 @@ class PosProvider extends ChangeNotifier {
     if (_activeOrder == null) {
       // No table picked: a counter sale. Dine-in always needs a table.
       startNewOrder(_newOrderType == OrderType.dineIn ? OrderType.takeaway : _newOrderType);
+      if (_activeOrder == null) return; // new orders blocked (subscription)
     }
     if (quantity <= 0) return;
 
@@ -3842,7 +3858,8 @@ class PosProvider extends ChangeNotifier {
   /// set when no printer is configured or printing fails.
   Future<bool> printZReport(Shift shift, {Map<String, dynamic>? server}) async {
     try {
-      await _effectivePrinter.send(buildZReportBytes(shift, _settings, server: server));
+      await _effectivePrinter.send(
+          buildZReportBytes(shift, _settings, server: server, columns: _billingColumns));
       _printerError = null;
       notifyListeners();
       return true;
@@ -3904,8 +3921,72 @@ class PosProvider extends ChangeNotifier {
 
   // ---- Printing (P5.1: ESC/POS hooks) ----
 
-  PrinterAdapter get _effectivePrinter =>
-      _printer ?? printerFromSetting(_settings.billingPrinter);
+  // Bluetooth, BLE, USB, built-in and system printers belong to this device,
+  // so they are kept in local storage and override the outlet's (shared,
+  // network) printer setting on this terminal only.
+  static const _kDeviceBillingPrinter = 'foodpos.printer.billing';
+  static const _kDeviceKitchenPrinter = 'foodpos.printer.kitchen';
+  String _deviceBillingPrinter = '';
+  String _deviceKitchenPrinter = '';
+
+  Future<void> _loadDevicePrinters() async {
+    try {
+      final p = await SharedPreferences.getInstance();
+      _deviceBillingPrinter = p.getString(_kDeviceBillingPrinter) ?? '';
+      _deviceKitchenPrinter = p.getString(_kDeviceKitchenPrinter) ?? '';
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  /// The billing printer this terminal uses (device override, else outlet).
+  PrinterConfig get billingPrinterConfig => PrinterConfig.parse(
+      _deviceBillingPrinter.isNotEmpty ? _deviceBillingPrinter : _settings.billingPrinter);
+
+  /// The kitchen printer this terminal uses; unset falls back to billing.
+  PrinterConfig get kitchenPrinterConfig {
+    final own = PrinterConfig.parse(_deviceKitchenPrinter.isNotEmpty
+        ? _deviceKitchenPrinter
+        : _settings.kitchenPrinter);
+    return own.isConfigured ? own : billingPrinterConfig;
+  }
+
+  /// True when [slot]'s printer is saved on this device only.
+  bool isDevicePrinter({required bool kitchen}) =>
+      (kitchen ? _deviceKitchenPrinter : _deviceBillingPrinter).isNotEmpty;
+
+  /// Saves the billing/kitchen printers. Device-bound kinds go to this
+  /// device's storage; network printers (and "not set") go to the outlet
+  /// settings shared by every terminal, clearing any device override.
+  Future<void> savePrinters({required PrinterConfig billing, required PrinterConfig kitchen}) async {
+    final p = await SharedPreferences.getInstance();
+    var outletBilling = _settings.billingPrinter;
+    var outletKitchen = _settings.kitchenPrinter;
+    if (billing.isDeviceLocal) {
+      _deviceBillingPrinter = billing.encode();
+      await p.setString(_kDeviceBillingPrinter, _deviceBillingPrinter);
+    } else {
+      _deviceBillingPrinter = '';
+      await p.remove(_kDeviceBillingPrinter);
+      outletBilling = billing.encode();
+    }
+    if (kitchen.isDeviceLocal) {
+      _deviceKitchenPrinter = kitchen.encode();
+      await p.setString(_kDeviceKitchenPrinter, _deviceKitchenPrinter);
+    } else {
+      _deviceKitchenPrinter = '';
+      await p.remove(_kDeviceKitchenPrinter);
+      outletKitchen = kitchen.encode();
+    }
+    if (outletBilling != _settings.billingPrinter || outletKitchen != _settings.kitchenPrinter) {
+      updateSettings(
+          _settings.copyWith(billingPrinter: outletBilling, kitchenPrinter: outletKitchen));
+    } else {
+      notifyListeners();
+    }
+  }
+
+  PrinterAdapter get _effectivePrinter => _printer ?? printerFromConfig(billingPrinterConfig);
+  int get _billingColumns => billingPrinterConfig.columns;
 
   /// The resolved printer for the current settings (None when unconfigured) —
   /// surfaced on the dashboard + printer status screen.
@@ -3917,7 +3998,7 @@ class PosProvider extends ChangeNotifier {
   /// Sends a small test page so staff can verify the printer connection.
   Future<bool> printTestPage() async {
     try {
-      await _effectivePrinter.send(buildTestPageBytes());
+      await _effectivePrinter.send(buildTestPageBytes(columns: _billingColumns));
       _printerError = null;
       notifyListeners();
       return true;
@@ -3932,7 +4013,7 @@ class PosProvider extends ChangeNotifier {
   /// terminal without a printer is a valid setup); real failures surface.
   void _printReceipt(RestaurantOrder order) {
     if (!apiEnabled || _effectivePrinter is NullPrinter) return;
-    _sendPrint(buildReceiptBytes(order, _settings), _effectivePrinter);
+    _sendPrint(buildReceiptBytes(order, _settings, columns: _billingColumns), _effectivePrinter);
   }
 
   /// Reprints a (completed) bill on the configured printer. Returns false with
@@ -3944,7 +4025,7 @@ class PosProvider extends ChangeNotifier {
       return false;
     }
     try {
-      await _effectivePrinter.send(buildReceiptBytes(order, _settings));
+      await _effectivePrinter.send(buildReceiptBytes(order, _settings, columns: _billingColumns));
       _printerError = null;
       notifyListeners();
       return true;
@@ -3955,10 +4036,7 @@ class PosProvider extends ChangeNotifier {
     }
   }
 
-  PrinterAdapter get _kitchenPrinter => printerFromSetting(
-      _settings.kitchenPrinter.trim().isNotEmpty
-          ? _settings.kitchenPrinter
-          : _settings.billingPrinter);
+  PrinterAdapter get _kitchenPrinter => printerFromConfig(kitchenPrinterConfig);
 
   /// Why the most recent KOT did not print (null when it printed or is still
   /// sending). Unlike bills, auto-print KOT is on by default, so a missing
@@ -3977,7 +4055,7 @@ class PosProvider extends ChangeNotifier {
   Future<bool> reprintKot(KitchenOrderTicket kot) async {
     final printer = _kitchenPrinter;
     try {
-      await printer.send(buildKotBytes(kot, _settings));
+      await printer.send(buildKotBytes(kot, _settings, columns: kitchenPrinterConfig.columns));
       _kotPrintError = null;
       notifyListeners();
       return true;

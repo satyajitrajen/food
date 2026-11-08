@@ -4,9 +4,11 @@ import '../../models/settings_model.dart';
 import '../../models/shift_model.dart';
 import 'esc_pos_builder.dart';
 
-/// Renders a customer receipt as ESC/POS bytes (80mm / 32 columns).
-List<int> buildReceiptBytes(RestaurantOrder order, RestaurantSettings settings) {
-  final b = EscPosBuilder();
+/// Renders a customer receipt as ESC/POS bytes; [columns] is 32 for 58 mm
+/// paper and 48 for 80 mm.
+List<int> buildReceiptBytes(RestaurantOrder order, RestaurantSettings settings,
+    {int columns = 32}) {
+  final b = EscPosBuilder(columns: columns);
   final center = b.align(1);
   center
     ..doubleSize(true)
@@ -86,8 +88,9 @@ List<int> buildReceiptBytes(RestaurantOrder order, RestaurantSettings settings) 
 }
 
 /// Renders a kitchen order ticket as ESC/POS bytes.
-List<int> buildKotBytes(KitchenOrderTicket kot, RestaurantSettings settings) {
-  final b = EscPosBuilder();
+List<int> buildKotBytes(KitchenOrderTicket kot, RestaurantSettings settings,
+    {int columns = 32}) {
+  final b = EscPosBuilder(columns: columns);
   b
     ..align(1)
     ..doubleSize(true)
@@ -126,8 +129,8 @@ String _typeLabel(dynamic type) {
 }
 
 /// Small connectivity test page (printer status screen).
-List<int> buildTestPageBytes() {
-  final b = EscPosBuilder();
+List<int> buildTestPageBytes({int columns = 32}) {
+  final b = EscPosBuilder(columns: columns);
   b
     ..align(1)
     ..doubleSize(true)
@@ -151,8 +154,9 @@ String _stamp(DateTime d) {
 
 /// Z-report (end of shift) as ESC/POS bytes. [server] is the server's
 /// Z-report when available; the terminal's own figures are printed otherwise.
-List<int> buildZReportBytes(Shift shift, RestaurantSettings settings, {Map<String, dynamic>? server}) {
-  final b = EscPosBuilder();
+List<int> buildZReportBytes(Shift shift, RestaurantSettings settings,
+    {Map<String, dynamic>? server, int columns = 32}) {
+  final b = EscPosBuilder(columns: columns);
   b
     ..align(1)
     ..bold(true)

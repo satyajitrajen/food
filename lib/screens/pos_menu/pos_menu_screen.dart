@@ -36,6 +36,14 @@ class _PosMenuScreenState extends State<PosMenuScreen> {
   void _handleItemTap(BuildContext context, MenuItem item, PosProvider provider,
       {bool customise = false}) {
     if (_adding) return;
+    if (provider.activeOrder == null && !provider.canTakeOrders) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Subscription ended — subscribe in Settings → Subscription to take new orders. '
+            'Open bills can still be served and closed.'),
+        duration: Duration(seconds: 4),
+      ));
+      return;
+    }
     if (!customise && !item.hasVariants && !item.hasModifiers) {
       provider.addToCart(item);
       return;

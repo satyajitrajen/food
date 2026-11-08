@@ -14,6 +14,7 @@ import '../../core/theme/app_theme.dart';
 import '../../models/settings_model.dart';
 import '../../providers/pos_provider.dart';
 import '../../widgets/dialog_controller_scope.dart';
+import 'printer_settings_dialog.dart';
 import 'subscription_card.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -107,8 +108,8 @@ class SettingsScreen extends StatelessWidget {
 
             // Printer Configuration
             _buildSettingsSection(
-              title: 'Thermal Printers',
-              subtitle: 'Network (LAN/Wi-Fi) ESC/POS printers as IP:port',
+              title: 'Printers',
+              subtitle: 'Wi-Fi/LAN, Bluetooth, USB, built-in or any printer via system print',
               icon: Icons.print_outlined,
               trailing: provider.canManage
                   ? IconButton(
@@ -118,10 +119,8 @@ class SettingsScreen extends StatelessWidget {
                     )
                   : null,
               children: [
-                _buildSettingItem('Billing printer',
-                    settings.billingPrinter.isEmpty ? 'Not set' : settings.billingPrinter),
-                _buildSettingItem('Kitchen (KOT) printer',
-                    settings.kitchenPrinter.isEmpty ? 'Uses billing printer' : settings.kitchenPrinter),
+                _buildSettingItem('Billing printer', _printerLabel(provider, kitchen: false)),
+                _buildSettingItem('Kitchen (KOT) printer', _printerLabel(provider, kitchen: true)),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   title: const Text('Auto-print KOT on order placement', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
@@ -456,77 +455,20 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
-  void _showEditPrintersDialog(BuildContext context, PosProvider provider, RestaurantSettings settings) {
-    final billingC = TextEditingController(text: settings.billingPrinter);
-    final kitchenC = TextEditingController(text: settings.kitchenPrinter);
-    String? billingErr;
-    String? kitchenErr;
-    String? validate(String v) {
-      if (v.trim().isEmpty) return null;
-      return RegExp(r'^[A-Za-z0-9.\-]+:\d{2,5}$').hasMatch(v.trim()) ? null : 'Use IP:port, e.g. 192.168.1.50:9100';
+  String _printerLabel(PosProvider provider, {required bool kitchen}) {
+    if (kitchen &&
+        !provider.isDevicePrinter(kitchen: true) &&
+        provider.settings.kitchenPrinter.trim().isEmpty) {
+      return 'Uses billing printer';
     }
+    final c = kitchen ? provider.kitchenPrinterConfig : provider.billingPrinterConfig;
+    if (!c.isConfigured) return 'Not set';
+    final where = provider.isDevicePrinter(kitchen: kitchen) ? ' · this device' : '';
+    return '${c.label} · ${c.paperMm} mm$where';
+  }
 
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setLocal) => AlertDialog(
-          title: const Text('Printers'),
-          content: SizedBox(
-            width: 480,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: billingC,
-                  decoration: InputDecoration(
-                    labelText: 'Billing printer (IP:port)',
-                    hintText: '192.168.1.50:9100',
-                    errorText: billingErr,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: kitchenC,
-                  decoration: InputDecoration(
-                    labelText: 'Kitchen KOT printer (optional)',
-                    hintText: 'Leave empty to use the billing printer',
-                    errorText: kitchenErr,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                const Text('Most thermal printers listen on port 9100. Find the IP on the printer\'s self-test slip.',
-                    style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
-            FilledButton(
-              onPressed: () async {
-                setLocal(() {
-                  billingErr = validate(billingC.text);
-                  kitchenErr = validate(kitchenC.text);
-                });
-                if (billingErr != null || kitchenErr != null) return;
-                provider.updateSettings(settings.copyWith(
-                  billingPrinter: billingC.text.trim(),
-                  kitchenPrinter: kitchenC.text.trim(),
-                ));
-                Navigator.of(ctx).pop();
-                if (billingC.text.trim().isEmpty) return;
-                final messenger = ScaffoldMessenger.of(context);
-                final ok = await provider.printTestPage();
-                messenger.showSnackBar(SnackBar(
-                  content: Text(ok ? 'Saved. Test page printed.' : 'Saved, but test print failed: ${provider.printerError ?? ''}'),
-                  backgroundColor: ok ? AppColors.success : AppColors.danger,
-                ));
-              },
-              child: const Text('Save & test print'),
-            ),
-          ],
-        ),
-      ),
-    );
+  void _showEditPrintersDialog(BuildContext context, PosProvider provider, RestaurantSettings settings) {
+    showPrinterSettingsDialog(context, provider);
   }
 
   Widget _buildUpiCard(BuildContext context, PosProvider provider) {

@@ -51,7 +51,7 @@ class PrinterErrorDialog extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'Unable to communicate with $printerName. Check cables, paper roll, or network connection.',
+                'Unable to communicate with $printerName. Check cables, paper roll, network connection, or Bluetooth pairing.',
                 textAlign: TextAlign.center,
                 style: const TextStyle(color: AppColors.textMuted, fontSize: 13),
               ),

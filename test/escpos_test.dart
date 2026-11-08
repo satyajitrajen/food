@@ -122,6 +122,25 @@ void main() {
     expect(none, isA<NullPrinter>());
   });
 
+  test('printerFromSetting routes bt: addresses to the Bluetooth transport', () {
+    final p = printerFromSetting('bt:AA:BB:CC:DD:EE:FF');
+    expect(p, isA<BluetoothPrinter>());
+    expect(p.name, 'Bluetooth AA:BB:CC:DD:EE:FF');
+    expect(printerFromSetting('BT:AA:BB:CC:DD:EE:FF'), isA<BluetoothPrinter>());
+  });
+
+  test('BluetoothPrinter.send refuses non-Android platforms before touching hardware', () {
+    expect(
+      () => BluetoothPrinter('AA:BB:CC:DD:EE:FF').send([0x1B]),
+      throwsA(isA<BluetoothUnsupportedPlatform>()),
+    );
+  });
+
+  test('printerFromSetting treats a bare bt: prefix as unconfigured', () {
+    expect(printerFromSetting('bt:'), isA<NullPrinter>());
+    expect(printerFromSetting('bt:   '), isA<NullPrinter>());
+  });
+
   group('friendlyPrintError', () {
     test('network failures map to actionable copy with the printer name', () {
       expect(
@@ -138,6 +157,29 @@ void main() {
     test('other errors pass through untouched', () {
       expect(friendlyPrintError('Epson Counter', 'ESC/POS encode failed'),
           'ESC/POS encode failed');
+    });
+
+    test('bluetooth failures get pairing advice', () {
+      expect(
+        friendlyPrintError('Bluetooth AA:BB:CC:DD:EE:FF',
+            'Bluetooth device not paired'),
+        contains('paired in the device\'s Bluetooth settings'),
+      );
+      expect(
+        friendlyPrintError('Bluetooth AA:BB:CC:DD:EE:FF',
+            const BluetoothUnsupportedPlatform()),
+        contains('only available on Android'),
+      );
+      expect(
+        friendlyPrintError('Bluetooth AA:BB:CC:DD:EE:FF',
+            'IOException: device not found'),
+        contains('powered on and paired'),
+      );
+      expect(
+        friendlyPrintError('Bluetooth AA:BB:CC:DD:EE:FF',
+            'IOException: read failed, socket might closed or timeout, read ret: -1'),
+        contains('powered on and paired'),
+      );
     });
   });
 }

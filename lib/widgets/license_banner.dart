@@ -38,6 +38,24 @@ class LicenseBanner extends StatelessWidget {
           verified: provider.licenseTokenVerified);
     }
 
+    // Grace window after the trial/period ended: still working, but say so
+    // loudly — otherwise the shop only finds out when orders stop.
+    final graceEnd = provider.graceEndsOn;
+    if (graceEnd != null &&
+        provider.orgCode != null &&
+        !provider.needsOrgSetup &&
+        provider.currentStaff != null) {
+      final left = graceEnd.difference(DateTime.now()).inHours;
+      final days = (left / 24).ceil().clamp(1, 99);
+      final ended = provider.entitlement!.status == 'trial' ? 'Free trial ended' : 'Subscription ended';
+      return _banner(
+          child,
+          '$ended — new orders stop in $days day${days == 1 ? '' : 's'}. '
+          '${anyBillingAllowed ? 'Subscribe in Settings → Subscription.' : 'Contact your account owner.'}',
+          warn: true,
+          verified: false);
+    }
+
     // Soft nudge during the 7-day free trial: only when ≤3 days remain and
     // auto-pay is not armed, so owners are not surprised on day 8.
     final card = provider.subscriptionStatus;

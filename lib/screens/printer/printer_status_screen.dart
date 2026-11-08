@@ -7,8 +7,8 @@ import '../../providers/pos_provider.dart';
 
 /// Printer status: shows the configured printer name/connection on the home
 /// of the manager area, a reachability test and a sample receipt print.
-/// Network (Wi-Fi/Ethernet, host:port on 9100) printers are supported today;
-/// Bluetooth pairing lands with the BT transport.
+/// Network (host:port on 9100) and Bluetooth (bt:MAC, Android) printers are
+/// both supported.
 class PrinterStatusScreen extends StatelessWidget {
   const PrinterStatusScreen({super.key});
 
@@ -67,8 +67,8 @@ class PrinterStatusScreen extends StatelessWidget {
                         ),
                         Text(
                           isNull
-                              ? 'Set a printer in Settings → Billing printer (host:port)'
-                              : 'Network printer · status shown on the dashboard',
+                              ? 'Set a printer in Settings → Printers'
+                              : 'Configured in Settings → Printers · status shown on the dashboard',
                           style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
                         ),
                       ],
@@ -102,14 +102,18 @@ class PrinterStatusScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             const Text(
-              'Bluetooth printers',
+              'Printer types',
               style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
             ),
             const SizedBox(height: 6),
             const Text(
-              'Bluetooth thermal printers pair like classic SPP devices and are on the roadmap. '
-              'Until then, connect the printer to the same Wi-Fi and use its IP (port 9100) in Settings — '
-              'the printer name will then show here and on the dashboard.',
+              '• Wi-Fi / LAN: connect the printer to the same network and enter its IP (port 9100). Shared by every terminal in the outlet.\n'
+              '• Bluetooth (Android): pair the printer in the phone\'s Bluetooth settings, then choose it.\n'
+              '• Bluetooth LE (Android and iPhone): switch the printer on and tap Scan.\n'
+              '• USB (Android tablets): plug the printer in (OTG adapter) and choose it.\n'
+              '• Built-in: Sunmi POS terminals with a printer inside.\n'
+              '• System print: any printer the device can already use (AirPrint, Android print service, A4 office printers).\n'
+              'Choose 58 mm or 80 mm to match your paper roll.',
               style: TextStyle(color: AppColors.textMuted, fontSize: 13, height: 1.4),
             ),
           ],

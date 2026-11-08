@@ -28,6 +28,8 @@
 	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Hishobkr uses Bluetooth to find and print bills and kitchen tickets on your Bluetooth receipt printer.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Hishobkr needs camera access so you can take photos for menu items and your profile.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
