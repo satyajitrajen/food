@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'core/notifications/push_notification_service.dart';
+import 'core/analytics/app_analytics.dart';
 import 'core/theme/app_theme.dart';
 import 'firebase_options.dart';
 import 'providers/pos_provider.dart';
@@ -21,6 +22,12 @@ void main() async {
   } catch (e) {
     debugPrint('Firebase init note: $e');
   }
+  // First-party usage/crash analytics for the Nexory admin panel. The key is
+  // a per-app ingestion key (not a secret); override with --dart-define.
+  await AppAnalytics.instance.init(
+    appKey: const String.fromEnvironment('NX_APP_KEY', defaultValue: 'nxapp_8d331c432d178c25b46535bca14414fd0321c6d3f7bc1df0'),
+    appVersion: '1.0.5+6',
+  );
   // Draw edge-to-edge on all Android versions (Android 15+ enforces it for
   // targetSdk 35): transparent system bars + no contrast scrim, so layout
   // insets are deterministic and every screen must honor them explicitly
@@ -55,6 +62,7 @@ class RestoPosApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
         navigatorKey: appNavigatorKey,
+        navigatorObservers: [AppAnalytics.instance.observer],
         scaffoldMessengerKey: appMessengerKey,
         // Draws the license banner + in-app "Order ready" alert above routes,
         // and the "No connection" screen above everything.
