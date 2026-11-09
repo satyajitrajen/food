@@ -26,7 +26,7 @@ void main() async {
   // a per-app ingestion key (not a secret); override with --dart-define.
   await AppAnalytics.instance.init(
     appKey: const String.fromEnvironment('NX_APP_KEY', defaultValue: 'nxapp_8d331c432d178c25b46535bca14414fd0321c6d3f7bc1df0'),
-    appVersion: '1.0.5+6',
+    appVersion: '1.0.7+8',
   );
   // Draw edge-to-edge on all Android versions (Android 15+ enforces it for
   // targetSdk 35): transparent system bars + no contrast scrim, so layout
