@@ -22,6 +22,10 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 }
 
 /// Service managing Firebase Cloud Messaging (push notifications) for Hishobkr.
+// Public Web Push key from Firebase console > Cloud Messaging > Web Push certificates.
+const _webVapidKey =
+    'BJKh8r6NfJFsSKI3vfFUFm83B2rMlF_zER0kXJB-pgKBU4zk3t-QMe0iqEu4vzQGXkHyi_bNEIhxKxv9Fy_Icpw';
+
 class PushNotificationService {
   PushNotificationService._();
   static final PushNotificationService instance = PushNotificationService._();
@@ -81,7 +85,8 @@ class PushNotificationService {
       );
 
       // Retrieve device registration token
-      _fcmToken = await _messaging!.getToken();
+      // Web needs the project's Web Push (VAPID) public key; mobile ignores it.
+      _fcmToken = await _messaging!.getToken(vapidKey: kIsWeb ? _webVapidKey : null);
 
       // A refreshed token must be re-registered with the server, or this
       // device silently stops receiving its outlet's alerts. Tokens are

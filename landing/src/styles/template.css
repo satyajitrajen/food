@@ -848,3 +848,8 @@ section[id], .section-header { scroll-margin-top: 84px; }
     max-width: 440px;
   }
 }
+
+/* Login link styled like the nav buttons */
+.t-mobile-actions a.t-btn { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
+a.t-nav-demo { text-decoration: none; align-items: center; }
+@media (min-width: 901px) { a.t-nav-demo { display: inline-flex; } }

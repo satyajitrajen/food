@@ -95,6 +95,9 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenDemo }) => {
         </ul>
 
         <div className="t-nav-actions">
+          <a href="/login/" className="t-nav-demo">
+            Login
+          </a>
           <button type="button" onClick={onOpenDemo} className="t-nav-demo">
             Book a demo
           </button>
@@ -135,6 +138,9 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenDemo }) => {
           <button type="button" onClick={openDemo} className="t-btn t-btn-outline">
             Book a demo
           </button>
+          <a href="/login/" className="t-btn t-btn-outline">
+            Login
+          </a>
         </div>
       </div>
     </header>
