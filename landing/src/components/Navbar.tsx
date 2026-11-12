@@ -9,10 +9,11 @@ interface NavbarProps {
 
 const NAV_LINKS = [
   { label: 'Features', targetId: 'features' },
-  { label: 'Why Hishobkr', targetId: 'benefits' },
+  { label: 'How it Works', targetId: 'how-it-works' },
   { label: 'Hardware', targetId: 'hardware' },
   { label: 'Pricing', targetId: 'pricing' },
   { label: 'FAQ', targetId: 'faq' },
+  { label: 'Contact', targetId: 'contact' },
 ];
 
 export const Navbar: React.FC<NavbarProps> = ({ onOpenDemo }) => {

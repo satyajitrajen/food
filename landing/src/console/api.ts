@@ -148,11 +148,10 @@ export interface RegisterPayload {
   plan_code?: string;
 }
 
-// Sales WhatsApp line, set per deployment with VITE_FOODPOS_WHATSAPP
-// (digits incl. country code). When unset, WhatsApp links are hidden and the
-// UI falls back to e-mail — never ship a placeholder number.
+// Sales WhatsApp line (digits incl. country code): the Nexory Technologies
+// number, overridable per deployment with VITE_FOODPOS_WHATSAPP.
 export const WHATSAPP_NUMBER: string =
-  ((import.meta as any).env && (import.meta as any).env.VITE_FOODPOS_WHATSAPP) || '';
+  ((import.meta as any).env && (import.meta as any).env.VITE_FOODPOS_WHATSAPP) || '918055495055';
 
 export const SUPPORT_EMAIL = 'hishobkr@nexorytechnologies.com';
 
