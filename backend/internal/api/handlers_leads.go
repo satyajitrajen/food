@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"foodpos/backend/internal/httpx"
+	"foodpos/backend/internal/leadfwd"
 	"foodpos/backend/internal/models"
 	"foodpos/backend/internal/store"
 )
@@ -56,6 +57,21 @@ func (s *Server) handleCreateLead(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorJSON(w, r, err)
 		return
 	}
+	kind := "demo"
+	if source == "landing-contact" {
+		kind = "contact"
+	}
+	detail := "Source: " + source
+	if lead.OutletFormat != "" {
+		detail += "\nOutlet type: " + lead.OutletFormat
+	}
+	if lead.PlanInterest != "" {
+		detail += "\nPlan interest: " + lead.PlanInterest
+	}
+	leadfwd.Forward(leadfwd.Lead{
+		Kind: kind, Ref: lead.ID, Name: lead.ContactName, Company: lead.RestaurantName,
+		Phone: lead.Phone, City: lead.City, Detail: detail, CreatedAt: lead.CreatedAt,
+	})
 	slog.Info("lead captured", "id", lead.ID, "restaurant", lead.RestaurantName, "phone", lead.Phone, "plan", lead.PlanInterest)
 	httpx.JSON(w, http.StatusCreated, map[string]any{"id": lead.ID})
 }

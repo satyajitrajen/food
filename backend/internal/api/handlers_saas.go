@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"foodpos/backend/internal/leadfwd"
 	"math/big"
 	"net/http"
 	"strings"
@@ -107,6 +108,11 @@ func (s *Server) handleRegisterOrg(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	leadfwd.Forward(leadfwd.Lead{
+		Kind: "signup", Ref: res.Org.ID, Name: req.OwnerName, Company: req.OrgName,
+		Email: req.Email, Phone: phone,
+		Detail: "Free trial sign-up\nOutlet: " + req.OutletName + "\nPlan: " + req.PlanCode,
+	})
 	httpx.JSON(w, http.StatusCreated, models.RegisterOrgResp{
 		Token: token, RefreshToken: refresh, TokenType: "Bearer",
 		ExpiresAt:    time.Now().Add(auth.AccessTTL),
