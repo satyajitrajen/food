@@ -765,3 +765,43 @@ func TestReduceFiredQtyUntilPaid(t *testing.T) {
 		t.Fatalf("edit after payment: %d %v", code, body)
 	}
 }
+
+// Lowering or voiding a fired line must reach the kitchen ticket, or the
+// kitchen keeps cooking portions that are no longer billed. A ticket left
+// with nothing on it is cancelled.
+func TestKOTFollowsLoweredAndVoidedLines(t *testing.T) {
+	f := newFixture(t)
+	c := f.cashier(t)
+	f.openShift(t, c)
+	id := f.orderWithItem(t, c, 3)
+	kot := f.must(t, 201, c, "POST", "/api/v1/orders/"+id+"/kot", map[string]any{})
+	kotID := kot["id"].(string)
+	o := f.must(t, 200, c, "GET", "/api/v1/orders/"+id, nil)
+	line := o["items"].([]any)[0].(map[string]any)["id"].(string)
+
+	ticket := func() map[string]any {
+		list := f.must(t, 200, c, "GET", "/api/v1/kots", nil)
+		for _, k := range list["kots"].([]any) {
+			if m := k.(map[string]any); m["id"] == kotID {
+				return m
+			}
+		}
+		return nil
+	}
+
+	f.must(t, 200, c, "PATCH", "/api/v1/orders/"+id+"/items/"+line,
+		map[string]any{"quantity": 1, "manager_pin": "9999"})
+	k := ticket()
+	if k == nil {
+		t.Fatal("ticket gone after lowering quantity")
+	}
+	if q := num(k["items"].([]any)[0].(map[string]any)["quantity"]); q != 1 {
+		t.Fatalf("ticket quantity after lowering = %v, want 1", q)
+	}
+
+	f.must(t, 200, c, "POST", "/api/v1/orders/"+id+"/items/"+line+"/cancel",
+		map[string]any{"reason": "customer changed mind", "manager_pin": "9999"})
+	if k := ticket(); k != nil && k["status"] != "cancelled" {
+		t.Fatalf("ticket with every line voided: status %v, items %v", k["status"], k["items"])
+	}
+}

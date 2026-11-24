@@ -606,6 +606,7 @@ func (s *Server) handleCancelOrderItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.afterOrderWrite(r, o)
+	s.publishOrderKOTs(r, o)
 	httpx.JSON(w, http.StatusOK, o)
 }
 
@@ -640,6 +641,7 @@ func (s *Server) handlePatchOrderItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.afterOrderWrite(r, o)
+	s.publishOrderKOTs(r, o)
 	if newItemID != "" {
 		// Qty increase on a fired line added an unsent delta line.
 		httpx.JSON(w, http.StatusOK, addItemResponse{Order: o, ItemID: newItemID})

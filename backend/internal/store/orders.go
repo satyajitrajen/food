@@ -535,7 +535,44 @@ func CancelOrderItemTx(ctx context.Context, tx *sql.Tx, orderID, itemID, reason 
 	if n, _ := res.RowsAffected(); n == 0 {
 		return httpx.ErrNotFound
 	}
-	return nil
+	return syncKOTItemTx(ctx, tx, itemID, 0)
+}
+
+// syncKOTItemTx keeps the kitchen ticket in step with a fired line that was
+// lowered (quantity > 0) or voided (quantity 0), so the kitchen never cooks
+// portions that are no longer billed. A ticket left with no lines is
+// cancelled unless it was already served. No-op for lines not yet fired.
+func syncKOTItemTx(ctx context.Context, tx *sql.Tx, itemID string, quantity int) error {
+	if quantity > 0 {
+		_, err := tx.ExecContext(ctx, `UPDATE kot_items SET quantity = ? WHERE order_item_id = ?`, quantity, itemID)
+		return err
+	}
+	var kotIDs []string
+	rows, err := tx.QueryContext(ctx, `SELECT kot_id FROM kot_items WHERE order_item_id = ?`, itemID)
+	if err != nil {
+		return err
+	}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return err
+		}
+		kotIDs = append(kotIDs, id)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	if len(kotIDs) == 0 {
+		return nil
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM kot_items WHERE order_item_id = ?`, itemID); err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, `UPDATE kots SET status = 'cancelled' WHERE id = ANY(?) AND status <> 'served'
+		AND NOT EXISTS (SELECT 1 FROM kot_items ki WHERE ki.kot_id = kots.id)`, pq.Array(kotIDs))
+	return err
 }
 
 // UpdateOrderItemQuantityTx sets a line quantity inside MutateOpenOrder.
@@ -578,7 +615,10 @@ func UpdateOrderItemQuantityTx(ctx context.Context, tx *sql.Tx, o *models.Order,
 	_, err = tx.ExecContext(ctx,
 		`UPDATE order_items SET quantity = ?, total_paise = unit_paise * ? WHERE id = ? AND order_id = ?`,
 		quantity, quantity, itemID, o.ID)
-	return "", err
+	if err != nil || !target.IsKOTSent || quantity >= target.Quantity {
+		return "", err
+	}
+	return "", syncKOTItemTx(ctx, tx, itemID, quantity)
 }
 
 func (s *Store) SetOrderStatus(ctx context.Context, id, status string) error {

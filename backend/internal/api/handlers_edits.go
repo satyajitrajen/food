@@ -158,13 +158,7 @@ func (s *Server) handleCancelOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.afterOrderWrite(r, updated)
-	if kots, err := s.Store.ListKOTs(r.Context(), updated.OutletID, ""); err == nil {
-		for _, k := range kots {
-			if k.OrderID == updated.ID {
-				s.publish(r, "kot.updated", updated.OutletID, k)
-			}
-		}
-	}
+	s.publishOrderKOTs(r, updated)
 	httpx.JSON(w, http.StatusOK, updated)
 }
 
@@ -211,5 +205,19 @@ func (s *Server) announce(resource string) func(http.Handler) http.Handler {
 				}
 			}
 		})
+	}
+}
+
+// publishOrderKOTs re-sends an order's kitchen tickets so kitchen screens
+// pick up voided / lowered lines and cancelled tickets.
+func (s *Server) publishOrderKOTs(r *http.Request, o *models.Order) {
+	kots, err := s.Store.ListKOTs(r.Context(), o.OutletID, "")
+	if err != nil {
+		return
+	}
+	for _, k := range kots {
+		if k.OrderID == o.ID {
+			s.publish(r, "kot.updated", o.OutletID, k)
+		}
 	}
 }
