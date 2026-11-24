@@ -383,6 +383,11 @@ class PosProvider extends ChangeNotifier {
     } else {
       _kots.insert(0, incoming);
     }
+    // A ticket served/cancelled elsewhere (another device, a replayed event)
+    // must not keep its "ready" banner.
+    if (incoming.status != KOTStatus.ready) {
+      _readyAlerts.removeWhere((k) => k.id == incoming.id);
+    }
     _maybeFireReadyAlert(previous: prevStatus, kot: incoming);
   }
 
@@ -1268,6 +1273,11 @@ class PosProvider extends ChangeNotifier {
     }
     notifyListeners();
   }
+
+  /// Test-only: feeds one realtime (SSE) event through the normal handler.
+  @visibleForTesting
+  void debugApplyRealtimeEvent(String type, Map<String, dynamic> payload) =>
+      _applyRealtimeEvent(type, payload);
 
   /// Test-only: loads a fixed catalog the way a hydrate would. Production
   /// state only ever comes from the server.
@@ -2594,13 +2604,19 @@ class PosProvider extends ChangeNotifier {
   /// Monotonic counter bumped on every new alert (sound trigger for UI).
   int get readyAlertTick => _readyAlertTick;
 
+  /// Tickets the waiter already dismissed this session: never re-alert them
+  /// (a reconnect or re-delivered event must not bring the banner back).
+  final Set<String> _dismissedReadyIds = {};
+
   void acknowledgeReadyKot(String kotId) {
+    _dismissedReadyIds.add(kotId);
     _readyAlerts.removeWhere((k) => k.id == kotId);
     notifyListeners();
   }
 
   void dismissAllReadyAlerts() {
     if (_readyAlerts.isEmpty) return;
+    _dismissedReadyIds.addAll(_readyAlerts.map((k) => k.id));
     _readyAlerts.clear();
     notifyListeners();
   }
@@ -2624,6 +2640,7 @@ class PosProvider extends ChangeNotifier {
     if (me == null || me.role == StaffRole.kitchen) return;
     if (kot.waiterName != me.name) return;
     if (_readyAlerts.any((k) => k.id == kot.id)) return;
+    if (_dismissedReadyIds.contains(kot.id)) return;
     _readyAlerts.add(kot);
     if (_readyAlerts.length > 20) {
       _readyAlerts.removeRange(0, _readyAlerts.length - 20);
