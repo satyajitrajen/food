@@ -257,6 +257,34 @@ func (s *Server) checkManagerPIN(ctx context.Context, pin string) (bool, *models
 	return true, st, nil
 }
 
+// errPINTaken is returned when a PIN is already used by another staff member
+// in the org. Manager approval matches on PIN alone, so a shared PIN would let
+// a cashier pass a manager check with their own PIN.
+var errPINTaken = httpx.NewError(http.StatusConflict, "pin_taken",
+	"This PIN is already used by another staff member. Choose a different PIN.")
+
+// ensurePINUnique rejects pin if any other staff member in orgID (other than
+// exceptID) already uses it. PINs are hashed, so each hash is checked.
+func (s *Server) ensurePINUnique(ctx context.Context, orgID, pin, exceptID string) error {
+	staffList, err := s.Store.ListStaff(ctx, orgID, "")
+	if err != nil {
+		return err
+	}
+	for _, st := range staffList {
+		if st.ID == exceptID {
+			continue
+		}
+		row, err := s.Store.GetStaff(ctx, st.ID)
+		if err != nil {
+			continue
+		}
+		if s.Auth.CheckPIN(row.PINHash, pin) {
+			return errPINTaken
+		}
+	}
+	return nil
+}
+
 func (s *Server) matchManagerPIN(ctx context.Context, orgID, pin string) (bool, *models.Staff, error) {
 	staffList, err := s.Store.ListStaff(ctx, orgID, "")
 	if err != nil {
@@ -399,6 +427,10 @@ func (s *Server) createStaff(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorJSON(w, r, err)
 		return
 	}
+	if err := s.ensurePINUnique(r.Context(), claims.OrgID, req.PIN, ""); err != nil {
+		httpx.ErrorJSON(w, r, err)
+		return
+	}
 	hash, err := s.Auth.HashPIN(req.PIN)
 	if err != nil {
 		httpx.ErrorJSON(w, r, err)
@@ -506,6 +538,10 @@ func (s *Server) handlePatchStaff(w http.ResponseWriter, r *http.Request) {
 	if p.PIN != nil && *p.PIN != "" {
 		if len(*p.PIN) < 4 || len(*p.PIN) > 6 || !allDigits(*p.PIN) {
 			httpx.ErrorJSON(w, r, httpx.NewError(400, "invalid_pin", "PIN must be 4-6 digits"))
+			return
+		}
+		if err := s.ensurePINUnique(r.Context(), claims.OrgID, *p.PIN, pathID(r, "id")); err != nil {
+			httpx.ErrorJSON(w, r, err)
 			return
 		}
 		hash, err := s.Auth.HashPIN(*p.PIN)

@@ -186,6 +186,8 @@ class _OrgRegistrationScreenState extends State<OrgRegistrationScreen> {
             controller: _passwordC,
             obscureText: _obscure,
             enabled: !_busy,
+            // Return moves on to the outlet name instead of closing the keyboard.
+            textInputAction: TextInputAction.next,
             decoration: InputDecoration(
               labelText: 'Password (min 8 characters)',
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -240,6 +242,7 @@ class _OrgRegistrationScreenState extends State<OrgRegistrationScreen> {
       controller: c,
       enabled: !_busy,
       keyboardType: keyboard,
+      textInputAction: TextInputAction.next,
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,

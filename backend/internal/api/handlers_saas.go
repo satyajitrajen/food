@@ -404,6 +404,10 @@ func (s *Server) handleSaaSCreateStaff(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorJSON(w, r, err)
 		return
 	}
+	if err := s.ensurePINUnique(r.Context(), c.OrgID, req.PIN, ""); err != nil {
+		httpx.ErrorJSON(w, r, err)
+		return
+	}
 	hash, err := s.Auth.HashPIN(req.PIN)
 	if err != nil {
 		httpx.ErrorJSON(w, r, err)

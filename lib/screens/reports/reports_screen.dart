@@ -84,12 +84,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
   }
 
   void _ensureServerFetch() {
-    final provider = context.read<PosProvider>();
-    final range = _effectiveRange;
-    if (provider.serverRangeReport == null ||
-        provider.rangeReportKey != range) {
-      provider.fetchRangeReport(range);
-    }
+    context.read<PosProvider>().fetchRangeReport(_effectiveRange);
   }
 
   bool _inPeriod(DateTime ts) {
@@ -400,246 +395,312 @@ class _ReportsScreenState extends State<ReportsScreen> {
             _buildFilterBar(),
             const Divider(height: 1, color: AppColors.borderLight),
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Summary Stat Chips
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildStatCard(
-                            'Orders',
-                            '${r.orderCount}',
-                            Icons.receipt_long_outlined,
-                            AppColors.primaryGreen,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _buildStatCard(
-                            'Avg Order Value',
-                            formatInr(r.aov),
-                            Icons.trending_up_outlined,
-                            AppColors.infoBlue,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildStatCard(
-                            r.refunds > 0 ? 'Net sales (after ${formatInr(r.refunds)} refunds)' : 'Net sales',
-                            formatInr(r.netSales),
-                            Icons.currency_rupee_outlined,
-                            AppColors.vegGreen,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _buildStatCard(
-                            'Expenses',
-                            r.typeFiltered ? '—' : formatInr(r.totalExpenses),
-                            Icons.payments_outlined,
-                            AppColors.saffronAmber,
-                            subline: r.typeFiltered ? 'not attributed by order type' : null,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Profit Snapshot Card
-                    Container(
-                      padding: const EdgeInsets.all(22),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF1E1B18), Color(0xFF2E2925)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 12, offset: const Offset(0, 4)),
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'ESTIMATED PROFIT — ${_periodLabel().toUpperCase()}',
-                            style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w800, fontSize: 12, letterSpacing: 0.5),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            r.typeFiltered ? '—' : formatInr(r.estimatedProfit),
-                            style: TextStyle(
-                              color: r.typeFiltered
-                                  ? Colors.white70
-                                  : (r.estimatedProfit >= 0 ? AppColors.brandGreen : const Color(0xFFFF8A80)),
-                              fontWeight: FontWeight.w900,
-                              fontSize: 36,
-                              letterSpacing: -0.5,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            r.typeFiltered
-                                ? 'Expenses are not attributed by order type'
-                                : 'Net sales ${formatInr(r.netSales)} − expenses ${formatInr(r.totalExpenses)}',
-                            style: const TextStyle(color: Colors.white60, fontSize: 12),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Sales By Order Type
-                    _sectionTitle('Sales by Order Type'),
-                    Container(
-                      padding: const EdgeInsets.all(18),
-                      decoration: _cardDecoration(),
-                      child: r.salesByType.isEmpty
-                          ? _emptyText('No completed orders for this selection yet.')
-                          : Column(
-                              children: [
-                                for (final (i, row) in r.salesByType.indexed) ...[
-                                  if (i > 0) const Divider(height: 20, color: AppColors.borderLight),
-                                  _buildProgressRow(
-                                    row.label,
-                                    ratioOf(row.amount),
-                                    amountLabel(row.amount),
-                                    _typeRowColor(row.label),
-                                  ),
-                                ],
-                              ],
-                            ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Payment Modes Breakdown
-                    _sectionTitle('Payment Mode Distribution'),
-                    Container(
-                      padding: const EdgeInsets.all(18),
-                      decoration: _cardDecoration(),
-                      child: r.salesByTender.isEmpty
-                          ? _emptyText('No payments collected for this selection yet.')
-                          : Column(
-                              children: [
-                                for (final (i, row) in r.salesByTender.indexed) ...[
-                                  if (i > 0) const Divider(height: 20, color: AppColors.borderLight),
-                                  _buildProgressRow(
-                                    row.label,
-                                    ratioOf(row.amount),
-                                    amountLabel(row.amount),
-                                    row.label.toLowerCase() == 'cash'
-                                        ? AppColors.vegGreen
-                                        : row.label.toLowerCase() == 'upi'
-                                            ? AppColors.infoBlue
-                                            : AppColors.saffronAmber,
-                                  ),
-                                ],
-                              ],
-                            ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Top Categories (derived from completed order items)
-                    _sectionTitle('Top Performing Categories'),
-                    Container(
-                      padding: const EdgeInsets.all(18),
-                      decoration: _cardDecoration(),
-                      child: r.topCategories.isEmpty
-                          ? _emptyText('No item sales recorded for this selection yet.')
-                          : Column(
-                              children: [
-                                for (final (i, cat) in r.topCategories.indexed) ...[
-                                  if (i > 0) const Divider(height: 16, color: AppColors.borderLight),
-                                  _buildCategoryRow(
-                                    cat.label,
-                                    formatInr(cat.amount),
-                                    plural(cat.count, 'item'),
-                                  ),
-                                ],
-                              ],
-                            ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Top Selling Items (revenue leaders for the selection)
-                    _sectionTitle('Top Selling Items'),
-                    Container(
-                      padding: const EdgeInsets.all(18),
-                      decoration: _cardDecoration(),
-                      child: r.topItems.isEmpty
-                          ? _emptyText('No item sales recorded for this selection yet.')
-                          : Column(
-                              children: [
-                                for (final (i, item) in r.topItems.indexed) ...[
-                                  if (i > 0) const Divider(height: 16, color: AppColors.borderLight),
-                                  _buildCategoryRow(
-                                    item.label,
-                                    formatInr(item.amount),
-                                    '${item.count} Sold',
-                                  ),
-                                ],
-                              ],
-                            ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Sales by Waiter
-                    _sectionTitle('Staff Performance'),
-                    Container(
-                      padding: const EdgeInsets.all(18),
-                      decoration: _cardDecoration(),
-                      child: r.staffSales.isEmpty
-                          ? _emptyText('No completed orders for this selection yet.')
-                          : Column(
-                              children: [
-                                for (final (i, w) in r.staffSales.indexed) ...[
-                                  if (i > 0) const Divider(height: 16, color: AppColors.borderLight),
-                                  _buildCategoryRow(
-                                    w.label,
-                                    formatInr(w.amount),
-                                    plural(w.count, 'order'),
-                                  ),
-                                ],
-                              ],
-                            ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Expenses by Category
-                    _sectionTitle('Expenses by Category'),
-                    Container(
-                      padding: const EdgeInsets.all(18),
-                      decoration: _cardDecoration(),
-                      child: r.expensesByCategory.isEmpty
-                          ? _emptyText('No expenses recorded for this selection yet.')
-                          : Column(
-                              children: [
-                                for (final (i, e) in r.expensesByCategory.indexed) ...[
-                                  if (i > 0) const Divider(height: 20, color: AppColors.borderLight),
-                                  _buildProgressRow(
-                                    e.label,
-                                    r.totalExpenses > 0 ? (e.amount / r.totalExpenses).clamp(0.0, 1.0) : 0.0,
-                                    '${formatInr(e.amount)} (${r.totalExpenses > 0 ? (e.amount / r.totalExpenses * 100).toStringAsFixed(0) : '0'}%)',
-                                    AppColors.saffronAmber,
-                                  ),
-                                ],
-                              ],
-                            ),
-                    ),
-                  ],
-                ),
+              child: LayoutBuilder(
+                builder: (context, c) => c.maxWidth >= _wideBreakpoint
+                    ? _buildWideBody(r, ratioOf, amountLabel)
+                    : _buildNarrowBody(r, ratioOf, amountLabel),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// Tablet landscape and up: filters in one row, KPIs beside the profit
+  /// card, report sections in two columns.
+  static const _wideBreakpoint = 840.0;
+
+  List<Widget> _statCards(ReportSnapshot r) => [
+      _buildStatCard(
+        'Orders',
+        '${r.orderCount}',
+        Icons.receipt_long_outlined,
+        AppColors.primaryGreen,
+      ),
+      _buildStatCard(
+        'Avg Order Value',
+        formatInr(r.aov),
+        Icons.trending_up_outlined,
+        AppColors.infoBlue,
+      ),
+      _buildStatCard(
+        r.refunds > 0 ? 'Net sales (after ${formatInr(r.refunds)} refunds)' : 'Net sales',
+        formatInr(r.netSales),
+        Icons.currency_rupee_outlined,
+        AppColors.vegGreen,
+      ),
+      _buildStatCard(
+        'Expenses',
+        r.typeFiltered ? '—' : formatInr(r.totalExpenses),
+        Icons.payments_outlined,
+        AppColors.saffronAmber,
+        subline: r.typeFiltered ? 'not attributed by order type' : null,
+      ),
+      ];
+
+  Widget _profitCard(ReportSnapshot r) => Container(
+    padding: const EdgeInsets.all(22),
+    decoration: BoxDecoration(
+      gradient: const LinearGradient(
+        colors: [Color(0xFF1E1B18), Color(0xFF2E2925)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
+      borderRadius: BorderRadius.circular(20),
+      boxShadow: [
+        BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 12, offset: const Offset(0, 4)),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'ESTIMATED PROFIT — ${_periodLabel().toUpperCase()}',
+          style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w800, fontSize: 12, letterSpacing: 0.5),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          r.typeFiltered ? '—' : formatInr(r.estimatedProfit),
+          style: TextStyle(
+            color: r.typeFiltered
+                ? Colors.white70
+                : (r.estimatedProfit >= 0 ? AppColors.brandGreen : const Color(0xFFFF8A80)),
+            fontWeight: FontWeight.w900,
+            fontSize: 36,
+            letterSpacing: -0.5,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          r.typeFiltered
+              ? 'Expenses are not attributed by order type'
+              : 'Net sales ${formatInr(r.netSales)} − expenses ${formatInr(r.totalExpenses)}',
+          style: const TextStyle(color: Colors.white60, fontSize: 12),
+        ),
+      ],
+    ),
+  );
+
+  Widget _section(String title, Widget card) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [_sectionTitle(title), card],
+      );
+
+  List<Widget> _sections(
+    ReportSnapshot r,
+    double Function(double) ratioOf,
+    String Function(double) amountLabel,
+  ) =>
+      [
+      _section(
+        'Sales by Order Type',
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: _cardDecoration(),
+          child: r.salesByType.isEmpty
+              ? _emptyText('No completed orders for this selection yet.')
+              : Column(
+                  children: [
+                    for (final (i, row) in r.salesByType.indexed) ...[
+                      if (i > 0) const Divider(height: 20, color: AppColors.borderLight),
+                      _buildProgressRow(
+                        row.label,
+                        ratioOf(row.amount),
+                        amountLabel(row.amount),
+                        _typeRowColor(row.label),
+                      ),
+                    ],
+                  ],
+                ),
+        ),
+      ),
+      _section(
+        'Payment Mode Distribution',
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: _cardDecoration(),
+          child: r.salesByTender.isEmpty
+              ? _emptyText('No payments collected for this selection yet.')
+              : Column(
+                  children: [
+                    for (final (i, row) in r.salesByTender.indexed) ...[
+                      if (i > 0) const Divider(height: 20, color: AppColors.borderLight),
+                      _buildProgressRow(
+                        row.label,
+                        ratioOf(row.amount),
+                        amountLabel(row.amount),
+                        row.label.toLowerCase() == 'cash'
+                            ? AppColors.vegGreen
+                            : row.label.toLowerCase() == 'upi'
+                                ? AppColors.infoBlue
+                                : AppColors.saffronAmber,
+                      ),
+                    ],
+                  ],
+                ),
+        ),
+      ),
+      _section(
+        'Top Performing Categories',
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: _cardDecoration(),
+          child: r.topCategories.isEmpty
+              ? _emptyText('No item sales recorded for this selection yet.')
+              : Column(
+                  children: [
+                    for (final (i, cat) in r.topCategories.indexed) ...[
+                      if (i > 0) const Divider(height: 16, color: AppColors.borderLight),
+                      _buildCategoryRow(
+                        cat.label,
+                        formatInr(cat.amount),
+                        plural(cat.count, 'item'),
+                      ),
+                    ],
+                  ],
+                ),
+        ),
+      ),
+      _section(
+        'Top Selling Items',
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: _cardDecoration(),
+          child: r.topItems.isEmpty
+              ? _emptyText('No item sales recorded for this selection yet.')
+              : Column(
+                  children: [
+                    for (final (i, item) in r.topItems.indexed) ...[
+                      if (i > 0) const Divider(height: 16, color: AppColors.borderLight),
+                      _buildCategoryRow(
+                        item.label,
+                        formatInr(item.amount),
+                        '${item.count} Sold',
+                      ),
+                    ],
+                  ],
+                ),
+        ),
+      ),
+      _section(
+        'Staff Performance',
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: _cardDecoration(),
+          child: r.staffSales.isEmpty
+              ? _emptyText('No completed orders for this selection yet.')
+              : Column(
+                  children: [
+                    for (final (i, w) in r.staffSales.indexed) ...[
+                      if (i > 0) const Divider(height: 16, color: AppColors.borderLight),
+                      _buildCategoryRow(
+                        w.label,
+                        formatInr(w.amount),
+                        plural(w.count, 'order'),
+                      ),
+                    ],
+                  ],
+                ),
+        ),
+      ),
+      _section(
+        'Expenses by Category',
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: _cardDecoration(),
+          child: r.expensesByCategory.isEmpty
+              ? _emptyText('No expenses recorded for this selection yet.')
+              : Column(
+                  children: [
+                    for (final (i, e) in r.expensesByCategory.indexed) ...[
+                      if (i > 0) const Divider(height: 20, color: AppColors.borderLight),
+                      _buildProgressRow(
+                        e.label,
+                        r.totalExpenses > 0 ? (e.amount / r.totalExpenses).clamp(0.0, 1.0) : 0.0,
+                        '${formatInr(e.amount)} (${r.totalExpenses > 0 ? (e.amount / r.totalExpenses * 100).toStringAsFixed(0) : '0'}%)',
+                        AppColors.saffronAmber,
+                      ),
+                    ],
+                  ],
+                ),
+        ),
+      ),
+      ];
+
+  Widget _buildNarrowBody(
+    ReportSnapshot r,
+    double Function(double) ratioOf,
+    String Function(double) amountLabel,
+  ) {
+    final stats = _statCards(r);
+    final sections = _sections(r, ratioOf, amountLabel);
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [Expanded(child: stats[0]), const SizedBox(width: 12), Expanded(child: stats[1])]),
+          const SizedBox(height: 12),
+          Row(children: [Expanded(child: stats[2]), const SizedBox(width: 12), Expanded(child: stats[3])]),
+          const SizedBox(height: 20),
+          _profitCard(r),
+          for (final s in sections) ...[const SizedBox(height: 20), s],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWideBody(
+    ReportSnapshot r,
+    double Function(double) ratioOf,
+    String Function(double) amountLabel,
+  ) {
+    final stats = _statCards(r);
+    final sections = _sections(r, ratioOf, amountLabel);
+    const gap = 16.0;
+    Widget statRow(Widget a, Widget b) => Expanded(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [Expanded(child: a), const SizedBox(width: gap), Expanded(child: b)],
+          ),
+        );
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(flex: 2, child: _profitCard(r)),
+                const SizedBox(width: gap),
+                Expanded(
+                  flex: 3,
+                  child: Column(
+                    children: [
+                      statRow(stats[0], stats[1]),
+                      const SizedBox(height: gap),
+                      statRow(stats[2], stats[3]),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          for (var i = 0; i < sections.length; i += 2) ...[
+            const SizedBox(height: 24),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: sections[i]),
+                const SizedBox(width: gap),
+                Expanded(child: i + 1 < sections.length ? sections[i + 1] : const SizedBox()),
+              ],
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -711,13 +772,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
   }
 
   Widget _buildFilterBar() {
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SingleChildScrollView(
+    final periodChips = SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
@@ -745,9 +800,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   ),
               ],
             ),
-          ),
-          const SizedBox(height: 8),
-          SingleChildScrollView(
+);
+    final typeChips = SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
@@ -768,8 +822,27 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   ),
               ],
             ),
-          ),
-        ],
+          );
+    return Container(
+      width: double.infinity,
+      color: Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: LayoutBuilder(
+        builder: (context, c) => c.maxWidth >= _wideBreakpoint
+            // Wide: date range on the left, order type on the right, one row.
+            ? Row(
+                children: [
+                  Flexible(child: periodChips),
+                  const SizedBox(width: 16),
+                  Container(width: 1, height: 28, color: AppColors.borderLight),
+                  const SizedBox(width: 16),
+                  Flexible(child: typeChips),
+                ],
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [periodChips, const SizedBox(height: 8), typeChips],
+              ),
       ),
     );
   }

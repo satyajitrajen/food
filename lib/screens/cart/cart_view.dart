@@ -373,11 +373,18 @@ class CartViewScreen extends StatelessWidget {
                                         if (order == null) return;
                                         // Replace the cart with the order
                                         // details screen (status + items).
-                                        Navigator.of(context).pushReplacement(
-                                          MaterialPageRoute(
-                                            builder: (_) => RunningOrderDetailScreen(order: order),
-                                          ),
+                                        // Embedded (tablet split view) the cart
+                                        // sits on the app shell: replacing it
+                                        // would drop the shell and the back
+                                        // button, so push on top instead.
+                                        final route = MaterialPageRoute(
+                                          builder: (_) => RunningOrderDetailScreen(order: order),
                                         );
+                                        if (embedded) {
+                                          Navigator.of(context).push(route);
+                                        } else {
+                                          Navigator.of(context).pushReplacement(route);
+                                        }
                                       },
                                       onGoToTables: () {
                                         // Return to the shell so the Tables tab

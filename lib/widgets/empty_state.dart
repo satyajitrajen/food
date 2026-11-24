@@ -9,6 +9,7 @@ class EmptyState extends StatelessWidget {
   final String title;
   final String? message;
   final String? actionLabel;
+  final IconData? actionIcon;
   final VoidCallback? onAction;
   final bool isError;
 
@@ -18,6 +19,7 @@ class EmptyState extends StatelessWidget {
     required this.title,
     this.message,
     this.actionLabel,
+    this.actionIcon,
     this.onAction,
     this.isError = false,
   });
@@ -49,7 +51,7 @@ class EmptyState extends StatelessWidget {
               const SizedBox(height: 16),
               OutlinedButton.icon(
                 onPressed: onAction,
-                icon: Icon(isError ? Icons.refresh : Icons.add, size: 18),
+                icon: Icon(actionIcon ?? (isError ? Icons.refresh : Icons.add), size: 18),
                 label: Text(actionLabel!),
               ),
             ],

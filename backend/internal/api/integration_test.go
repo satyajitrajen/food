@@ -802,14 +802,28 @@ func TestOrderDefaultsFromSettings(t *testing.T) {
 	}
 
 	// Delivery: packaging + delivery defaults apply.
+	// Delivery without a phone/address is refused (nothing to deliver to).
+	for _, bad := range []map[string]any{
+		{"type": "delivery"},
+		{"type": "delivery", "customer_phone": "12", "delivery_address": "12 MG Road, Pune"},
+		{"type": "delivery", "customer_phone": "9876543210", "delivery_address": "MG"},
+		{"type": "delivery", "customer_phone": "9876543210", "delivery_address": "12 MG Road\u202e, Pune"},
+	} {
+		if code, b := e.do(t, "POST", "/api/v1/orders?outlet_id=out-01", bad, true); code != 400 {
+			t.Fatalf("delivery %v: got %d %v, want 400", bad, code, b)
+		}
+	}
 	code, body = e.do(t, "POST", "/api/v1/orders?outlet_id=out-01", map[string]any{
-		"type": "delivery",
+		"type": "delivery", "customer_phone": "98765 43210", "delivery_address": "  12   MG Road,\nPune  ",
 	}, true)
 	if code != 201 {
 		t.Fatalf("delivery create failed: %d %v", code, body)
 	}
 	if got := int64(body["delivery_charge_paise"].(float64)); got != 3000 {
 		t.Fatalf("delivery = %d, want 3000 (from settings)", got)
+	}
+	if body["delivery_address"] != "12 MG Road, Pune" || body["customer_phone"] != "9876543210" {
+		t.Fatalf("delivery fields not cleaned: %v / %v", body["delivery_address"], body["customer_phone"])
 	}
 
 	// Dine-in with an explicit tax_percent: the explicit value wins.

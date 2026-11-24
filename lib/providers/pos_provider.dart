@@ -383,6 +383,11 @@ class PosProvider extends ChangeNotifier {
     } else {
       _kots.insert(0, incoming);
     }
+    // A ticket served/cancelled elsewhere (another device, a replayed event)
+    // must not keep its "ready" banner.
+    if (incoming.status != KOTStatus.ready) {
+      _readyAlerts.removeWhere((k) => k.id == incoming.id);
+    }
     _maybeFireReadyAlert(previous: prevStatus, kot: incoming);
   }
 
@@ -1268,6 +1273,11 @@ class PosProvider extends ChangeNotifier {
     }
     notifyListeners();
   }
+
+  /// Test-only: feeds one realtime (SSE) event through the normal handler.
+  @visibleForTesting
+  void debugApplyRealtimeEvent(String type, Map<String, dynamic> payload) =>
+      _applyRealtimeEvent(type, payload);
 
   /// Test-only: loads a fixed catalog the way a hydrate would. Production
   /// state only ever comes from the server.
@@ -2495,7 +2505,7 @@ class PosProvider extends ChangeNotifier {
     _push('table.patch', {
       'table_id': table.id,
       'guest_count': count,
-      if (waiterId != null) 'waiter_id': waiterId,
+      'waiter_id': ?waiterId,
     });
   }
 
@@ -2594,13 +2604,19 @@ class PosProvider extends ChangeNotifier {
   /// Monotonic counter bumped on every new alert (sound trigger for UI).
   int get readyAlertTick => _readyAlertTick;
 
+  /// Tickets the waiter already dismissed this session: never re-alert them
+  /// (a reconnect or re-delivered event must not bring the banner back).
+  final Set<String> _dismissedReadyIds = {};
+
   void acknowledgeReadyKot(String kotId) {
+    _dismissedReadyIds.add(kotId);
     _readyAlerts.removeWhere((k) => k.id == kotId);
     notifyListeners();
   }
 
   void dismissAllReadyAlerts() {
     if (_readyAlerts.isEmpty) return;
+    _dismissedReadyIds.addAll(_readyAlerts.map((k) => k.id));
     _readyAlerts.clear();
     notifyListeners();
   }
@@ -2624,6 +2640,7 @@ class PosProvider extends ChangeNotifier {
     if (me == null || me.role == StaffRole.kitchen) return;
     if (kot.waiterName != me.name) return;
     if (_readyAlerts.any((k) => k.id == kot.id)) return;
+    if (_dismissedReadyIds.contains(kot.id)) return;
     _readyAlerts.add(kot);
     if (_readyAlerts.length > 20) {
       _readyAlerts.removeRange(0, _readyAlerts.length - 20);
@@ -2706,6 +2723,34 @@ class PosProvider extends ChangeNotifier {
       'item_id': itemId,
       'reason': reason,
       // FR-A3: required server-side when the item's KOT already fired.
+      if (managerPin != null && managerPin.isNotEmpty) 'manager_pin': managerPin,
+    });
+  }
+
+  /// Lowers a line's quantity on an unpaid running order (fixing a mistake
+  /// after the KOT or bill print). Lowering a KOT-sent line needs a manager
+  /// PIN (server-enforced, FR-A3). Paid orders are refunded instead.
+  void reduceItemQuantity({
+    required String orderId,
+    required String itemId,
+    required int quantity,
+    String? managerPin,
+  }) {
+    final order = _orders.where((o) => o.id == orderId).firstOrNull;
+    if (order == null) return;
+    final item = order.items.where((i) => i.id == itemId).firstOrNull;
+    if (item == null || item.isCancelled) return;
+    if (quantity < 1 || quantity >= item.quantity) return;
+    item.quantity = quantity;
+    if (order.tableId != null) {
+      final table = _tables.where((t) => t.id == order.tableId).firstOrNull;
+      if (table != null) table.currentOrderAmount = order.grandTotal;
+    }
+    notifyListeners();
+    _push('item.qty', {
+      'order_id': orderId,
+      'item_id': itemId,
+      'quantity': quantity,
       if (managerPin != null && managerPin.isNotEmpty) 'manager_pin': managerPin,
     });
   }
@@ -3109,13 +3154,14 @@ class PosProvider extends ChangeNotifier {
   DateTimeRange? get rangeReportKey => _rangeReportKey;
   bool get rangeReportLoading => _rangeReportLoading;
 
-  /// Fetches outlet-wide stats for [range]. Cached by range key; no-op when
-  /// offline, non-admin (endpoint is admin-gated) or already loading.
+  /// Fetches outlet-wide stats for [range]. Always refetches: the cached
+  /// report stays on screen while loading, but a same-day key must not pin
+  /// stale numbers (sales made after the first fetch would never appear).
+  /// No-op when offline, non-admin (endpoint is admin-gated) or already loading.
   Future<void> fetchRangeReport(DateTimeRange range) async {
     if (!apiEnabled || _api == null) return;
     if (_currentStaff?.role != StaffRole.admin) return;
     if (_rangeReportLoading) return;
-    if (_rangeReportKey == range && _rangeReport != null) return;
     _rangeReportLoading = true;
     notifyListeners();
     try {

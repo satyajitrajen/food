@@ -120,9 +120,12 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
                 bottom: MediaQuery.of(sheetContext).viewInsets.bottom),
             child: SizedBox(
               height: sheetHeight,
-              child: Container(
-                decoration: const BoxDecoration(
-                  color: Colors.white,
+              // Material (not a decorated Container) so the ListTiles below
+              // paint their tap ripples on it instead of being hidden.
+              child: Material(
+                color: Colors.white,
+                clipBehavior: Clip.antiAlias,
+                shape: const RoundedRectangleBorder(
                   borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
                 ),
                 child: Column(

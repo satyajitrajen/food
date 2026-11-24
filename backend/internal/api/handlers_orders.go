@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"foodpos/backend/internal/auth"
 	"foodpos/backend/internal/httpx"
@@ -219,6 +220,30 @@ func (s *Server) handleCreateOrder(w http.ResponseWriter, r *http.Request) {
 		}
 		if req.TableID != nil && *req.TableID == "" {
 			req.TableID = nil
+		}
+		if req.Type == "delivery" {
+			// A delivery needs someone to call and somewhere to go.
+			phone := ""
+			if req.CustomerPhone != nil {
+				phone = *req.CustomerPhone
+			}
+			norm, ok := normalizePhone(phone)
+			if norm == "" || !ok {
+				return 0, nil, httpx.NewError(400, "invalid_phone", "Delivery orders need a valid customer mobile number")
+			}
+			req.CustomerPhone = &norm
+			raw := ""
+			if req.DeliveryAddress != nil {
+				raw = *req.DeliveryAddress
+			}
+			// Check the raw text: cleanup would silently drop some
+			// invisible characters (e.g. U+0085) instead of refusing them.
+			addr := cleanSingleLine(raw)
+			if n := utf8.RuneCountInString(addr); n < deliveryAddressMin || n > deliveryAddressMax || hasHiddenChars(raw, true) {
+				return 0, nil, httpx.NewError(400, "invalid_address",
+					fmt.Sprintf("Delivery address must be %d–%d characters", deliveryAddressMin, deliveryAddressMax))
+			}
+			req.DeliveryAddress = &addr
 		}
 		if !validPercent(req.TaxPercent, 28) {
 			return 0, nil, httpx.NewError(400, "invalid_tax", "tax_percent must be between 0 and 28")
@@ -581,6 +606,7 @@ func (s *Server) handleCancelOrderItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.afterOrderWrite(r, o)
+	s.publishOrderKOTs(r, o)
 	httpx.JSON(w, http.StatusOK, o)
 }
 
@@ -615,6 +641,7 @@ func (s *Server) handlePatchOrderItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.afterOrderWrite(r, o)
+	s.publishOrderKOTs(r, o)
 	if newItemID != "" {
 		// Qty increase on a fired line added an unsent delta line.
 		httpx.JSON(w, http.StatusOK, addItemResponse{Order: o, ItemID: newItemID})

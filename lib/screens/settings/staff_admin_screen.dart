@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_theme.dart';
@@ -386,6 +387,8 @@ class StaffAdminScreen extends StatelessWidget {
                   TextField(
                     controller: pinC,
                     keyboardType: TextInputType.number,
+                    obscureText: true,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     maxLength: 6,
                     decoration: const InputDecoration(labelText: 'Login PIN (4-6 digits)', counterText: ''),
                   ),

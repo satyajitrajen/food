@@ -211,6 +211,14 @@ class RunningOrderDetailScreen extends StatelessWidget {
                           ],
                         ),
                       ),
+                      // Fix a mistake after the KOT/bill print: allowed until
+                      // the order is paid (a paid bill is refunded instead).
+                      if (!item.isCancelled && !isClosed && currentOrder.paymentSplits.isEmpty && item.quantity > 1)
+                        IconButton(
+                          icon: const Icon(Icons.edit_outlined, size: 18, color: AppColors.textDark),
+                          tooltip: 'Change quantity',
+                          onPressed: () => _changeQuantity(context, provider, currentOrder, item),
+                        ),
                       if (!item.isCancelled && !isClosed)
                         IconButton(
                           icon: const Icon(Icons.cancel_outlined, size: 18, color: AppColors.nonVegRed),
@@ -363,5 +371,72 @@ class RunningOrderDetailScreen extends StatelessWidget {
       backgroundColor: AppColors.success,
     ));
     navigator.maybePop();
+  }
+
+  /// Lowers an item's quantity on an unpaid order. Lowering food the kitchen
+  /// already received needs a manager PIN (same rule as voiding it).
+  Future<void> _changeQuantity(
+      BuildContext context, PosProvider provider, RestaurantOrder order, OrderItem item) async {
+    var qty = item.quantity - 1;
+    final picked = await showDialog<int>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          title: Text('Change quantity — ${item.displayName}'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Currently ${item.quantity}. Choose the correct quantity.',
+                  style: const TextStyle(color: AppColors.textMuted)),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  IconButton.outlined(
+                    tooltip: 'Less',
+                    icon: const Icon(Icons.remove),
+                    onPressed: qty > 1 ? () => setState(() => qty--) : null,
+                  ),
+                  SizedBox(
+                    width: 64,
+                    child: Text('$qty',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800)),
+                  ),
+                  IconButton.outlined(
+                    tooltip: 'More',
+                    icon: const Icon(Icons.add),
+                    onPressed: qty < item.quantity - 1 ? () => setState(() => qty++) : null,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'New line total ${formatInr(item.totalPrice / item.quantity * qty)}',
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 4),
+              const Text('To remove the item completely, use Cancel / Void.',
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.of(ctx).pop(qty), child: const Text('Update')),
+          ],
+        ),
+      ),
+    );
+    if (picked == null || !context.mounted) return;
+    String? pin;
+    if (item.isKOTSent) {
+      pin = await ManagerPinDialog.show(
+        context,
+        title: 'Approve quantity change',
+        description: 'The kitchen already received ${item.quantity} × ${item.displayName}.',
+      );
+      if (pin == null) return;
+    }
+    provider.reduceItemQuantity(orderId: order.id, itemId: item.id, quantity: picked, managerPin: pin);
   }
 }

@@ -24,7 +24,7 @@ void main() {
     await tester.tap(find.text('open'));
     await tester.pumpAndSettle();
     await tester.enterText(
-        find.widgetWithText(TextField, 'Customer mobile'), '9876543210');
+        find.widgetWithText(TextField, 'Customer mobile (10-digit)'), '9876543210');
     await tester.enterText(
         find.widgetWithText(TextField, 'Delivery address'), '12 Main Road');
 
@@ -66,7 +66,7 @@ void main() {
     await tester.tap(find.text('open'));
     await tester.pumpAndSettle();
     await tester.enterText(
-        find.widgetWithText(TextField, 'Customer mobile'), '9876543210');
+        find.widgetWithText(TextField, 'Customer mobile (10-digit)'), '9876543210');
 
     await tester.tap(find.text('Cancel'));
     tester.view.physicalSize = const Size(800, 1200);
@@ -79,5 +79,58 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(result, isNull);
     expect(find.text('Start delivery order'), findsNothing);
+  });
+
+  testWidgets('delivery dialog stays open and returns nothing while invalid',
+      (tester) async {
+    var closed = false;
+    DeliveryDetails? result;
+    await tester.pumpWidget(MaterialApp(
+      home: Builder(
+        builder: (context) => Scaffold(
+          body: Center(
+            child: FilledButton(
+              onPressed: () async {
+                result = await DeliveryDetailsDialog.show(context);
+                closed = true;
+              },
+              child: const Text('open'),
+            ),
+          ),
+        ),
+      ),
+    ));
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    // Empty form: both fields flag an error, nothing is returned.
+    await tester.tap(find.text('Start delivery order'));
+    await tester.pumpAndSettle();
+    expect(find.text('Mobile number is required'), findsOneWidget);
+    expect(find.text('Enter the delivery address'), findsOneWidget);
+
+    // Short number and too-short address are still refused.
+    await tester.enterText(
+        find.widgetWithText(TextField, 'Customer mobile (10-digit)'), '12345');
+    await tester.enterText(
+        find.widgetWithText(TextField, 'Delivery address'), 'MG');
+    await tester.tap(find.text('Start delivery order'));
+    await tester.pumpAndSettle();
+    expect(find.text('Enter a valid 10-digit mobile number'), findsOneWidget);
+    expect(find.text('Use at least 5 characters'), findsOneWidget);
+    expect(closed, isFalse);
+    expect(result, isNull);
+
+    // Fixing the address clears its error as you type; whitespace is cleaned.
+    await tester.enterText(
+        find.widgetWithText(TextField, 'Delivery address'), '  Flat 4,   MG Road ');
+    await tester.pumpAndSettle();
+    expect(find.text('Use at least 5 characters'), findsNothing);
+    await tester.enterText(
+        find.widgetWithText(TextField, 'Customer mobile (10-digit)'), '9876543210');
+    await tester.tap(find.text('Start delivery order'));
+    await tester.pumpAndSettle();
+    expect(closed, isTrue);
+    expect(result?.address, 'Flat 4, MG Road');
   });
 }
