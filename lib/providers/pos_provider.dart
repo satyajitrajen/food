@@ -3109,13 +3109,14 @@ class PosProvider extends ChangeNotifier {
   DateTimeRange? get rangeReportKey => _rangeReportKey;
   bool get rangeReportLoading => _rangeReportLoading;
 
-  /// Fetches outlet-wide stats for [range]. Cached by range key; no-op when
-  /// offline, non-admin (endpoint is admin-gated) or already loading.
+  /// Fetches outlet-wide stats for [range]. Always refetches: the cached
+  /// report stays on screen while loading, but a same-day key must not pin
+  /// stale numbers (sales made after the first fetch would never appear).
+  /// No-op when offline, non-admin (endpoint is admin-gated) or already loading.
   Future<void> fetchRangeReport(DateTimeRange range) async {
     if (!apiEnabled || _api == null) return;
     if (_currentStaff?.role != StaffRole.admin) return;
     if (_rangeReportLoading) return;
-    if (_rangeReportKey == range && _rangeReport != null) return;
     _rangeReportLoading = true;
     notifyListeners();
     try {

@@ -84,12 +84,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
   }
 
   void _ensureServerFetch() {
-    final provider = context.read<PosProvider>();
-    final range = _effectiveRange;
-    if (provider.serverRangeReport == null ||
-        provider.rangeReportKey != range) {
-      provider.fetchRangeReport(range);
-    }
+    context.read<PosProvider>().fetchRangeReport(_effectiveRange);
   }
 
   bool _inPeriod(DateTime ts) {
