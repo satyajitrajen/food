@@ -2727,6 +2727,34 @@ class PosProvider extends ChangeNotifier {
     });
   }
 
+  /// Lowers a line's quantity on an unpaid running order (fixing a mistake
+  /// after the KOT or bill print). Lowering a KOT-sent line needs a manager
+  /// PIN (server-enforced, FR-A3). Paid orders are refunded instead.
+  void reduceItemQuantity({
+    required String orderId,
+    required String itemId,
+    required int quantity,
+    String? managerPin,
+  }) {
+    final order = _orders.where((o) => o.id == orderId).firstOrNull;
+    if (order == null) return;
+    final item = order.items.where((i) => i.id == itemId).firstOrNull;
+    if (item == null || item.isCancelled) return;
+    if (quantity < 1 || quantity >= item.quantity) return;
+    item.quantity = quantity;
+    if (order.tableId != null) {
+      final table = _tables.where((t) => t.id == order.tableId).firstOrNull;
+      if (table != null) table.currentOrderAmount = order.grandTotal;
+    }
+    notifyListeners();
+    _push('item.qty', {
+      'order_id': orderId,
+      'item_id': itemId,
+      'quantity': quantity,
+      if (managerPin != null && managerPin.isNotEmpty) 'manager_pin': managerPin,
+    });
+  }
+
   // Billing & Adjustments
   void applyDiscount({double? percent, double? amount, String? reason, String? managerPin}) {
     if (_activeOrder == null) return;

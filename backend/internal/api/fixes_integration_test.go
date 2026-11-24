@@ -738,3 +738,30 @@ func TestStockDecreaseCannotExceedStock(t *testing.T) {
 		t.Fatalf("missing item: %d", code)
 	}
 }
+
+// Owner request: a mistaken quantity can be fixed after the KOT/bill print
+// until the order is paid. Lowering food the kitchen saw needs a manager PIN;
+// a paid order is refunded instead of edited.
+func TestReduceFiredQtyUntilPaid(t *testing.T) {
+	f := newFixture(t)
+	c := f.cashier(t)
+	f.openShift(t, c)
+	id := f.orderWithItem(t, c, 3)
+	f.must(t, 201, c, "POST", "/api/v1/orders/"+id+"/kot", map[string]any{})
+	o := f.must(t, 200, c, "GET", "/api/v1/orders/"+id, nil)
+	line := o["items"].([]any)[0].(map[string]any)["id"].(string)
+	path := "/api/v1/orders/" + id + "/items/" + line
+
+	if code, body := f.call(c, "PATCH", path, map[string]any{"quantity": 2}, ""); code != 403 || errCode(body) != "manager_pin_required" {
+		t.Fatalf("lower fired qty without PIN: %d %v", code, body)
+	}
+	body := f.must(t, 200, c, "PATCH", path, map[string]any{"quantity": 2, "manager_pin": "9999"})
+	if num(body["grand_total_paise"]) != 20000 {
+		t.Fatalf("total after fix = %v, want 20000", body["grand_total_paise"])
+	}
+
+	f.must(t, 200, c, "POST", "/api/v1/orders/"+id+"/pay", map[string]any{"method": "card"})
+	if code, body := f.call(c, "PATCH", path, map[string]any{"quantity": 1, "manager_pin": "9999"}, ""); code != 409 {
+		t.Fatalf("edit after payment: %d %v", code, body)
+	}
+}
