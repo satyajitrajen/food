@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/app_nav.dart';
 import '../../models/staff_model.dart';
@@ -32,6 +33,38 @@ class MainAdaptiveShell extends StatefulWidget {
 }
 
 class _MainAdaptiveShellState extends State<MainAdaptiveShell> {
+  static const _sidebarCollapsedKey = 'shell.sidebar_collapsed';
+  static const _sidebarWide = 240.0;
+  static const _sidebarNarrow = 72.0;
+
+  /// Large-screen sidebar shrunk to an icon strip; remembered per device.
+  bool _sidebarCollapsed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSidebarPref();
+  }
+
+  Future<void> _loadSidebarPref() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final collapsed = prefs.getBool(_sidebarCollapsedKey) ?? false;
+      if (mounted && collapsed != _sidebarCollapsed) {
+        setState(() => _sidebarCollapsed = collapsed);
+      }
+    } catch (_) {
+      // Preference is a convenience; default to expanded.
+    }
+  }
+
+  void _toggleSidebar() {
+    setState(() => _sidebarCollapsed = !_sidebarCollapsed);
+    SharedPreferences.getInstance()
+        .then((p) => p.setBool(_sidebarCollapsedKey, _sidebarCollapsed))
+        .catchError((_) => false);
+  }
+
   // Primary tabs shown on the mobile bottom bar (subset of navDestinations).
   List<AppDest> _mobileTabs(StaffRole? role) {
     switch (role) {
@@ -278,9 +311,11 @@ class _MainAdaptiveShellState extends State<MainAdaptiveShell> {
           body: SafeArea(
             child: Row(
               children: [
-                // Persistent Left Sidebar
-                Container(
-                  width: 240,
+                // Persistent Left Sidebar (collapsible to an icon strip)
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeOut,
+                  width: _sidebarCollapsed ? _sidebarNarrow : _sidebarWide,
                   decoration: const BoxDecoration(
                     color: Colors.white,
                     border: Border(
@@ -290,146 +325,18 @@ class _MainAdaptiveShellState extends State<MainAdaptiveShell> {
                       ),
                     ),
                   ),
-                  child: Column(
-                    children: [
-                      // Brand Header
-                      Container(
-                        padding: const EdgeInsets.all(20),
-                        alignment: Alignment.centerLeft,
-                        child: Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: AppColors.primaryGreen,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: const Icon(
-                                Icons.restaurant,
-                                color: Colors.white,
-                                size: 20,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'HISHOBKR',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w900,
-                                      fontSize: 16,
-                                      letterSpacing: 1.0,
-                                    ),
-                                  ),
-                                  Text(
-                                    [
-                                      outlet.name,
-                                      outlet.terminal,
-                                    ].where((v) => v.isNotEmpty).join(' · '),
-                                    style: const TextStyle(
-                                      color: AppColors.textMuted,
-                                      fontSize: 11,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Divider(height: 1, color: AppColors.borderLight),
-                      // Navigation List
-                      Expanded(
-                        child: ListView(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 12,
-                          ),
-                          children: [
-                            for (final d in sidebarDests)
-                              _buildSidebarItem(
-                                provider,
-                                destinations.indexOf(d),
-                                index,
-                                d,
-                              ),
-                          ],
-                        ),
-                      ),
-                      // Current Staff Profile & Lock
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: const BoxDecoration(
-                          border: Border(
-                            top: BorderSide(color: AppColors.borderLight),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            InkWell(
-                              customBorder: const CircleBorder(),
-                              onTap: () => Navigator.of(context)
-                                  .push(MaterialPageRoute(builder: (_) => const MyProfileScreen())),
-                              child: CircleAvatar(
-                              radius: 18,
-                              backgroundColor: AppColors.primaryGreenLight,
-                              child: Text(
-                                _initialOf(staffName),
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                  color: AppColors.primaryGreen,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    staffName ?? 'Staff',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                  Text(
-                                    provider.currentStaff?.roleTitle ?? '',
-                                    style: const TextStyle(
-                                      color: AppColors.textMuted,
-                                      fontSize: 11,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.lock_outline,
-                                size: 18,
-                                color: AppColors.textMuted,
-                              ),
-                              tooltip: 'Lock Register',
-                              onPressed: () {
-                                provider.logout();
-                                Navigator.of(context).pushAndRemoveUntil(
-                                  MaterialPageRoute(
-                                    builder: (_) => const PinLoginScreen(),
-                                  ),
-                                  (route) => false,
-                                );
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                  // Lay out by the live width so the animation never overflows.
+                  child: LayoutBuilder(
+                    builder: (context, c) => _buildSidebarContent(
+                      context,
+                      provider,
+                      outlet,
+                      staffName,
+                      sidebarDests,
+                      destinations,
+                      index,
+                      compact: c.maxWidth < 180,
+                    ),
                   ),
                 ),
 
@@ -445,13 +352,197 @@ class _MainAdaptiveShellState extends State<MainAdaptiveShell> {
     );
   }
 
+  void _lockRegister(BuildContext context, PosProvider provider) {
+    provider.logout();
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const PinLoginScreen()),
+      (route) => false,
+    );
+  }
+
+  Widget _buildSidebarContent(
+    BuildContext context,
+    PosProvider provider,
+    Outlet outlet,
+    String? staffName,
+    List<AppDest> sidebarDests,
+    List<AppDest> destinations,
+    int index, {
+    required bool compact,
+  }) {
+    final toggle = IconButton(
+      tooltip: _sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar',
+      icon: Icon(
+        _sidebarCollapsed ? Icons.keyboard_double_arrow_right : Icons.keyboard_double_arrow_left,
+        size: 20,
+        color: AppColors.textMuted,
+      ),
+      onPressed: _toggleSidebar,
+    );
+    final avatar = InkWell(
+      customBorder: const CircleBorder(),
+      onTap: () => Navigator.of(context)
+          .push(MaterialPageRoute(builder: (_) => const MyProfileScreen())),
+      child: CircleAvatar(
+        radius: 18,
+        backgroundColor: AppColors.primaryGreenLight,
+        child: Text(
+          _initialOf(staffName),
+          style: const TextStyle(
+            fontWeight: FontWeight.w800,
+            color: AppColors.primaryGreen,
+            fontSize: 13,
+          ),
+        ),
+      ),
+    );
+    final lock = IconButton(
+      icon: const Icon(Icons.lock_outline, size: 18, color: AppColors.textMuted),
+      tooltip: 'Lock Register',
+      onPressed: () => _lockRegister(context, provider),
+    );
+
+    return Column(
+      children: [
+        // Brand header — full wordmark + outlet / terminal, or just the toggle.
+        if (compact)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: toggle,
+          )
+        else
+          Container(
+            padding: const EdgeInsets.fromLTRB(16, 16, 4, 12),
+            alignment: Alignment.centerLeft,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.asset(
+                          'assets/logo.png',
+                          height: 40,
+                          width: double.infinity,
+                          fit: BoxFit.contain,
+                          alignment: Alignment.centerLeft,
+                          errorBuilder: (_, __, ___) => const Text(
+                            'HISHOBKR',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 16,
+                              letterSpacing: 1.0,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        [outlet.name, outlet.terminal].where((v) => v.isNotEmpty).join(' · '),
+                        style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                toggle,
+              ],
+            ),
+          ),
+        const Divider(height: 1, color: AppColors.borderLight),
+        Expanded(
+          child: ListView(
+            padding: EdgeInsets.symmetric(horizontal: compact ? 8 : 10, vertical: 12),
+            children: [
+              for (final d in sidebarDests)
+                _buildSidebarItem(provider, destinations.indexOf(d), index, d, compact: compact),
+            ],
+          ),
+        ),
+        // Current staff profile & lock
+        Container(
+          padding: EdgeInsets.all(compact ? 8 : 16),
+          decoration: const BoxDecoration(
+            border: Border(top: BorderSide(color: AppColors.borderLight)),
+          ),
+          child: compact
+              ? Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Tooltip(message: staffName ?? 'Staff', child: avatar),
+                    const SizedBox(height: 4),
+                    lock,
+                  ],
+                )
+              : Row(
+                  children: [
+                    avatar,
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            staffName ?? 'Staff',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                          ),
+                          Text(
+                            provider.currentStaff?.roleTitle ?? '',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ),
+                    lock,
+                  ],
+                ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildSidebarItem(
     PosProvider provider,
     int destIndex,
     int currentIndex,
-    AppDest dest,
-  ) {
+    AppDest dest, {
+    bool compact = false,
+  }) {
     final isSelected = currentIndex == destIndex;
+    if (compact) {
+      return Tooltip(
+        message: dest.label,
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 4),
+          decoration: BoxDecoration(
+            color: isSelected ? AppColors.primaryGreenLight : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () => provider.goToDest(dest),
+            child: SizedBox(
+              height: 44,
+              child: Center(
+                child: Icon(
+                  _iconFor(dest),
+                  color: isSelected ? AppColors.primaryGreen : AppColors.textDark,
+                  size: 20,
+                  semanticLabel: dest.label,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     return Container(
       margin: const EdgeInsets.only(bottom: 4),
       decoration: BoxDecoration(
