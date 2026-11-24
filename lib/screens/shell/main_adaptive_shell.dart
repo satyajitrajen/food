@@ -428,7 +428,7 @@ class _MainAdaptiveShellState extends State<MainAdaptiveShell> {
                           width: double.infinity,
                           fit: BoxFit.contain,
                           alignment: Alignment.centerLeft,
-                          errorBuilder: (_, __, ___) => const Text(
+                          errorBuilder: (_, _, _) => const Text(
                             'HISHOBKR',
                             style: TextStyle(
                               fontWeight: FontWeight.w900,
