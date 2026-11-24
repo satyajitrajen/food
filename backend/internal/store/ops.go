@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"math"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -472,15 +473,25 @@ func (s *Store) AdjustStock(ctx context.Context, outletID, itemID string, delta 
 	}
 	var item *models.InventoryItem
 	err := s.withTx(ctx, func(tx *sql.Tx) error {
-		// Relative, clamped update: concurrent adjustments compose instead of
-		// overwriting each other (read-modify-write lost updates).
-		res, err := tx.ExecContext(ctx, `UPDATE inventory_items SET stock = GREATEST(0, stock + ?) WHERE id = ? AND outlet_id = ? AND is_deleted = 0`,
-			delta, itemID, outletID)
+		// Relative update: concurrent adjustments compose instead of
+		// overwriting each other (read-modify-write lost updates). A decrease
+		// larger than the stock is rejected rather than clamped, so the
+		// logged delta always equals the real change (audit trail).
+		res, err := tx.ExecContext(ctx, `UPDATE inventory_items SET stock = stock + ? WHERE id = ? AND outlet_id = ? AND is_deleted = 0 AND stock + ? >= 0`,
+			delta, itemID, outletID, delta)
 		if err != nil {
 			return err
 		}
 		if n, _ := res.RowsAffected(); n == 0 {
-			return httpx.ErrNotFound
+			var exists int
+			if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM inventory_items WHERE id = ? AND outlet_id = ? AND is_deleted = 0`,
+				itemID, outletID).Scan(&exists); err != nil {
+				return err
+			}
+			if exists == 0 {
+				return httpx.ErrNotFound
+			}
+			return httpx.NewError(http.StatusConflict, "insufficient_stock", "Cannot remove more than the available stock")
 		}
 		if _, err := tx.ExecContext(ctx, `INSERT INTO stock_adjustments (id, item_id, delta, reason, staff_id, staff_name, ts)
 			VALUES (?, ?, ?, ?, ?, ?, ?)`, NewID("sa"), itemID, delta, reason, staffID, staffName, TimeStr(Now())); err != nil {

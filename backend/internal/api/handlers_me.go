@@ -117,6 +117,10 @@ func (s *Server) handleChangeMyPIN(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.pinLockout().Success(lockKey)
+	if err := s.ensurePINUnique(r.Context(), claims.OrgID, req.NewPIN, claims.ActorID); err != nil {
+		httpx.ErrorJSON(w, r, err)
+		return
+	}
 	hash, err := s.Auth.HashPIN(req.NewPIN)
 	if err != nil {
 		httpx.ErrorJSON(w, r, err)

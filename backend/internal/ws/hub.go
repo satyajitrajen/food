@@ -148,10 +148,15 @@ func (h *Hub) Handler() http.HandlerFunc {
 		w.Header().Set("Cache-Control", "no-cache")
 		w.Header().Set("Connection", "keep-alive")
 
+		// Replay only for a reconnect (the client names its last event). A
+		// fresh connection loads current state over REST; replaying the whole
+		// history there re-applied stale events (an old "KOT ready" undid a
+		// later "served" and re-fired the waiter's ready alert).
 		var last uint64
+		replay := false
 		if raw := q.Get("last_event_id"); raw != "" {
 			if n, err := strconv.ParseUint(raw, 10, 64); err == nil {
-				last = n
+				last, replay = n, true
 			}
 		}
 
@@ -160,8 +165,10 @@ func (h *Hub) Handler() http.HandlerFunc {
 		slog.Info("ws client connected", "outlet", outletID, "staff", claims.ActorID, "last_event_id", last)
 
 		// Replay everything newer than the client's last id before going live.
-		for _, evt := range h.recentSince(outletID, last) {
-			writeSSE(w, evt)
+		if replay {
+			for _, evt := range h.recentSince(outletID, last) {
+				writeSSE(w, evt)
+			}
 		}
 		// Initial comment so clients detect the stream opened.
 		_, _ = w.Write([]byte(": connected\n\n"))

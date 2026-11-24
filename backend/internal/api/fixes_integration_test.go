@@ -682,3 +682,59 @@ func TestKOTLineCarriesNote(t *testing.T) {
 		t.Fatalf("modifiers should be an empty list, got %v", line["modifiers"])
 	}
 }
+
+// Manager approval matches on PIN alone, so two staff in one org must never
+// share a PIN: a cashier with the owner's PIN could otherwise approve refunds.
+func TestStaffPINMustBeUniqueInOrg(t *testing.T) {
+	f := newFixture(t)
+	adm := f.admin(t)
+	// 9999 is the seeded manager's PIN.
+	code, body := f.call(adm, "POST", "/api/v1/staff?outlet_id="+f.outlet,
+		map[string]any{"name": "Dup Cashier", "role": "cashier", "pin": "9999"}, "")
+	if code != 409 || errCode(body) != "pin_taken" {
+		t.Fatalf("create with taken PIN: %d %v", code, body)
+	}
+	if code, body := f.call(adm, "PATCH", "/api/v1/staff/"+f.waiterA,
+		map[string]any{"pin": "0000"}, ""); code != 409 || errCode(body) != "pin_taken" {
+		t.Fatalf("patch to taken PIN: %d %v", code, body)
+	}
+	// Re-setting a staff member's own current PIN is not a clash.
+	f.must(t, 200, adm, "PATCH", "/api/v1/staff/st-02", map[string]any{"pin": "9999"})
+	// A fresh PIN is fine.
+	out := f.must(t, 201, adm, "POST", "/api/v1/staff?outlet_id="+f.outlet,
+		map[string]any{"name": "New Cashier", "role": "cashier", "pin": "583921"})
+	if id, _ := out["id"].(string); id != "" {
+		t.Cleanup(func() { _, _ = f.e.st.DB.Exec(`DELETE FROM staff WHERE id = ?`, id) })
+	}
+}
+
+// A decrease larger than the stock is rejected instead of clamped, so the
+// stock log never records more than was actually removed.
+func TestStockDecreaseCannotExceedStock(t *testing.T) {
+	f := newFixture(t)
+	mgr := f.manager(t)
+	inv := f.must(t, 201, mgr, "POST", "/api/v1/inventory?outlet_id="+f.outlet,
+		map[string]any{"name": "Paneer", "unit": "KG", "stock": 5, "min_stock": 2})
+	id := inv["id"].(string)
+	path := "/api/v1/inventory/" + id + "/adjust?outlet_id=" + f.outlet
+	code, body := f.call(mgr, "POST", path, map[string]any{"delta": -10, "reason": "Wastage / Spoiled"}, "")
+	if code != 409 || errCode(body) != "insufficient_stock" {
+		t.Fatalf("over-decrease: %d %v", code, body)
+	}
+	var stock float64
+	var logged int
+	_ = f.e.st.DB.QueryRow(`SELECT stock FROM inventory_items WHERE id = ?`, id).Scan(&stock)
+	_ = f.e.st.DB.QueryRow(`SELECT COUNT(*) FROM stock_adjustments WHERE item_id = ?`, id).Scan(&logged)
+	if stock != 5 || logged != 0 {
+		t.Fatalf("rejected adjust changed state: stock=%v log rows=%d", stock, logged)
+	}
+	// Removing exactly the stock is allowed and logged as-is.
+	out := f.must(t, 200, mgr, "POST", path, map[string]any{"delta": -5, "reason": "Wastage / Spoiled"})
+	if out["stock"].(float64) != 0 {
+		t.Fatalf("stock after exact decrease: %v", out["stock"])
+	}
+	if code, _ := f.call(mgr, "POST", "/api/v1/inventory/nope/adjust?outlet_id="+f.outlet,
+		map[string]any{"delta": -1, "reason": "r"}, ""); code != 404 {
+		t.Fatalf("missing item: %d", code)
+	}
+}
