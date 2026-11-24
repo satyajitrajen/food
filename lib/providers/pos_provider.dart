@@ -2495,7 +2495,7 @@ class PosProvider extends ChangeNotifier {
     _push('table.patch', {
       'table_id': table.id,
       'guest_count': count,
-      if (waiterId != null) 'waiter_id': waiterId,
+      'waiter_id': ?waiterId,
     });
   }
 

@@ -12,6 +12,7 @@ import '../../models/menu_model.dart';
 import '../../providers/pos_provider.dart';
 import '../../widgets/confirm_dialog.dart';
 import '../../widgets/dialog_controller_scope.dart';
+import '../../widgets/empty_state.dart';
 
 /// W2 (FR-M1/M2): menu management for managers/admins — add/edit/delete items,
 /// availability toggle, photo upload, and full variant/modifier-group (add-on)
@@ -53,7 +54,17 @@ class MenuAdminScreen extends StatelessWidget {
                 ),
               ),
             Expanded(
-              child: ListView.builder(
+              child: provider.menuItems.isEmpty
+                  ? EmptyState(
+                      icon: Icons.restaurant_menu,
+                      title: 'No menu items yet',
+                      message: canManage
+                          ? 'Add your first dish with its category and price. It shows up in POS straight away.'
+                          : 'Ask a manager to add menu items.',
+                      actionLabel: canManage ? 'Add item' : null,
+                      onAction: canManage ? () => _showEditDialog(context) : null,
+                    )
+                  : ListView.builder(
                 padding: const EdgeInsets.all(12),
                 itemCount: provider.menuItems.length,
                 itemBuilder: (context, i) {
@@ -332,6 +343,11 @@ class MenuAdminScreen extends StatelessWidget {
                       controller: nameC,
                       textCapitalization: TextCapitalization.words,
                       decoration: InputDecoration(labelText: 'Name', errorText: nameErr),
+                      onChanged: (v) {
+                        if (nameErr != null) {
+                          setDialogState(() => nameErr = v.trim().isEmpty ? 'Enter the dish name' : null);
+                        }
+                      },
                     ),
                     const SizedBox(height: 10),
                     TextField(
@@ -342,7 +358,11 @@ class MenuAdminScreen extends StatelessWidget {
                         hintText: 'e.g. Starters',
                         errorText: categoryErr,
                       ),
-                      onChanged: (_) => setDialogState(() {}),
+                      onChanged: (v) => setDialogState(() {
+                        if (categoryErr != null) {
+                          categoryErr = v.trim().isEmpty ? 'Pick or type a category' : null;
+                        }
+                      }),
                     ),
                     if (categories.isNotEmpty)
                       Padding(
@@ -355,7 +375,10 @@ class MenuAdminScreen extends StatelessWidget {
                               ChoiceChip(
                                 label: Text(c),
                                 selected: categoryC.text.trim() == c,
-                                onSelected: (_) => setDialogState(() => categoryC.text = c),
+                                onSelected: (_) => setDialogState(() {
+                                  categoryC.text = c;
+                                  categoryErr = null;
+                                }),
                               ),
                           ],
                         ),
@@ -365,6 +388,12 @@ class MenuAdminScreen extends StatelessWidget {
                       controller: priceC,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       decoration: InputDecoration(labelText: 'Base price', prefixText: '₹ ', errorText: priceErr),
+                      onChanged: (v) {
+                        if (priceErr != null) {
+                          setDialogState(() =>
+                              priceErr = (double.tryParse(v.trim()) ?? 0) <= 0 ? 'Enter a price above ₹0' : null);
+                        }
+                      },
                     ),
                     const SizedBox(height: 10),
                     TextField(

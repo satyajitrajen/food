@@ -249,6 +249,10 @@ class _GuestDetailsDialogState extends State<GuestDetailsDialog> {
                   prefixIcon: const Icon(Icons.phone_outlined, size: 18),
                   errorText: _phoneError,
                 ),
+                // Once shown, the error tracks the field as it is edited.
+                onChanged: (v) {
+                  if (_phoneError != null) setState(() => _phoneError = validateMobile(v));
+                },
               ),
               if (provider.customers.isNotEmpty) ...[
                 Align(

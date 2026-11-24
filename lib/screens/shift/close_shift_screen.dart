@@ -136,6 +136,11 @@ class _CloseShiftScreenState extends State<CloseShiftScreen> {
                 _line('Refunds', formatInr(shift.refundsCash + shift.refundsDigital)),
                 _line('Cash expenses', formatInr(shift.expenses)),
                 const Divider(),
+                // Every drawer movement, so the lines add up to Expected cash.
+                _line('Opening cash', formatInr(shift.openingCash)),
+                if (shift.cashIn > 0) _line('Cash in', formatInr(shift.cashIn)),
+                if (shift.cashOut > 0) _line('Cash out', '−${formatInr(shift.cashOut)}'),
+                if (shift.refundsCash > 0) _line('Cash refunds', '−${formatInr(shift.refundsCash)}'),
                 _line('Expected cash', formatInr(expected)),
                 _line('Counted cash', formatInr(counted)),
                 _line('Difference', formatInr(counted - expected),

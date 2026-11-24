@@ -185,6 +185,7 @@ class TableSelectionScreen extends StatelessWidget {
                                 : 'Ask a manager to add tables. Takeaway orders work from the POS tab.')
                           : null,
                       actionLabel: provider.tables.isEmpty ? 'Refresh' : null,
+                      actionIcon: Icons.refresh,
                       onAction: provider.tables.isEmpty
                           ? provider.triggerSync
                           : null,

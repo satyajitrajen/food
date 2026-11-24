@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/format.dart';
+import '../../core/validation.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/order_model.dart';
 import '../../core/media.dart';
@@ -647,6 +648,8 @@ class DeliveryDetailsDialog extends StatefulWidget {
 class _DeliveryDetailsDialogState extends State<DeliveryDetailsDialog> {
   final _phone = TextEditingController();
   final _address = TextEditingController();
+  String? _phoneError;
+  String? _addressError;
 
   @override
   void dispose() {
@@ -665,23 +668,45 @@ class _DeliveryDetailsDialogState extends State<DeliveryDetailsDialog> {
           TextField(
             controller: _phone,
             keyboardType: TextInputType.phone,
-            decoration: const InputDecoration(labelText: 'Customer mobile'),
+            decoration: InputDecoration(
+              labelText: 'Customer mobile (10-digit)',
+              errorText: _phoneError,
+            ),
+            onChanged: (v) {
+              if (_phoneError != null) setState(() => _phoneError = validateMobile(v, required: true));
+            },
           ),
           const SizedBox(height: 10),
           TextField(
             controller: _address,
             maxLines: 2,
-            decoration: const InputDecoration(labelText: 'Delivery address'),
+            textCapitalization: TextCapitalization.words,
+            decoration: InputDecoration(
+              labelText: 'Delivery address',
+              helperText: '$deliveryAddressMin–$deliveryAddressMax characters',
+              errorText: _addressError,
+              counterText: '${cleanSingleLine(_address.text).runes.length} / $deliveryAddressMax',
+            ),
+            onChanged: (v) => setState(() {
+              if (_addressError != null) _addressError = validateDeliveryAddress(v);
+            }),
           ),
         ],
       ),
       actions: [
         TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
         FilledButton(
-          onPressed: () => Navigator.of(context).pop(DeliveryDetails(
-            phone: _phone.text.trim().isEmpty ? null : _phone.text.trim(),
-            address: _address.text.trim().isEmpty ? null : _address.text.trim(),
-          )),
+          onPressed: () {
+            setState(() {
+              _phoneError = validateMobile(_phone.text, required: true);
+              _addressError = validateDeliveryAddress(_address.text);
+            });
+            if (_phoneError != null || _addressError != null) return;
+            Navigator.of(context).pop(DeliveryDetails(
+              phone: _phone.text.trim(),
+              address: cleanSingleLine(_address.text),
+            ));
+          },
           child: const Text('Start delivery order'),
         ),
       ],

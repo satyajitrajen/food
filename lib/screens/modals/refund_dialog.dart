@@ -125,6 +125,9 @@ class _RefundDialogState extends State<RefundDialog> {
               TextField(
                 controller: _amountController,
                 keyboardType: TextInputType.number,
+                // The iPhone number pad has no Done key: tapping anywhere
+                // else closes it so the confirm button is reachable.
+                onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
                 enabled: !_isFullRefund,
                 style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
                 decoration: const InputDecoration(

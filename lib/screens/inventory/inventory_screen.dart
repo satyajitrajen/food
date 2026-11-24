@@ -44,7 +44,10 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
   void _showAdjustStockDialog(BuildContext context, InventoryItem item, PosProvider provider) {
     final qtyCtrl = TextEditingController();
     bool isIncrease = true;
-    String reason = 'Purchase Arrival';
+    const increaseReasons = ['Purchase Arrival', 'Manual Audit Correction'];
+    const decreaseReasons = ['Wastage / Spoiled', 'Damage', 'Staff Consumption', 'Manual Audit Correction'];
+    String reason = increaseReasons.first;
+    String? qtyError;
 
     showDialog(
       context: context,
@@ -68,7 +71,11 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
                           selected: isIncrease,
                           selectedColor: AppColors.vegGreen,
                           labelStyle: TextStyle(color: isIncrease ? Colors.white : AppColors.textDark, fontWeight: FontWeight.w700),
-                          onSelected: (_) => setDialogState(() => isIncrease = true),
+                          onSelected: (_) => setDialogState(() {
+                            isIncrease = true;
+                            qtyError = null;
+                            if (!increaseReasons.contains(reason)) reason = increaseReasons.first;
+                          }),
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -78,7 +85,10 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
                           selected: !isIncrease,
                           selectedColor: AppColors.nonVegRed,
                           labelStyle: TextStyle(color: !isIncrease ? Colors.white : AppColors.textDark, fontWeight: FontWeight.w700),
-                          onSelected: (_) => setDialogState(() => isIncrease = false),
+                          onSelected: (_) => setDialogState(() {
+                            isIncrease = false;
+                            if (!decreaseReasons.contains(reason)) reason = decreaseReasons.first;
+                          }),
                         ),
                       ),
                     ],
@@ -87,14 +97,17 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
                   TextField(
                     controller: qtyCtrl,
                     keyboardType: TextInputType.number,
-                    decoration: InputDecoration(labelText: 'Quantity (${item.unit})'),
+                    decoration: InputDecoration(labelText: 'Quantity (${item.unit})', errorText: qtyError),
+                    onChanged: (_) {
+                      if (qtyError != null) setDialogState(() => qtyError = null);
+                    },
                   ),
                   const SizedBox(height: 12),
                   const Text('Reason:'),
                   DropdownButton<String>(
                     value: reason,
                     isExpanded: true,
-                    items: ['Purchase Arrival', 'Wastage / Spoiled', 'Damage', 'Staff Consumption', 'Manual Audit Correction']
+                    items: (isIncrease ? increaseReasons : decreaseReasons)
                         .map((r) => DropdownMenuItem(value: r, child: Text(r)))
                         .toList(),
                     onChanged: (v) => setDialogState(() => reason = v!),
@@ -108,13 +121,21 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
             ElevatedButton(
               onPressed: () async {
                 final qty = double.tryParse(qtyCtrl.text) ?? 0.0;
-                if (qty <= 0) return;
+                if (qty <= 0) {
+                  setDialogState(() => qtyError = 'Enter a quantity above 0');
+                  return;
+                }
+                if (!isIncrease && qty > item.availableStock) {
+                  setDialogState(() => qtyError =
+                      'Only ${item.availableStock} ${item.unit} in stock — cannot remove more than that');
+                  return;
+                }
                 final ok = await showConfirmDialog(
                   context,
                   title: isIncrease ? 'Increase stock?' : 'Decrease stock?',
                   message: isIncrease
                       ? 'Add $qty ${item.unit} to ${item.name} ($reason)?'
-                      : 'Remove $qty ${item.unit} from ${item.name} ($reason)? Decreases can wipe stock and cannot be undone.',
+                      : 'Remove $qty ${item.unit} from ${item.name} ($reason)? This cannot be undone.',
                   confirmLabel: 'Confirm Adjustment',
                 );
                 if (!ok || !context.mounted) return;
@@ -1003,6 +1024,8 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
     DateTime purchasedAt = DateTime.now();
     showDialog(
       context: context,
+      // Typed values would be lost on a stray tap outside; close via Cancel.
+      barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
           title: const Text('Add Inventory Item'),

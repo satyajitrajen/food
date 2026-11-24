@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/api/api_client.dart';
@@ -102,12 +103,15 @@ class _OrgSetupScreenState extends State<OrgSetupScreen> {
                     textCapitalization: TextCapitalization.characters,
                     autocorrect: false,
                     enabled: !_busy,
+                    maxLength: 20,
+                    inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9-]'))],
                     decoration: InputDecoration(
                       labelText: 'Organization code',
                       hintText: 'e.g. ABCD-1234',
                       prefixIcon: const Icon(Icons.business_outlined, size: 20),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       errorText: _error,
+                      counterText: '',
                     ),
                     onSubmitted: (_) => _continue(),
                   ),
