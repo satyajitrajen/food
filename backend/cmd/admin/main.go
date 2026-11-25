@@ -150,6 +150,7 @@ flags: -days N -method bank|upi|razorpay -amount <paise> -ref "" -note ""
 provisioning:
   create-org  -name -email -owner -password -outlet -pin [-terminal] [-gstin] [-plan]
   import-menu -outlet <id> -csv <file> [-replace]
+  import-orders -outlet <id> -xlsx <file> [-map aliases.txt] [-type takeaway] [-include-duplicates] [-apply]
   move-outlet -outlet <id> -to-org <org_id>`)
 }
 

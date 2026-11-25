@@ -6,6 +6,7 @@ package main
 //	                     -password '…' -outlet "Balawadi" [-terminal POS-01] [-pin 4821] [-gstin …] [-plan pro]
 //	cmd/admin import-menu -outlet <outlet_id> -csv assets/green_candle_menu.csv [-replace]
 //	cmd/admin move-outlet -outlet <outlet_id> -to-org <org_id>
+//	cmd/admin import-orders -outlet <outlet_id> -xlsx Order_Report.xlsx [-map aliases.txt] [-type takeaway] [-apply]
 
 import (
 	"bufio"
@@ -38,6 +39,8 @@ func runTenantCommand(ctx context.Context, st *store.Store, cfg config.Config, c
 		setPIN(ctx, st, cfg, args)
 	case "add-outlet":
 		addOutlet(ctx, st, args)
+	case "import-orders":
+		importOrders(ctx, st, args)
 	default:
 		return false
 	}
